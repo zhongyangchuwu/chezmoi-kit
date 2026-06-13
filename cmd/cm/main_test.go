@@ -94,6 +94,37 @@ func TestRunMutatingWrappersForwardToChezmoi(t *testing.T) {
 	}
 }
 
+func TestRunVersionPrintsBuildInfo(t *testing.T) {
+	service := &fakeService{}
+	var out bytes.Buffer
+
+	code := run([]string{"version"}, service, strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0", code)
+	}
+	got := out.String()
+	for _, want := range []string{"cm:", "go:"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output %q does not contain %q", got, want)
+		}
+	}
+}
+
+func TestRunCompletionPrintsShellScript(t *testing.T) {
+	service := &fakeService{}
+	var out bytes.Buffer
+
+	code := run([]string{"completion", "bash"}, service, strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "cm") {
+		t.Fatalf("completion output = %q, want generated script", out.String())
+	}
+}
+
 type fakeService struct {
 	entries     []chezmoi.StatusEntry
 	statusCalls int

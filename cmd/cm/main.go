@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/spf13/cobra"
+	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/reconcile"
 	"github.com/zhongyangchuwu/cm/internal/ui"
@@ -28,40 +30,113 @@ func main() {
 }
 
 func run(args []string, svc service, stdin io.Reader, stdout, stderr io.Writer) int {
-	command := "status"
-	commandArgs := args
-	if len(args) > 0 {
-		command = args[0]
-		commandArgs = args[1:]
-	}
-
-	var err error
-	switch command {
-	case "status":
-		err = renderStatus(stdout, svc, commandArgs)
-	case "diff":
-		err = svc.Diff(commandArgs)
-	case "add":
-		err = svc.AddTargets(commandArgs)
-	case "apply":
-		err = svc.ApplyTargets(commandArgs)
-	case "merge":
-		err = svc.MergeTargets(commandArgs)
-	case "sync":
-		err = ui.RunSync(svc, commandArgs, stdin, stdout)
-	case "help", "-h", "--help":
-		renderUsage(stdout)
-		return 0
-	default:
-		fmt.Fprintf(stderr, "unknown command %q\n", command)
-		renderUsage(stderr)
-		return 2
-	}
-	if err != nil {
+	cmd := newRootCommand(svc, stdin, stdout, stderr)
+	cmd.SetArgs(args)
+	if err := cmd.Execute(); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0
+}
+
+func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+	info := build.Current()
+	root := &cobra.Command{
+		Use:           "cm",
+		Short:         "Chezmoi reconciliation manager",
+		Version:       info.FormatShort("cm"),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return renderStatus(stdout, svc, args)
+		},
+	}
+	root.SetIn(stdin)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "status [target...]",
+		Short: "Show chezmoi reconciliation status",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return renderStatus(stdout, svc, args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "diff [target...]",
+		Short: "Show chezmoi diff",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return svc.Diff(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "sync [target...]",
+		Short: "Interactively reconcile chezmoi changes",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return ui.RunSync(svc, args, stdin, stdout)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "add [target...]",
+		Short: "Accept local files into chezmoi source state",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return svc.AddTargets(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "apply [target...]",
+		Short: "Apply chezmoi target state locally",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return svc.ApplyTargets(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "merge [target...]",
+		Short: "Open chezmoi merge for targets",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return svc.MergeTargets(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print build version information",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, err := fmt.Fprint(stdout, info.FormatDetailed("cm"))
+			return err
+		},
+	})
+	root.AddCommand(newCompletionCommand(root, stdout))
+	return root
+}
+
+func newCompletionCommand(root *cobra.Command, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "completion [bash|zsh|fish|powershell]",
+		Short: "Generate shell completion script",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return root.GenBashCompletion(stdout)
+			case "zsh":
+				return root.GenZshCompletion(stdout)
+			case "fish":
+				return root.GenFishCompletion(stdout, true)
+			case "powershell":
+				return root.GenPowerShellCompletion(stdout)
+			default:
+				return fmt.Errorf("unsupported shell %q", args[0])
+			}
+		},
+	}
 }
 
 func renderStatus(w io.Writer, svc service, targets []string) error {
@@ -81,10 +156,6 @@ func renderStatus(w io.Writer, svc service, targets []string) error {
 		}
 	}
 	return nil
-}
-
-func renderUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: cm [status|diff|sync|add|apply|merge] [target...]")
 }
 
 type chezmoiService struct {
