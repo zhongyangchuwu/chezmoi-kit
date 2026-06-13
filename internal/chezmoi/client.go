@@ -31,8 +31,8 @@ type Client struct {
 }
 
 func (c Client) Status(targets []string) ([]StatusEntry, error) {
-	args := make([]string, 0, 1+len(targets))
-	args = append(args, "status")
+	args := make([]string, 0, 2+len(targets))
+	args = append(args, "status", "--path-style=absolute")
 	args = append(args, targets...)
 
 	out, err := c.Output(args...)

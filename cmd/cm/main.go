@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/zhongyangchuwu/cm/internal/build"
@@ -14,6 +17,7 @@ import (
 
 type service interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
+	SourceStatus() ([]sourceEntry, error)
 	Diff(targets []string) error
 	Add(target string) error
 	Apply(target string) error
@@ -21,6 +25,11 @@ type service interface {
 	AddTargets(targets []string) error
 	ApplyTargets(targets []string) error
 	MergeTargets(targets []string) error
+}
+
+type sourceEntry struct {
+	Code string
+	Path string
 }
 
 func main() {
@@ -144,15 +153,39 @@ func renderStatus(w io.Writer, svc service, targets []string) error {
 	if err != nil {
 		return err
 	}
-	if len(entries) == 0 {
+	sourceEntries, err := svc.SourceStatus()
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 && len(sourceEntries) == 0 {
 		_, err = fmt.Fprintln(w, "clean")
 		return err
 	}
-	for _, entry := range entries {
-		status := string([]byte{byte(entry.LocalChange), byte(entry.TargetChange)})
-		_, err := fmt.Fprintf(w, "%s %s  %s; run cm sync %s\n", status, entry.Path, reconcile.Describe(entry), entry.Path)
-		if err != nil {
+	if len(entries) > 0 {
+		if _, err := fmt.Fprintln(w, "local:"); err != nil {
 			return err
+		}
+		for _, entry := range entries {
+			status := string([]byte{byte(entry.LocalChange), byte(entry.TargetChange)})
+			_, err := fmt.Fprintf(w, "%s %s  %s; run cm sync %s\n", status, entry.Path, reconcile.Describe(entry), entry.Path)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if len(sourceEntries) > 0 {
+		if len(entries) > 0 {
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(w, "chezmoi git:"); err != nil {
+			return err
+		}
+		for _, entry := range sourceEntries {
+			if _, err := fmt.Fprintf(w, "%s %s\n", entry.Code, entry.Path); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -164,6 +197,49 @@ type chezmoiService struct {
 
 func (s chezmoiService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	return s.client.Status(targets)
+}
+
+func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
+	out, err := s.client.Output("source-path")
+	if err != nil {
+		return nil, err
+	}
+	sourceDir := strings.TrimSpace(string(out))
+	if sourceDir == "" {
+		return nil, nil
+	}
+
+	cmd := exec.Command("git", "-C", sourceDir, "status", "--porcelain=v1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err = cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git status %s: %w%s", sourceDir, err, formatStderr(stderr.Bytes()))
+	}
+	return parseSourceStatus(out), nil
+}
+
+func parseSourceStatus(out []byte) []sourceEntry {
+	lines := bytes.Split(bytes.TrimRight(out, "\n"), []byte{'\n'})
+	if len(lines) == 1 && len(lines[0]) == 0 {
+		return nil
+	}
+	entries := make([]sourceEntry, 0, len(lines))
+	for _, line := range lines {
+		if len(line) < 4 {
+			continue
+		}
+		entries = append(entries, sourceEntry{Code: string(line[:2]), Path: string(line[3:])})
+	}
+	return entries
+}
+
+func formatStderr(stderr []byte) string {
+	stderr = bytes.TrimSpace(stderr)
+	if len(stderr) == 0 {
+		return ""
+	}
+	return ": " + string(stderr)
 }
 
 func (s chezmoiService) Diff(targets []string) error {

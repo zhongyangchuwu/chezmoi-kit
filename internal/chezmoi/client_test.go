@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestClientStatusExecutesChezmoiStatusAndParsesOutput(t *testing.T) {
-	runner := &fakeRunner{output: []byte("M  .zshrc\n")}
+func TestClientStatusRequestsAbsolutePathsAndParsesOutput(t *testing.T) {
+	runner := &fakeRunner{output: []byte("M  /home/me/.zshrc\n")}
 	client := Client{Binary: "chezmoi", Runner: runner}
 
 	entries, err := client.Status([]string{".zshrc"})
@@ -16,10 +16,10 @@ func TestClientStatusExecutesChezmoiStatusAndParsesOutput(t *testing.T) {
 		t.Fatalf("Status returned error: %v", err)
 	}
 
-	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "status", ".zshrc"}}) {
+	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "status", "--path-style=absolute", ".zshrc"}}) {
 		t.Fatalf("outputCalls = %#v", runner.outputCalls)
 	}
-	want := []StatusEntry{{LocalChange: ChangeModified, TargetChange: ChangeNone, Path: ".zshrc"}}
+	want := []StatusEntry{{LocalChange: ChangeModified, TargetChange: ChangeNone, Path: "/home/me/.zshrc"}}
 	if !reflect.DeepEqual(entries, want) {
 		t.Fatalf("entries = %#v, want %#v", entries, want)
 	}

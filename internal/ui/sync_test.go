@@ -12,7 +12,7 @@ import (
 func TestRunSyncAddsAndRefreshesTarget(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeNone, Path: ".zshrc"}},
+			{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeNone, Path: "/home/me/.zshrc"}},
 			nil,
 		},
 	}
@@ -23,11 +23,11 @@ func TestRunSyncAddsAndRefreshesTarget(t *testing.T) {
 		t.Fatalf("RunSync returned error: %v", err)
 	}
 
-	wantCommands := [][]string{{"add", ".zshrc"}}
+	wantCommands := [][]string{{"add", "/home/me/.zshrc"}}
 	if !reflect.DeepEqual(service.commands, wantCommands) {
 		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
 	}
-	wantStatusArgs := [][]string{{".zshrc"}, {".zshrc"}}
+	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
 	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
 		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
 	}

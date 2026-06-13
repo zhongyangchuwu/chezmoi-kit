@@ -18,14 +18,14 @@ func TestRecommendMapsStatusToDefaultAction(t *testing.T) {
 			want:  ActionAdd,
 		},
 		{
-			name:  "source modified recommends apply",
+			name:  "apply would modify recommends apply",
 			entry: entry(chezmoi.ChangeNone, chezmoi.ChangeModified),
 			want:  ActionApply,
 		},
 		{
-			name:  "both modified recommends merge",
+			name:  "local drift plus apply pending recommends inspect",
 			entry: entry(chezmoi.ChangeModified, chezmoi.ChangeModified),
-			want:  ActionMerge,
+			want:  ActionInspect,
 		},
 		{
 			name:  "local deleted recommends inspect",
@@ -69,11 +69,11 @@ func TestDescribeExplainsCommonStatus(t *testing.T) {
 		entry chezmoi.StatusEntry
 		want  string
 	}{
-		{"local", entry(chezmoi.ChangeModified, chezmoi.ChangeNone), "local changed"},
-		{"source", entry(chezmoi.ChangeNone, chezmoi.ChangeModified), "source changed"},
-		{"both", entry(chezmoi.ChangeModified, chezmoi.ChangeModified), "both changed"},
+		{"local", entry(chezmoi.ChangeModified, chezmoi.ChangeNone), "local drift"},
+		{"apply", entry(chezmoi.ChangeNone, chezmoi.ChangeModified), "apply pending"},
+		{"both", entry(chezmoi.ChangeModified, chezmoi.ChangeModified), "local drift, apply pending"},
 		{"local deleted", entry(chezmoi.ChangeDeleted, chezmoi.ChangeNone), "local deleted"},
-		{"source delete", entry(chezmoi.ChangeNone, chezmoi.ChangeDeleted), "source wants delete"},
+		{"apply delete", entry(chezmoi.ChangeNone, chezmoi.ChangeDeleted), "apply would delete"},
 		{"unknown", entry(chezmoi.ChangeRun, chezmoi.ChangeNone), "inspect"},
 	}
 

@@ -16,19 +16,19 @@ const (
 
 func Recommend(entry chezmoi.StatusEntry) Action {
 	switch {
-	case entry.LocalChange == chezmoi.ChangeModified && entry.TargetChange == chezmoi.ChangeNone:
-		return ActionAdd
-	case entry.LocalChange == chezmoi.ChangeNone && entry.TargetChange == chezmoi.ChangeModified:
-		return ActionApply
-	case entry.LocalChange == chezmoi.ChangeModified && entry.TargetChange == chezmoi.ChangeModified:
-		return ActionMerge
-	case entry.LocalChange == chezmoi.ChangeDeleted && entry.TargetChange == chezmoi.ChangeNone:
+	case entry.LocalChange != chezmoi.ChangeNone && entry.TargetChange != chezmoi.ChangeNone:
 		return ActionInspect
-	case entry.LocalChange == chezmoi.ChangeNone && entry.TargetChange == chezmoi.ChangeDeleted:
-		return ActionApply
-	case entry.LocalChange == chezmoi.ChangeAdded && entry.TargetChange == chezmoi.ChangeNone:
+	case entry.LocalChange == chezmoi.ChangeModified:
 		return ActionAdd
-	case entry.LocalChange == chezmoi.ChangeNone && entry.TargetChange == chezmoi.ChangeAdded:
+	case entry.LocalChange == chezmoi.ChangeAdded:
+		return ActionAdd
+	case entry.LocalChange == chezmoi.ChangeDeleted:
+		return ActionInspect
+	case entry.TargetChange == chezmoi.ChangeModified:
+		return ActionApply
+	case entry.TargetChange == chezmoi.ChangeAdded:
+		return ActionApply
+	case entry.TargetChange == chezmoi.ChangeDeleted:
 		return ActionApply
 	default:
 		return ActionDiff
@@ -36,23 +36,45 @@ func Recommend(entry chezmoi.StatusEntry) Action {
 }
 
 func Describe(entry chezmoi.StatusEntry) string {
+	local := localDescription(entry.LocalChange)
+	apply := applyDescription(entry.TargetChange)
 	switch {
-	case entry.LocalChange == chezmoi.ChangeModified && entry.TargetChange == chezmoi.ChangeNone:
-		return "local changed"
-	case entry.LocalChange == chezmoi.ChangeNone && entry.TargetChange == chezmoi.ChangeModified:
-		return "source changed"
-	case entry.LocalChange == chezmoi.ChangeModified && entry.TargetChange == chezmoi.ChangeModified:
-		return "both changed"
-	case entry.LocalChange == chezmoi.ChangeDeleted && entry.TargetChange == chezmoi.ChangeNone:
-		return "local deleted"
-	case entry.LocalChange == chezmoi.ChangeNone && entry.TargetChange == chezmoi.ChangeDeleted:
-		return "source wants delete"
-	case entry.LocalChange == chezmoi.ChangeAdded && entry.TargetChange == chezmoi.ChangeNone:
-		return "local added"
-	case entry.LocalChange == chezmoi.ChangeNone && entry.TargetChange == chezmoi.ChangeAdded:
-		return "source adds target"
+	case local != "" && apply != "":
+		return local + ", " + apply
+	case local != "":
+		return local
+	case apply != "":
+		return apply
 	default:
 		return "inspect"
+	}
+}
+
+func localDescription(change chezmoi.Change) string {
+	switch change {
+	case chezmoi.ChangeModified:
+		return "local drift"
+	case chezmoi.ChangeAdded:
+		return "local added"
+	case chezmoi.ChangeDeleted:
+		return "local deleted"
+	default:
+		return ""
+	}
+}
+
+func applyDescription(change chezmoi.Change) string {
+	switch change {
+	case chezmoi.ChangeModified:
+		return "apply pending"
+	case chezmoi.ChangeAdded:
+		return "apply would add"
+	case chezmoi.ChangeDeleted:
+		return "apply would delete"
+	case chezmoi.ChangeRun:
+		return "apply would run"
+	default:
+		return ""
 	}
 }
 

@@ -29,8 +29,11 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	}
 }
 
-func TestRunStatusRendersRecommendation(t *testing.T) {
-	service := &fakeService{entries: []chezmoi.StatusEntry{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeNone, Path: ".zshrc"}}}
+func TestRunStatusRendersReconciliationAndSourceGitStatus(t *testing.T) {
+	service := &fakeService{
+		entries:       []chezmoi.StatusEntry{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeModified, Path: "/home/me/.zshrc"}},
+		sourceEntries: []sourceEntry{{Code: " M", Path: "dot_zshrc"}},
+	}
 	var out bytes.Buffer
 
 	code := run([]string{"status"}, service, strings.NewReader(""), &out, &out)
@@ -39,7 +42,7 @@ func TestRunStatusRendersRecommendation(t *testing.T) {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
 	got := out.String()
-	for _, want := range []string{"M  .zshrc", "local changed", "cm sync .zshrc"} {
+	for _, want := range []string{"local:", "MM /home/me/.zshrc", "local drift", "apply pending", "cm sync /home/me/.zshrc", "chezmoi git:", " M dot_zshrc"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output %q does not contain %q", got, want)
 		}
@@ -126,16 +129,21 @@ func TestRunCompletionPrintsShellScript(t *testing.T) {
 }
 
 type fakeService struct {
-	entries     []chezmoi.StatusEntry
-	statusCalls int
-	statusArgs  [][]string
-	commands    [][]string
+	entries       []chezmoi.StatusEntry
+	sourceEntries []sourceEntry
+	statusCalls   int
+	statusArgs    [][]string
+	commands      [][]string
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	f.statusCalls++
 	f.statusArgs = append(f.statusArgs, append([]string(nil), targets...))
 	return append([]chezmoi.StatusEntry(nil), f.entries...), nil
+}
+
+func (f *fakeService) SourceStatus() ([]sourceEntry, error) {
+	return append([]sourceEntry(nil), f.sourceEntries...), nil
 }
 
 func (f *fakeService) Diff(targets []string) error {
