@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
 type SyncService interface {
@@ -88,13 +88,13 @@ func RunSync(service SyncService, targets []string, input io.Reader, output io.W
 }
 
 func renderEntry(w io.Writer, entry chezmoi.StatusEntry) error {
-	status := string([]byte{byte(entry.LocalChange), byte(entry.TargetChange)})
-	_, err := fmt.Fprintf(w, "\n%s %s\n%s\nrecommended: %s\n[d]iff [a]dd local [p]apply source [m]erge [s]kip [q]uit\n> ",
-		status,
-		entry.Path,
-		reconcile.Describe(entry),
-		reconcile.ActionName(reconcile.Recommend(entry)),
-	)
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := color.New(color.FgYellow, color.Bold).Fprint(w, "!"); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(w, " %s\nlocal differs from chezmoi\n[d]iff [a]dd local a[p]ply chezmoi [m]erge [s]kip [q]uit\n> ", entry.Path)
 	return err
 }
 

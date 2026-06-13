@@ -29,9 +29,9 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	}
 }
 
-func TestRunStatusRendersReconciliationAndSourceGitStatus(t *testing.T) {
+func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	service := &fakeService{
-		entries:       []chezmoi.StatusEntry{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeModified, Path: "/home/me/.zshrc"}},
+		entries:       []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}},
 		sourceEntries: []sourceEntry{{Code: " M", Path: "dot_zshrc"}},
 	}
 	var out bytes.Buffer
@@ -42,9 +42,14 @@ func TestRunStatusRendersReconciliationAndSourceGitStatus(t *testing.T) {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
 	got := out.String()
-	for _, want := range []string{"local:", "MM /home/me/.zshrc", "local drift", "apply pending", "cm sync /home/me/.zshrc", "chezmoi git:", " M dot_zshrc"} {
+	for _, want := range []string{"local:", "! /home/me/.zshrc", "differs from chezmoi", "run cm sync", "chezmoi:", " M dot_zshrc"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output %q does not contain %q", got, want)
+		}
+	}
+	for _, notWant := range []string{"MM /home/me/.zshrc", "local drift", "apply pending", "run cm sync /home/me/.zshrc"} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("output %q unexpectedly contains %q", got, notWant)
 		}
 	}
 }

@@ -19,7 +19,7 @@ func TestClientStatusRequestsAbsolutePathsAndParsesOutput(t *testing.T) {
 	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "status", "--path-style=absolute", ".zshrc"}}) {
 		t.Fatalf("outputCalls = %#v", runner.outputCalls)
 	}
-	want := []StatusEntry{{LocalChange: ChangeModified, TargetChange: ChangeNone, Path: "/home/me/.zshrc"}}
+	want := []StatusEntry{{Code: "M ", Path: "/home/me/.zshrc"}}
 	if !reflect.DeepEqual(entries, want) {
 		t.Fatalf("entries = %#v, want %#v", entries, want)
 	}

@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
 	"github.com/zhongyangchuwu/cm/internal/ui"
 )
 
@@ -162,15 +162,22 @@ func renderStatus(w io.Writer, svc service, targets []string) error {
 		return err
 	}
 	if len(entries) > 0 {
-		if _, err := fmt.Fprintln(w, "local:"); err != nil {
+		if _, err := color.New(color.FgCyan, color.Bold).Fprintln(w, "local:"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(w, "  local config differs from chezmoi source"); err != nil {
 			return err
 		}
 		for _, entry := range entries {
-			status := string([]byte{byte(entry.LocalChange), byte(entry.TargetChange)})
-			_, err := fmt.Fprintf(w, "%s %s  %s; run cm sync %s\n", status, entry.Path, reconcile.Describe(entry), entry.Path)
-			if err != nil {
+			if _, err := color.New(color.FgYellow, color.Bold).Fprint(w, "!"); err != nil {
 				return err
 			}
+			if _, err := fmt.Fprintf(w, " %s  differs from chezmoi\n", entry.Path); err != nil {
+				return err
+			}
+		}
+		if _, err := color.New(color.FgHiBlack).Fprintln(w, "  run cm sync"); err != nil {
+			return err
 		}
 	}
 	if len(sourceEntries) > 0 {
@@ -179,7 +186,10 @@ func renderStatus(w io.Writer, svc service, targets []string) error {
 				return err
 			}
 		}
-		if _, err := fmt.Fprintln(w, "chezmoi git:"); err != nil {
+		if _, err := color.New(color.FgCyan, color.Bold).Fprintln(w, "chezmoi:"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(w, "  source repository has git changes"); err != nil {
 			return err
 		}
 		for _, entry := range sourceEntries {

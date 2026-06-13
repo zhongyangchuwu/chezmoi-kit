@@ -12,7 +12,7 @@ import (
 func TestRunSyncAddsAndRefreshesTarget(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeNone, Path: "/home/me/.zshrc"}},
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
 			nil,
 		},
 	}
@@ -36,7 +36,7 @@ func TestRunSyncAddsAndRefreshesTarget(t *testing.T) {
 func TestRunSyncInvalidInputReprompts(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{LocalChange: chezmoi.ChangeNone, TargetChange: chezmoi.ChangeModified, Path: ".gitconfig"}},
+			{{Code: " M", Path: "/home/me/.gitconfig"}},
 			nil,
 		},
 	}
@@ -47,7 +47,7 @@ func TestRunSyncInvalidInputReprompts(t *testing.T) {
 		t.Fatalf("RunSync returned error: %v", err)
 	}
 
-	wantCommands := [][]string{{"apply", ".gitconfig"}}
+	wantCommands := [][]string{{"apply", "/home/me/.gitconfig"}}
 	if !reflect.DeepEqual(service.commands, wantCommands) {
 		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
 	}
@@ -59,7 +59,7 @@ func TestRunSyncInvalidInputReprompts(t *testing.T) {
 func TestRunSyncQuitDoesNotMutate(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeModified, Path: ".config/nvim/init.lua"}},
+			{{Code: "MM", Path: "/home/me/.config/nvim/init.lua"}},
 		},
 	}
 	var out bytes.Buffer
@@ -77,7 +77,7 @@ func TestRunSyncQuitDoesNotMutate(t *testing.T) {
 func TestRunSyncDiffDoesNotAdvanceEntry(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{LocalChange: chezmoi.ChangeModified, TargetChange: chezmoi.ChangeModified, Path: ".zshrc"}},
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
 			nil,
 		},
 	}
@@ -88,9 +88,28 @@ func TestRunSyncDiffDoesNotAdvanceEntry(t *testing.T) {
 		t.Fatalf("RunSync returned error: %v", err)
 	}
 
-	wantCommands := [][]string{{"diff", ".zshrc"}, {"merge", ".zshrc"}}
+	wantCommands := [][]string{{"diff", "/home/me/.zshrc"}, {"merge", "/home/me/.zshrc"}}
 	if !reflect.DeepEqual(service.commands, wantCommands) {
 		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
+	}
+}
+
+func TestRunSyncShowsSimplifiedPrompt(t *testing.T) {
+	service := &fakeService{statusResults: [][]chezmoi.StatusEntry{{{Code: "MM", Path: "/home/me/.zshrc"}}}}
+	var out bytes.Buffer
+
+	err := RunSync(service, nil, strings.NewReader("q\n"), &out)
+	if err != nil {
+		t.Fatalf("RunSync returned error: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"! /home/me/.zshrc", "local differs from chezmoi", "a[p]ply chezmoi"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output %q does not contain %q", got, want)
+		}
+	}
+	if strings.Contains(got, "recommended") || strings.Contains(got, "MM /home") || strings.Contains(got, "[p]apply") {
+		t.Fatalf("output %q still contains obsolete prompt text", got)
 	}
 }
 
