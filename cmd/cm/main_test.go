@@ -71,6 +71,51 @@ func TestRunDiffForwardsToChezmoi(t *testing.T) {
 	}
 }
 
+func TestRunSyncTUIFlagUsesTUI(t *testing.T) {
+	service := &fakeService{
+		statusResults: [][]chezmoi.StatusEntry{
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
+			nil,
+		},
+	}
+	var out bytes.Buffer
+
+	code := run([]string{"sync", "--tui", ".zshrc"}, service, strings.NewReader("a"), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	if !reflect.DeepEqual(service.commands, [][]string{{"add", "/home/me/.zshrc"}}) {
+		t.Fatalf("commands = %#v", service.commands)
+	}
+	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
+	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
+		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
+	}
+}
+
+func TestRunSyncPlainFlagKeepsPromptMode(t *testing.T) {
+	service := &fakeService{
+		statusResults: [][]chezmoi.StatusEntry{
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
+			nil,
+		},
+	}
+	var out bytes.Buffer
+
+	code := run([]string{"sync", "--plain", ".zshrc"}, service, strings.NewReader("a\n"), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	if !strings.Contains(out.String(), "[d]iff [a]dd local") {
+		t.Fatalf("output %q does not contain plain prompt", out.String())
+	}
+	if strings.Contains(out.String(), "cm sync") {
+		t.Fatalf("output %q unexpectedly contains TUI title", out.String())
+	}
+}
+
 func TestRunGitOpensSourceRepositoryWithLazygit(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
@@ -152,6 +197,7 @@ func TestRunCompletionPrintsShellScript(t *testing.T) {
 
 type fakeService struct {
 	entries       []chezmoi.StatusEntry
+	statusResults [][]chezmoi.StatusEntry
 	sourceEntries []sourceEntry
 	statusCalls   int
 	statusArgs    [][]string
@@ -161,6 +207,11 @@ type fakeService struct {
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	f.statusCalls++
 	f.statusArgs = append(f.statusArgs, append([]string(nil), targets...))
+	if len(f.statusResults) > 0 {
+		entries := f.statusResults[0]
+		f.statusResults = f.statusResults[1:]
+		return append([]chezmoi.StatusEntry(nil), entries...), nil
+	}
 	return append([]chezmoi.StatusEntry(nil), f.entries...), nil
 }
 

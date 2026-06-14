@@ -18,6 +18,10 @@ type SyncService interface {
 	Merge(target string) error
 }
 
+type DiffOutputService interface {
+	DiffOutput(targets []string) ([]byte, error)
+}
+
 func RunSync(service SyncService, targets []string, input io.Reader, output io.Writer) error {
 	entries, err := service.Status(targets)
 	if err != nil {

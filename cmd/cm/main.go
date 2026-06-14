@@ -14,6 +14,7 @@ import (
 	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/ui"
+	"golang.org/x/term"
 )
 
 type service interface {
@@ -83,14 +84,31 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 			return svc.Diff(args)
 		},
 	})
-	root.AddCommand(&cobra.Command{
+	syncCmd := &cobra.Command{
 		Use:   "sync [target...]",
 		Short: "Interactively reconcile chezmoi changes",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			useTUI, err := cmd.Flags().GetBool("tui")
+			if err != nil {
+				return err
+			}
+			plain, err := cmd.Flags().GetBool("plain")
+			if err != nil {
+				return err
+			}
+			if useTUI && plain {
+				return fmt.Errorf("--tui and --plain are mutually exclusive")
+			}
+			if useTUI || (!plain && isTerminal(stdin) && isTerminal(stdout)) {
+				return ui.RunSyncTUI(svc, args, stdin, stdout)
+			}
 			return ui.RunSync(svc, args, stdin, stdout)
 		},
-	})
+	}
+	syncCmd.Flags().Bool("tui", false, "run sync in terminal UI mode")
+	syncCmd.Flags().Bool("plain", false, "run sync in plain prompt mode")
+	root.AddCommand(syncCmd)
 	root.AddCommand(&cobra.Command{
 		Use:   "add [target...]",
 		Short: "Accept local files into chezmoi source state",
@@ -156,6 +174,14 @@ func newCompletionCommand(root *cobra.Command, stdout io.Writer) *cobra.Command 
 			}
 		},
 	}
+}
+
+func isTerminal(v any) bool {
+	file, ok := v.(*os.File)
+	if !ok {
+		return false
+	}
+	return term.IsTerminal(int(file.Fd()))
 }
 
 func renderStatus(w io.Writer, svc service, targets []string) error {
@@ -269,6 +295,9 @@ func (s chezmoiService) sourceDir() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+func (s chezmoiService) DiffOutput(targets []string) ([]byte, error) {
+	return s.client.Output(append([]string{"diff"}, targets...)...)
+}
 func parseSourceStatus(out []byte) []sourceEntry {
 	lines := bytes.Split(bytes.TrimRight(out, "\n"), []byte{'\n'})
 	if len(lines) == 1 && len(lines[0]) == 0 {

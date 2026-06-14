@@ -54,7 +54,9 @@ clean
 cm sync
 ```
 
-Scans all changed entries and presents each one with a prompt:
+On a terminal, opens a TUI with the changed files, current diff pane,
+and key help. In non-terminal input/output, `cm sync` falls back to the
+plain prompt:
 
 ```text
 ! /home/me/.zshrc
@@ -73,6 +75,9 @@ local differs from chezmoi
 | `m` | open chezmoi merge | yes |
 | `s` | skip this entry | no |
 | `q` | quit sync immediately | no |
+
+Use `cm sync --tui` to force the TUI, or `cm sync --plain` to force the
+plain prompt.
 
 After `a`, `p`, or `m`, `cm sync` re-checks the entry's status.
 If it is clean, sync continues to the next entry.
