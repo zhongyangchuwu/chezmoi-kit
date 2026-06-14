@@ -49,6 +49,7 @@ cm sync     # interactively reconcile all
 | `cm add [target...]` | yes | local → chezmoi source |
 | `cm apply [target...]` | yes | chezmoi source → local |
 | `cm merge [target...]` | yes | open chezmoi merge |
+| `cm git` | yes | open lazygit in the chezmoi source repo |
 | `cm version` | no | build info |
 | `cm completion bash\|zsh\|fish\|powershell` | no | shell completion |
 

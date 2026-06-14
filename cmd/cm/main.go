@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,6 +26,7 @@ type service interface {
 	AddTargets(targets []string) error
 	ApplyTargets(targets []string) error
 	MergeTargets(targets []string) error
+	OpenSourceGit() error
 }
 
 type sourceEntry struct {
@@ -111,6 +113,14 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return svc.MergeTargets(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "git",
+		Short: "Open lazygit in the chezmoi source repository",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return svc.OpenSourceGit()
 		},
 	})
 	root.AddCommand(&cobra.Command{
@@ -210,11 +220,10 @@ func (s chezmoiService) Status(targets []string) ([]chezmoi.StatusEntry, error) 
 }
 
 func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
-	out, err := s.client.Output("source-path")
+	sourceDir, err := s.sourceDir()
 	if err != nil {
 		return nil, err
 	}
-	sourceDir := strings.TrimSpace(string(out))
 	if sourceDir == "" {
 		return nil, nil
 	}
@@ -222,11 +231,42 @@ func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
 	cmd := exec.Command("git", "-C", sourceDir, "status", "--porcelain=v1")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	out, err = cmd.Output()
+	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("git status %s: %w%s", sourceDir, err, formatStderr(stderr.Bytes()))
 	}
 	return parseSourceStatus(out), nil
+}
+
+func (s chezmoiService) OpenSourceGit() error {
+	sourceDir, err := s.sourceDir()
+	if err != nil {
+		return err
+	}
+	if sourceDir == "" {
+		return fmt.Errorf("chezmoi source path is empty")
+	}
+
+	cmd := exec.Command("lazygit")
+	cmd.Dir = sourceDir
+	cmd.Stdin = s.client.Stdin
+	cmd.Stdout = s.client.Stdout
+	cmd.Stderr = s.client.Stderr
+	if err := cmd.Run(); err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return fmt.Errorf("lazygit not found in PATH")
+		}
+		return fmt.Errorf("lazygit %s: %w", sourceDir, err)
+	}
+	return nil
+}
+
+func (s chezmoiService) sourceDir() (string, error) {
+	out, err := s.client.Output("source-path")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func parseSourceStatus(out []byte) []sourceEntry {

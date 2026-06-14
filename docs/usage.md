@@ -95,6 +95,16 @@ cm merge ~/.zshrc     # open chezmoi merge
 cm diff ~/.zshrc      # show chezmoi diff
 ```
 
+## Git source repository
+
+```bash
+cm git
+```
+
+Opens `lazygit` in `chezmoi source-path`. Use it to review, commit,
+pull, push, or otherwise manage the chezmoi source repository without
+leaving the `cm` workflow. `cm` does not run git operations automatically.
+
 ## Typical workflows
 
 ### A local tool changed a managed config

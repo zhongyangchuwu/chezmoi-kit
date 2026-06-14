@@ -71,6 +71,23 @@ func TestRunDiffForwardsToChezmoi(t *testing.T) {
 	}
 }
 
+func TestRunGitOpensSourceRepositoryWithLazygit(t *testing.T) {
+	service := &fakeService{}
+	var out bytes.Buffer
+
+	code := run([]string{"git"}, service, strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0", code)
+	}
+	if !reflect.DeepEqual(service.commands, [][]string{{"git"}}) {
+		t.Fatalf("commands = %#v", service.commands)
+	}
+	if service.statusCalls != 0 {
+		t.Fatalf("statusCalls = %d, want 0", service.statusCalls)
+	}
+}
+
 func TestRunMutatingWrappersForwardToChezmoi(t *testing.T) {
 	tests := []struct {
 		name string
@@ -183,5 +200,10 @@ func (f *fakeService) ApplyTargets(targets []string) error {
 
 func (f *fakeService) MergeTargets(targets []string) error {
 	f.commands = append(f.commands, append([]string{"merge"}, targets...))
+	return nil
+}
+
+func (f *fakeService) OpenSourceGit() error {
+	f.commands = append(f.commands, []string{"git"})
 	return nil
 }
