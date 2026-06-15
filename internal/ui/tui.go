@@ -180,7 +180,7 @@ func (m syncTUIModel) viewString() string {
 	if len(m.diffs) == 0 {
 		b.WriteString("press d to show diff\n")
 	} else {
-		b.WriteString(strings.Join(m.diffs, "\n"))
+		b.WriteString(renderDiff(strings.Join(m.diffs, "\n")))
 		b.WriteByte('\n')
 	}
 
@@ -194,6 +194,29 @@ func (m syncTUIModel) viewString() string {
 	b.WriteString(helpStyle.Render(m.help.ShortHelpView(defaultSyncKeys.ShortHelp())))
 	b.WriteByte('\n')
 	return b.String()
+}
+
+func renderDiff(diff string) string {
+	if diff == "" {
+		return ""
+	}
+
+	lines := strings.Split(diff, "\n")
+	for i, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "@@"):
+			lines[i] = diffHunkStyle.Render(line)
+		case strings.HasPrefix(line, "diff "), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "+++"):
+			lines[i] = diffHeaderStyle.Render(line)
+		case strings.HasPrefix(line, "+"):
+			lines[i] = diffAddStyle.Render(line)
+		case strings.HasPrefix(line, "-"):
+			lines[i] = diffRemoveStyle.Render(line)
+		case strings.HasPrefix(line, `\ No newline`):
+			lines[i] = diffMetaStyle.Render(line)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m syncTUIModel) current() chezmoi.StatusEntry {
@@ -334,7 +357,12 @@ var (
 		Skip:  key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "skip")),
 		Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	sectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
-	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	sectionStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
+	helpStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	diffHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	diffHunkStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+	diffAddStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	diffRemoveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	diffMetaStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )

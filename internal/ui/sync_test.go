@@ -215,6 +215,33 @@ func TestSyncModelShowsDiffOutput(t *testing.T) {
 	}
 }
 
+func TestRenderDiffStylesUnifiedDiffLines(t *testing.T) {
+	diff := strings.Join([]string{
+		"diff chezmoi:/home/me/.zshrc local:/home/me/.zshrc",
+		"--- chezmoi:/home/me/.zshrc",
+		"+++ local:/home/me/.zshrc",
+		"@@ -1,1 +1,1 @@",
+		"-old",
+		"+new",
+		`\ No newline at end of file`,
+	}, "\n")
+
+	got := renderDiff(diff)
+	for _, want := range []string{
+		diffHeaderStyle.Render("diff chezmoi:/home/me/.zshrc local:/home/me/.zshrc"),
+		diffHeaderStyle.Render("--- chezmoi:/home/me/.zshrc"),
+		diffHeaderStyle.Render("+++ local:/home/me/.zshrc"),
+		diffHunkStyle.Render("@@ -1,1 +1,1 @@"),
+		diffRemoveStyle.Render("-old"),
+		diffAddStyle.Render("+new"),
+		diffMetaStyle.Render(`\ No newline at end of file`),
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("rendered diff %q does not contain styled line %q", got, want)
+		}
+	}
+}
+
 func TestRunSyncTUIRendersCleanWithoutProgram(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
