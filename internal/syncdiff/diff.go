@@ -70,19 +70,19 @@ func binary(content []byte) bool {
 	return bytes.IndexByte(content, 0) >= 0
 }
 
-type ChezmoiSource struct {
-	Target TargetContentReader
+type ChezmoiContentLoader struct {
+	Client ChezmoiClient
 }
 
-type TargetContentReader interface {
+type ChezmoiClient interface {
 	Output(args ...string) ([]byte, error)
 }
 
-func (s ChezmoiSource) TargetContent(target string) ([]byte, error) {
-	return s.Target.Output("cat", target)
+func (l ChezmoiContentLoader) TargetContent(target string) ([]byte, error) {
+	return l.Client.Output("cat", target)
 }
 
-func (ChezmoiSource) LocalContent(target string) ([]byte, error) {
+func (ChezmoiContentLoader) LocalContent(target string) ([]byte, error) {
 	content, err := os.ReadFile(target)
 	if err != nil {
 		return nil, err

@@ -37,28 +37,32 @@ just install
 ## Project layout
 
 ```text
-cmd/cm/main.go                  Cobra command wiring
+cmd/cm/main.go                  thin process entrypoint
+internal/cli/
+  cli.go                       Cobra command wiring
+  service.go                   chezmoi-backed CLI service
+  status.go                    status rendering
+  cli_test.go
 internal/chezmoi/
-  client.go                     chezmoi CLI wrapper
-  client_test.go
-  status.go                     status parsing
-  status_test.go
+  client.go                    chezmoi CLI wrapper
+  status.go                    status parsing
+internal/syncdiff/
+  diff.go                      internal sync diff generation
 internal/ui/
-  sync.go                       interactive sync prompt
-  sync_test.go
-internal/reconcile/
-  recommend.go                  status description helpers
-  recommend_test.go
+  sync.go                      plain sync prompt
+  tui.go                       terminal sync UI
 internal/build/
-  info.go                       version from runtime/debug
-  info_test.go
+  info.go                      version from runtime/debug
 ```
 
 ### `cmd/cm`
 
-Wires Cobra commands. Owns the `service` interface and `sourceEntry`
-type. The `service` interface is the only place that knows about both
-chezmoi and source git operations.
+Owns only process startup and delegates to `internal/cli`.
+
+### `internal/cli`
+
+Wires Cobra commands, renders command output, and adapts `internal/chezmoi` to
+the interfaces consumed by command handlers and sync UIs.
 
 ### `internal/chezmoi`
 
@@ -66,15 +70,15 @@ Owns chezmoi CLI execution and status parsing. The `Status` method
 adds `--path-style=absolute` so callers always get absolute target paths.
 The `ParseStatus` function returns raw two-column codes.
 
+### `internal/syncdiff`
+
+Generates the TUI diff from rendered chezmoi target content to the current
+local file without shelling out to `chezmoi diff`.
+
 ### `internal/ui`
 
-Owns the interactive sync prompt. Injects a `SyncService` interface for
-tests. Does not know about chezmoi binary paths or git.
-
-### `internal/reconcile`
-
-Thin helpers for describing status entries. Used by `cmd/cm` and
-`internal/ui` for display text.
+Owns the plain sync prompt and terminal sync UI. Injects a `SyncService`
+interface for tests. Does not know about chezmoi binary paths or git.
 
 ### `internal/build`
 
@@ -83,11 +87,15 @@ Reads `runtime/debug.ReadBuildInfo()` for `cm version` output.
 ## Dependencies
 
 ```text
-github.com/spf13/cobra     CLI framework
-github.com/fatih/color     terminal colours
+charm.land/bubbletea/v2          terminal UI runtime
+charm.land/bubbles/v2            TUI help/key bindings
+charm.land/lipgloss/v2           TUI styling
+github.com/spf13/cobra           CLI framework
+github.com/fatih/color           plain terminal colours
+github.com/rogpeppe/go-internal  anchored unified diff
 ```
 
-No Viper. No TUI framework.
+No Viper. No external diff renderer.
 
 ## Build info
 
