@@ -115,6 +115,8 @@ func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
+		case msg.Key().Code == tea.KeyEnter || msg.Key().Code == tea.KeyReturn:
+			return m, nil
 		case key.Matches(msg, defaultSyncKeys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, defaultSyncKeys.Up):

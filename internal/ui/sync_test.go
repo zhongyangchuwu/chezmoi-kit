@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 )
 
@@ -136,6 +137,21 @@ func TestSyncModelNavigationAndActions(t *testing.T) {
 	}
 }
 
+func TestSyncModelIgnoresEnterAfterSingleKeyAction(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+
+	next, _ := model.Update(tea.KeyPressMsg(tea.Key{Text: "d", Code: 'd'}))
+	model = next.(syncTUIModel)
+	next, _ = model.Update(syncActionMsg{action: syncAction{kind: syncActionDiff, target: "/home/me/.zshrc"}, diff: "diff output"})
+	model = next.(syncTUIModel)
+	next, _ = model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = next.(syncTUIModel)
+
+	if got := model.viewString(); strings.Contains(got, "unknown choice") {
+		t.Fatalf("view %q contains unknown choice", got)
+	}
+}
+
 func TestRunSyncTUIExecutesKeyActions(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
@@ -157,6 +173,29 @@ func TestRunSyncTUIExecutesKeyActions(t *testing.T) {
 	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
 	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
 		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
+	}
+}
+func TestRunSyncTUIAllowsActionAfterDiff(t *testing.T) {
+	service := &fakeService{
+		statusResults: [][]chezmoi.StatusEntry{
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
+			nil,
+		},
+		diffOutput: "diff --git a/dot_zshrc b/dot_zshrc\n",
+	}
+	var out bytes.Buffer
+
+	err := RunSyncTUI(service, []string{".zshrc"}, strings.NewReader("d\ra"), &out)
+	if err != nil {
+		t.Fatalf("RunSyncTUI returned error: %v", err)
+	}
+
+	wantCommands := [][]string{{"diff-output", "/home/me/.zshrc"}, {"add", "/home/me/.zshrc"}}
+	if !reflect.DeepEqual(service.commands, wantCommands) {
+		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
+	}
+	if strings.Contains(out.String(), "unknown choice") {
+		t.Fatalf("output %q contains unknown choice", out.String())
 	}
 }
 
