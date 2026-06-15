@@ -69,7 +69,7 @@ local differs from chezmoi
 
 | Key | Action | Mutates? |
 |---|---|---|
-| `d` | show chezmoi diff | no |
+| `d` | show diff from chezmoi target to local file | no |
 | `a` | keep local, write to chezmoi source | yes |
 | `p` | discard local, apply chezmoi target | yes |
 | `m` | open chezmoi merge | yes |
@@ -81,6 +81,11 @@ plain prompt.
 
 After `a`, `p`, or `m`, `cm sync` re-checks the entry's status.
 If it is clean, sync continues to the next entry.
+
+In the TUI diff pane, `--- chezmoi:<path>` is the rendered chezmoi target and
+`+++ local:<path>` is the current local file. Added lines therefore show local
+content that `a` would accept into chezmoi source; removed lines show target
+content that `p` would apply locally.
 
 ### Sync a single target
 

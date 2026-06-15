@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/syncdiff"
 	"github.com/zhongyangchuwu/cm/internal/ui"
 	"golang.org/x/term"
 )
@@ -296,8 +297,13 @@ func (s chezmoiService) sourceDir() (string, error) {
 }
 
 func (s chezmoiService) DiffOutput(targets []string) ([]byte, error) {
-	return s.client.Output(append([]string{"diff"}, targets...)...)
+	if len(targets) != 1 {
+		return nil, fmt.Errorf("diff output requires exactly one target, got %d", len(targets))
+	}
+	differ := syncdiff.Differ{Source: syncdiff.ChezmoiSource{Target: s.client}}
+	return differ.Diff(targets[0])
 }
+
 func parseSourceStatus(out []byte) []sourceEntry {
 	lines := bytes.Split(bytes.TrimRight(out, "\n"), []byte{'\n'})
 	if len(lines) == 1 && len(lines[0]) == 0 {
