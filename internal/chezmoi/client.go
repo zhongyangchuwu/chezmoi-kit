@@ -1,7 +1,6 @@
 package chezmoi
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -94,7 +93,7 @@ func (execRunner) Output(command string, args []string, io RunnerIO) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	return bytes.TrimRight(out, "\n"), nil
+	return out, nil
 }
 
 func (execRunner) Run(command string, args []string, io RunnerIO) error {

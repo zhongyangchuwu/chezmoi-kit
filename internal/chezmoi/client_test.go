@@ -37,6 +37,18 @@ func TestClientRunForwardsCommand(t *testing.T) {
 		t.Fatalf("runCalls = %#v", runner.runCalls)
 	}
 }
+func TestClientOutputPreservesTrailingNewlines(t *testing.T) {
+	runner := &fakeRunner{output: []byte("content\n\n")}
+	client := Client{Binary: "chezmoi", Runner: runner}
+
+	out, err := client.Output("cat", ".zshrc")
+	if err != nil {
+		t.Fatalf("Output returned error: %v", err)
+	}
+	if string(out) != "content\n\n" {
+		t.Fatalf("output = %q, want trailing newlines preserved", string(out))
+	}
+}
 
 func TestClientStatusWrapsRunnerError(t *testing.T) {
 	runner := &fakeRunner{err: errors.New("boom")}
