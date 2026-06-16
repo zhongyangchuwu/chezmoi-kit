@@ -37,7 +37,7 @@ type syncActionMsg struct {
 }
 
 type syncTUIModel struct {
-	service SyncService
+	service SyncTUIService
 	entries []chezmoi.StatusEntry
 	diffs   []string
 	cursor  int
@@ -46,7 +46,7 @@ type syncTUIModel struct {
 	err     error
 }
 
-func RunSyncTUI(service SyncService, targets []string, input io.Reader, output io.Writer) error {
+func RunSyncTUI(service SyncTUIService, targets []string, input io.Reader, output io.Writer) error {
 	entries, err := service.Status(targets)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func isTerminalWriter(w io.Writer) bool {
 	return term.IsTerminal(int(file.Fd()))
 }
 
-func newSyncTUIModel(service SyncService, entries []chezmoi.StatusEntry) syncTUIModel {
+func newSyncTUIModel(service SyncTUIService, entries []chezmoi.StatusEntry) syncTUIModel {
 	model := newSyncModel(entries, nil)
 	model.service = service
 	return model
@@ -268,12 +268,9 @@ func (m syncTUIModel) runAction(action syncAction) tea.Cmd {
 		var err error
 		switch action.kind {
 		case syncActionDiff:
-			if service, ok := m.service.(DiffOutputService); ok {
-				var out []byte
-				out, err = service.DiffOutput([]string{action.target})
-				return syncActionMsg{action: action, diff: string(out), err: err}
-			}
-			err = m.service.Diff([]string{action.target})
+			var out []byte
+			out, err = m.service.DiffOutput([]string{action.target})
+			return syncActionMsg{action: action, diff: string(out), err: err}
 		case syncActionAdd:
 			err = m.service.Add(action.target)
 		case syncActionApply:

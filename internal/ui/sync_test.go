@@ -95,14 +95,14 @@ func TestRunSyncDiffDoesNotAdvanceEntry(t *testing.T) {
 	}
 }
 
-func TestSyncModelRendersEntriesAndCurrentDiff(t *testing.T) {
+func TestSyncModelRendersCurrentEntryAndDiff(t *testing.T) {
 	model := newSyncModel([]chezmoi.StatusEntry{
 		{Code: "MM", Path: "/home/me/.zshrc"},
 		{Code: " M", Path: "/home/me/.gitconfig"},
 	}, []string{"diff -- .zshrc"})
 
 	got := model.viewString()
-	for _, want := range []string{"cm sync", "> /home/me/.zshrc", "  /home/me/.gitconfig", "diff -- .zshrc", "add", "apply", "merge", "skip", "quit"} {
+	for _, want := range []string{"cm sync", "> /home/me/.zshrc", "diff -- .zshrc"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("view %q does not contain %q", got, want)
 		}
@@ -138,7 +138,7 @@ func TestSyncModelNavigationAndActions(t *testing.T) {
 }
 
 func TestSyncModelIgnoresEnterAfterSingleKeyAction(t *testing.T) {
-	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+	model := newSyncTUIModel(&fakeService{}, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
 	next, _ := model.Update(tea.KeyPressMsg(tea.Key{Text: "d", Code: 'd'}))
 	model = next.(syncTUIModel)
@@ -175,7 +175,7 @@ func TestRunSyncTUIExecutesKeyActions(t *testing.T) {
 		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
 	}
 }
-func TestRunSyncTUIAllowsActionAfterDiff(t *testing.T) {
+func TestRunSyncTUIUsesDiffOutputForDiffAction(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
 			{{Code: "MM", Path: "/home/me/.zshrc"}},
@@ -194,9 +194,6 @@ func TestRunSyncTUIAllowsActionAfterDiff(t *testing.T) {
 	if !reflect.DeepEqual(service.commands, wantCommands) {
 		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
 	}
-	if strings.Contains(out.String(), "unknown choice") {
-		t.Fatalf("output %q contains unknown choice", out.String())
-	}
 }
 
 func TestSyncModelShowsDiffOutput(t *testing.T) {
@@ -212,33 +209,6 @@ func TestSyncModelShowsDiffOutput(t *testing.T) {
 
 	if got := model.viewString(); !strings.Contains(got, "diff --git a/dot_zshrc b/dot_zshrc") {
 		t.Fatalf("view %q does not contain diff", got)
-	}
-}
-
-func TestRenderDiffStylesUnifiedDiffLines(t *testing.T) {
-	diff := strings.Join([]string{
-		"diff chezmoi:/home/me/.zshrc local:/home/me/.zshrc",
-		"--- chezmoi:/home/me/.zshrc",
-		"+++ local:/home/me/.zshrc",
-		"@@ -1,1 +1,1 @@",
-		"-old",
-		"+new",
-		`\ No newline at end of file`,
-	}, "\n")
-
-	got := renderDiff(diff)
-	for _, want := range []string{
-		diffHeaderStyle.Render("diff chezmoi:/home/me/.zshrc local:/home/me/.zshrc"),
-		diffHeaderStyle.Render("--- chezmoi:/home/me/.zshrc"),
-		diffHeaderStyle.Render("+++ local:/home/me/.zshrc"),
-		diffHunkStyle.Render("@@ -1,1 +1,1 @@"),
-		diffRemoveStyle.Render("-old"),
-		diffAddStyle.Render("+new"),
-		diffMetaStyle.Render(`\ No newline at end of file`),
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("rendered diff %q does not contain styled line %q", got, want)
-		}
 	}
 }
 

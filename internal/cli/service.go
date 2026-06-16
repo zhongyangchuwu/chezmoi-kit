@@ -15,6 +15,7 @@ type service interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	SourceStatus() ([]sourceEntry, error)
 	Diff(targets []string) error
+	DiffOutput(targets []string) ([]byte, error)
 	Add(target string) error
 	Apply(target string) error
 	Merge(target string) error

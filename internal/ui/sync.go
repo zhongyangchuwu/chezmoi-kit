@@ -18,7 +18,8 @@ type SyncService interface {
 	Merge(target string) error
 }
 
-type DiffOutputService interface {
+type SyncTUIService interface {
+	SyncService
 	DiffOutput(targets []string) ([]byte, error)
 }
 
