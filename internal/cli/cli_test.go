@@ -224,8 +224,8 @@ func (f *fakeService) Diff(targets []string) error {
 	return nil
 }
 
-func (f *fakeService) DiffOutput(targets []string) ([]byte, error) {
-	f.commands = append(f.commands, append([]string{"diff-output"}, targets...))
+func (f *fakeService) DiffOutput(target string) ([]byte, error) {
+	f.commands = append(f.commands, []string{"diff-output", target})
 	return nil, nil
 }
 

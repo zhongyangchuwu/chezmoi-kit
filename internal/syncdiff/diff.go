@@ -28,11 +28,15 @@ func (d Differ) Diff(target string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read chezmoi target %s: %w", target, err)
 	}
+	maxFileSize := d.maxFileSize()
+	if tooLarge(base, maxFileSize) {
+		return []byte(fmt.Sprintf("file too large to diff: %s\n", target)), nil
+	}
 	local, err := d.Source.LocalContent(target)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read local target %s: %w", target, err)
 	}
-	return DiffBytes(target, base, local, d.maxFileSize()), nil
+	return DiffBytes(target, base, local, maxFileSize), nil
 }
 
 func DiffBytes(target string, base, local []byte, maxFileSize int64) []byte {

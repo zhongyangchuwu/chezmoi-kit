@@ -58,7 +58,7 @@ func TestDifferReadsSourceContent(t *testing.T) {
 		base:  []byte("source\n"),
 		local: []byte("local\n"),
 	}
-	differ := Differ{Source: source}
+	differ := Differ{Source: &source}
 
 	got, err := differ.Diff("/home/me/.zshrc")
 	if err != nil {
@@ -73,7 +73,7 @@ func TestDifferTreatsMissingLocalAsEmpty(t *testing.T) {
 		base:     []byte("source\n"),
 		localErr: os.ErrNotExist,
 	}
-	differ := Differ{Source: source}
+	differ := Differ{Source: &source}
 
 	got, err := differ.Diff("/home/me/.zshrc")
 	if err != nil {
@@ -84,17 +84,37 @@ func TestDifferTreatsMissingLocalAsEmpty(t *testing.T) {
 	}
 }
 
-type fakeContentSource struct {
-	base     []byte
-	local    []byte
-	localErr error
+func TestDifferSkipsLocalReadWhenSourceIsTooLarge(t *testing.T) {
+	source := fakeContentSource{
+		base: []byte("too large"),
+	}
+	differ := Differ{Source: &source, MaxFileSize: 3}
+
+	got, err := differ.Diff("/home/me/big")
+	if err != nil {
+		t.Fatalf("Diff returned error: %v", err)
+	}
+	if string(got) != "file too large to diff: /home/me/big\n" {
+		t.Fatalf("diff = %q", string(got))
+	}
+	if source.localCalls != 0 {
+		t.Fatalf("localCalls = %d, want 0", source.localCalls)
+	}
 }
 
-func (f fakeContentSource) TargetContent(string) ([]byte, error) {
+type fakeContentSource struct {
+	base       []byte
+	local      []byte
+	localErr   error
+	localCalls int
+}
+
+func (f *fakeContentSource) TargetContent(string) ([]byte, error) {
 	return append([]byte(nil), f.base...), nil
 }
 
-func (f fakeContentSource) LocalContent(string) ([]byte, error) {
+func (f *fakeContentSource) LocalContent(string) ([]byte, error) {
+	f.localCalls++
 	if f.localErr != nil {
 		return nil, f.localErr
 	}

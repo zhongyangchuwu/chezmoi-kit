@@ -39,7 +39,7 @@ type syncActionMsg struct {
 type syncTUIModel struct {
 	service SyncTUIService
 	entries []chezmoi.StatusEntry
-	diffs   []string
+	diff    string
 	cursor  int
 	help    help.Model
 	message string
@@ -94,15 +94,15 @@ func isTerminalWriter(w io.Writer) bool {
 }
 
 func newSyncTUIModel(service SyncTUIService, entries []chezmoi.StatusEntry) syncTUIModel {
-	model := newSyncModel(entries, nil)
+	model := newSyncModel(entries, "")
 	model.service = service
 	return model
 }
 
-func newSyncModel(entries []chezmoi.StatusEntry, diffs []string) syncTUIModel {
+func newSyncModel(entries []chezmoi.StatusEntry, diff string) syncTUIModel {
 	return syncTUIModel{
 		entries: append([]chezmoi.StatusEntry(nil), entries...),
-		diffs:   append([]string(nil), diffs...),
+		diff:    diff,
 		help:    help.New(),
 	}
 }
@@ -177,10 +177,10 @@ func (m syncTUIModel) viewString() string {
 	b.WriteByte('\n')
 	b.WriteString(sectionStyle.Render("Diff"))
 	b.WriteByte('\n')
-	if len(m.diffs) == 0 {
+	if m.diff == "" {
 		b.WriteString("press d to show diff\n")
 	} else {
-		b.WriteString(renderDiff(strings.Join(m.diffs, "\n")))
+		b.WriteString(renderDiff(m.diff))
 		b.WriteByte('\n')
 	}
 
@@ -229,6 +229,7 @@ func (m syncTUIModel) current() chezmoi.StatusEntry {
 func (m syncTUIModel) moveUp() syncTUIModel {
 	if m.cursor > 0 {
 		m.cursor--
+		m.diff = ""
 	}
 	return m
 }
@@ -236,6 +237,7 @@ func (m syncTUIModel) moveUp() syncTUIModel {
 func (m syncTUIModel) moveDown() syncTUIModel {
 	if m.cursor < len(m.entries)-1 {
 		m.cursor++
+		m.diff = ""
 	}
 	return m
 }
@@ -269,7 +271,7 @@ func (m syncTUIModel) runAction(action syncAction) tea.Cmd {
 		switch action.kind {
 		case syncActionDiff:
 			var out []byte
-			out, err = m.service.DiffOutput([]string{action.target})
+			out, err = m.service.DiffOutput(action.target)
 			return syncActionMsg{action: action, diff: string(out), err: err}
 		case syncActionAdd:
 			err = m.service.Add(action.target)
@@ -277,6 +279,7 @@ func (m syncTUIModel) runAction(action syncAction) tea.Cmd {
 			err = m.service.Apply(action.target)
 		case syncActionMerge:
 			err = m.service.Merge(action.target)
+		case syncActionSkip:
 		}
 		return syncActionMsg{action: action, err: err}
 	}
@@ -289,9 +292,10 @@ func (m syncTUIModel) applyActionResult(action syncAction, diff string) syncTUIM
 		if diff == "" {
 			diff = "diff shown for " + action.target
 		}
-		m.diffs = []string{strings.TrimRight(diff, "\n")}
+		m.diff = strings.TrimRight(diff, "\n")
 		return m
 	case syncActionSkip:
+		m.diff = ""
 		return m.withEntryClean(action.target)
 	case syncActionAdd, syncActionApply, syncActionMerge:
 		if m.service == nil {
@@ -303,6 +307,7 @@ func (m syncTUIModel) applyActionResult(action syncAction, diff string) syncTUIM
 			return m
 		}
 		if len(fresh) == 0 {
+			m.diff = ""
 			return m.withEntryClean(action.target)
 		}
 		m.entries[m.cursor] = fresh[0]

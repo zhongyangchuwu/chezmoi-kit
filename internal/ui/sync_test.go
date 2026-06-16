@@ -99,7 +99,7 @@ func TestSyncModelRendersCurrentEntryAndDiff(t *testing.T) {
 	model := newSyncModel([]chezmoi.StatusEntry{
 		{Code: "MM", Path: "/home/me/.zshrc"},
 		{Code: " M", Path: "/home/me/.gitconfig"},
-	}, []string{"diff -- .zshrc"})
+	}, "diff -- .zshrc")
 
 	got := model.viewString()
 	for _, want := range []string{"cm sync", "> /home/me/.zshrc", "diff -- .zshrc"} {
@@ -113,7 +113,7 @@ func TestSyncModelNavigationAndActions(t *testing.T) {
 	model := newSyncModel([]chezmoi.StatusEntry{
 		{Code: "MM", Path: "/home/me/.zshrc"},
 		{Code: " M", Path: "/home/me/.gitconfig"},
-	}, nil)
+	}, "")
 
 	model = model.moveDown()
 	if got := model.current().Path; got != "/home/me/.gitconfig" {
@@ -266,8 +266,8 @@ func (f *fakeService) Diff(targets []string) error {
 	return nil
 }
 
-func (f *fakeService) DiffOutput(targets []string) ([]byte, error) {
-	f.commands = append(f.commands, append([]string{"diff-output"}, targets...))
+func (f *fakeService) DiffOutput(target string) ([]byte, error) {
+	f.commands = append(f.commands, []string{"diff-output", target})
 	return []byte(f.diffOutput), nil
 }
 

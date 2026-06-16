@@ -15,10 +15,6 @@ type service interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	SourceStatus() ([]sourceEntry, error)
 	Diff(targets []string) error
-	DiffOutput(targets []string) ([]byte, error)
-	Add(target string) error
-	Apply(target string) error
-	Merge(target string) error
 	AddTargets(targets []string) error
 	ApplyTargets(targets []string) error
 	MergeTargets(targets []string) error
@@ -88,12 +84,9 @@ func (s chezmoiService) sourceDir() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func (s chezmoiService) DiffOutput(targets []string) ([]byte, error) {
-	if len(targets) != 1 {
-		return nil, fmt.Errorf("diff output requires exactly one target, got %d", len(targets))
-	}
+func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
 	differ := syncdiff.Differ{Source: syncdiff.ChezmoiContentLoader{Client: s.client}}
-	return differ.Diff(targets[0])
+	return differ.Diff(target)
 }
 
 func parseSourceStatus(out []byte) []sourceEntry {

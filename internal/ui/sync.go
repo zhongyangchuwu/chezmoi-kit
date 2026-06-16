@@ -20,7 +20,7 @@ type SyncService interface {
 
 type SyncTUIService interface {
 	SyncService
-	DiffOutput(targets []string) ([]byte, error)
+	DiffOutput(target string) ([]byte, error)
 }
 
 func RunSync(service SyncService, targets []string, input io.Reader, output io.Writer) error {
