@@ -92,6 +92,5 @@ empty.
 - Chezmoi templates are not supported or needed.
 - `cm` does not run git commit, push, or pull automatically.
 - No daemon, watch, or auto-sync.
-- No full-screen TUI.
 - No additional state database beyond chezmoi's own.
 - No replacement for `chezmoi`; `cm` always delegates to it.

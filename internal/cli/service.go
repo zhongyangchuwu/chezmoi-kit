@@ -7,6 +7,7 @@ import (
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/process"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 	"github.com/zhongyangchuwu/cm/internal/syncdiff"
 )
 
@@ -18,14 +19,6 @@ type statusService interface {
 type diffService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	DiffOutput(target string) ([]byte, error)
-}
-
-type syncService interface {
-	Status(targets []string) ([]chezmoi.StatusEntry, error)
-	DiffOutput(target string) ([]byte, error)
-	Add(target string) error
-	Apply(target string) error
-	Merge(target string) error
 }
 
 type targetCommandService interface {
@@ -41,7 +34,7 @@ type sourceGitService interface {
 type commandServices struct {
 	Status    statusService
 	Diff      diffService
-	Sync      syncService
+	Sync      reconcile.Service
 	Target    targetCommandService
 	SourceGit sourceGitService
 }

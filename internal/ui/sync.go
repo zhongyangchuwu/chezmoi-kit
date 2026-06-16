@@ -8,17 +8,10 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
-type SyncService interface {
-	Status(targets []string) ([]chezmoi.StatusEntry, error)
-	DiffOutput(target string) ([]byte, error)
-	Add(target string) error
-	Apply(target string) error
-	Merge(target string) error
-}
-
-func RunSync(service SyncService, targets []string, input io.Reader, output io.Writer) error {
+func RunSync(service reconcile.Service, targets []string, input io.Reader, output io.Writer) error {
 	entries, err := service.Status(targets)
 	if err != nil {
 		return err
