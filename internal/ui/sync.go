@@ -12,15 +12,10 @@ import (
 
 type SyncService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
-	Diff(targets []string) error
+	DiffOutput(target string) ([]byte, error)
 	Add(target string) error
 	Apply(target string) error
 	Merge(target string) error
-}
-
-type SyncTUIService interface {
-	SyncService
-	DiffOutput(target string) ([]byte, error)
 }
 
 func RunSync(service SyncService, targets []string, input io.Reader, output io.Writer) error {
@@ -48,7 +43,11 @@ func RunSync(service SyncService, targets []string, input io.Reader, output io.W
 
 			switch choice {
 			case "d":
-				if err := service.Diff([]string{entry.Path}); err != nil {
+				diff, err := service.DiffOutput(entry.Path)
+				if err != nil {
+					return err
+				}
+				if _, err := output.Write(diff); err != nil {
 					return err
 				}
 				continue

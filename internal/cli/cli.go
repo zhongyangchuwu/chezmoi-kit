@@ -55,10 +55,10 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 	})
 	root.AddCommand(&cobra.Command{
 		Use:   "diff [target...]",
-		Short: "Show chezmoi diff",
+		Short: "Show internal sync diff",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return svc.Diff(args)
+			return renderDiff(stdout, svc, args)
 		},
 	})
 	syncCmd := &cobra.Command{
@@ -78,17 +78,9 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 				return fmt.Errorf("--tui and --plain are mutually exclusive")
 			}
 			if useTUI || (!plain && isTerminal(stdin) && isTerminal(stdout)) {
-				syncSvc, ok := svc.(ui.SyncTUIService)
-				if !ok {
-					return fmt.Errorf("service does not support sync TUI")
-				}
-				return ui.RunSyncTUI(syncSvc, args, stdin, stdout)
+				return ui.RunSyncTUI(svc, args, stdin, stdout)
 			}
-			syncSvc, ok := svc.(ui.SyncService)
-			if !ok {
-				return fmt.Errorf("service does not support sync")
-			}
-			return ui.RunSync(syncSvc, args, stdin, stdout)
+			return ui.RunSync(svc, args, stdin, stdout)
 		},
 	}
 	syncCmd.Flags().Bool("tui", false, "run sync in terminal UI mode")

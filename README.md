@@ -44,7 +44,7 @@ cm sync     # interactively reconcile all
 |---|---|---|
 | `cm` | no | same as `cm status` |
 | `cm status` | no | show local mismatch and chezmoi git status |
-| `cm diff [target...]` | no | forward to `chezmoi diff` |
+| `cm diff [target...]` | no | show internal sync diff |
 | `cm sync [--tui|--plain] [target...]` | yes | interactive reconciliation |
 | `cm add [target...]` | yes | local → chezmoi source |
 | `cm apply [target...]` | yes | chezmoi source → local |

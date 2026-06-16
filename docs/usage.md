@@ -65,7 +65,7 @@ local differs from chezmoi
 >
 ```
 
-### Keys
+### Sync keys
 
 | Key | Action | Mutates? |
 |---|---|---|
@@ -77,7 +77,7 @@ local differs from chezmoi
 | `q` | quit sync immediately | no |
 
 Use `cm sync --tui` to force the TUI, or `cm sync --plain` to force the
-plain prompt.
+plain prompt. Both modes use the same internal diff for `d`.
 
 After `a`, `p`, or `m`, `cm sync` re-checks the entry's status.
 If it is clean, sync continues to the next entry.
@@ -96,13 +96,14 @@ cm sync ~/.zshrc ~/.gitconfig
 
 ## Direct commands
 
-Use when you already know what you want:
+Use when you already know the reconciliation action. Use `cm diff` or
+`cm sync --tui` to review diffs before choosing an action:
 
 ```bash
+cm diff ~/.zshrc      # show internal sync diff
 cm add ~/.zshrc       # accept local → chezmoi source
 cm apply ~/.zshrc     # accept chezmoi source → local
 cm merge ~/.zshrc     # open chezmoi merge
-cm diff ~/.zshrc      # show chezmoi diff
 ```
 
 ## Git source repository

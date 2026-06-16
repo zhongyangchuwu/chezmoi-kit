@@ -54,20 +54,20 @@ func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	}
 }
 
-func TestRunDiffForwardsToChezmoi(t *testing.T) {
-	service := &fakeService{}
+func TestRunDiffUsesInternalDiff(t *testing.T) {
+	service := &fakeService{diffOutput: "internal diff\n"}
 	var out bytes.Buffer
 
 	code := run([]string{"diff", ".zshrc"}, service, strings.NewReader(""), &out, &out)
 
 	if code != 0 {
-		t.Fatalf("run exit code = %d, want 0", code)
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"diff", ".zshrc"}}) {
+	if out.String() != "internal diff\n" {
+		t.Fatalf("output = %q", out.String())
+	}
+	if !reflect.DeepEqual(service.commands, [][]string{{"diff-output", ".zshrc"}}) {
 		t.Fatalf("commands = %#v", service.commands)
-	}
-	if service.statusCalls != 0 {
-		t.Fatalf("statusCalls = %d, want 0", service.statusCalls)
 	}
 }
 
@@ -108,11 +108,8 @@ func TestRunSyncPlainFlagKeepsPromptMode(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	if !strings.Contains(out.String(), "[d]iff [a]dd local") {
-		t.Fatalf("output %q does not contain plain prompt", out.String())
-	}
-	if strings.Contains(out.String(), "cm sync") {
-		t.Fatalf("output %q unexpectedly contains TUI title", out.String())
+	if !reflect.DeepEqual(service.commands, [][]string{{"add", "/home/me/.zshrc"}}) {
+		t.Fatalf("commands = %#v", service.commands)
 	}
 }
 
@@ -202,6 +199,7 @@ type fakeService struct {
 	statusCalls   int
 	statusArgs    [][]string
 	commands      [][]string
+	diffOutput    string
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -219,14 +217,9 @@ func (f *fakeService) SourceStatus() ([]sourceEntry, error) {
 	return append([]sourceEntry(nil), f.sourceEntries...), nil
 }
 
-func (f *fakeService) Diff(targets []string) error {
-	f.commands = append(f.commands, append([]string{"diff"}, targets...))
-	return nil
-}
-
 func (f *fakeService) DiffOutput(target string) ([]byte, error) {
 	f.commands = append(f.commands, []string{"diff-output", target})
-	return nil, nil
+	return []byte(f.diffOutput), nil
 }
 
 func (f *fakeService) Add(target string) error {

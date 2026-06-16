@@ -72,7 +72,7 @@ The `ParseStatus` function returns raw two-column codes.
 
 ### `internal/syncdiff`
 
-Generates the TUI diff from rendered chezmoi target content to the current
+Generates sync diffs from rendered chezmoi target content to the current
 local file without shelling out to `chezmoi diff`.
 
 ### `internal/ui`

@@ -37,7 +37,7 @@ type syncActionMsg struct {
 }
 
 type syncTUIModel struct {
-	service SyncTUIService
+	service SyncService
 	entries []chezmoi.StatusEntry
 	diff    string
 	cursor  int
@@ -46,7 +46,7 @@ type syncTUIModel struct {
 	err     error
 }
 
-func RunSyncTUI(service SyncTUIService, targets []string, input io.Reader, output io.Writer) error {
+func RunSyncTUI(service SyncService, targets []string, input io.Reader, output io.Writer) error {
 	entries, err := service.Status(targets)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func isTerminalWriter(w io.Writer) bool {
 	return term.IsTerminal(int(file.Fd()))
 }
 
-func newSyncTUIModel(service SyncTUIService, entries []chezmoi.StatusEntry) syncTUIModel {
+func newSyncTUIModel(service SyncService, entries []chezmoi.StatusEntry) syncTUIModel {
 	model := newSyncModel(entries, "")
 	model.service = service
 	return model

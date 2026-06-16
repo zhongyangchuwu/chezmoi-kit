@@ -46,7 +46,8 @@ There is no automatic recommendation. The user reviews diffs first.
 
 ### Chezmoi remains the authority
 
-`cm` delegates `add`, `apply`, `merge`, and `diff` to chezmoi.
+`cm` delegates `add`, `apply`, and `merge` to chezmoi.
+Diffs are generated internally from rendered chezmoi target content to the current local file.
 It does not manipulate chezmoi source files directly.
 
 ## Status model

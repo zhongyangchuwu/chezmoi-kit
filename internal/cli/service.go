@@ -14,7 +14,10 @@ import (
 type service interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	SourceStatus() ([]sourceEntry, error)
-	Diff(targets []string) error
+	DiffOutput(target string) ([]byte, error)
+	Add(target string) error
+	Apply(target string) error
+	Merge(target string) error
 	AddTargets(targets []string) error
 	ApplyTargets(targets []string) error
 	MergeTargets(targets []string) error
@@ -110,10 +113,6 @@ func formatStderr(stderr []byte) string {
 		return ""
 	}
 	return ": " + string(stderr)
-}
-
-func (s chezmoiService) Diff(targets []string) error {
-	return s.runTargets("diff", targets)
 }
 
 func (s chezmoiService) Add(target string) error {
