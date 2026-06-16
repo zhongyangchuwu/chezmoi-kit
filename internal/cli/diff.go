@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-func renderDiff(w io.Writer, svc service, targets []string) error {
+func renderDiff(w io.Writer, svc diffService, targets []string) error {
 	if len(targets) == 0 {
 		entries, err := svc.Status(nil)
 		if err != nil {

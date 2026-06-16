@@ -15,11 +15,11 @@ import (
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	client := chezmoi.Client{Stdin: stdin, Stdout: stdout, Stderr: stderr}
 	svc := chezmoiService{client: client}
-	return run(args, svc, stdin, stdout, stderr)
+	return run(args, commandServicesFor(svc), stdin, stdout, stderr)
 }
 
-func run(args []string, svc service, stdin io.Reader, stdout, stderr io.Writer) int {
-	cmd := newRootCommand(svc, stdin, stdout, stderr)
+func run(args []string, services commandServices, stdin io.Reader, stdout, stderr io.Writer) int {
+	cmd := newRootCommand(services, stdin, stdout, stderr)
 	cmd.SetArgs(args)
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -28,7 +28,7 @@ func run(args []string, svc service, stdin io.Reader, stdout, stderr io.Writer) 
 	return 0
 }
 
-func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	info := build.Current()
 	root := &cobra.Command{
 		Use:           "cm",
@@ -38,7 +38,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderStatus(stdout, svc, args)
+			return renderStatus(stdout, services.Status, args)
 		},
 	}
 	root.SetIn(stdin)
@@ -50,7 +50,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Short: "Show chezmoi reconciliation status",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderStatus(stdout, svc, args)
+			return renderStatus(stdout, services.Status, args)
 		},
 	})
 	root.AddCommand(&cobra.Command{
@@ -58,7 +58,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Short: "Show internal sync diff",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderDiff(stdout, svc, args)
+			return renderDiff(stdout, services.Diff, args)
 		},
 	})
 	syncCmd := &cobra.Command{
@@ -78,9 +78,9 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 				return fmt.Errorf("--tui and --plain are mutually exclusive")
 			}
 			if useTUI || (!plain && isTerminal(stdin) && isTerminal(stdout)) {
-				return ui.RunSyncTUI(svc, args, stdin, stdout)
+				return ui.RunSyncTUI(services.Sync, args, stdin, stdout)
 			}
-			return ui.RunSync(svc, args, stdin, stdout)
+			return ui.RunSync(services.Sync, args, stdin, stdout)
 		},
 	}
 	syncCmd.Flags().Bool("tui", false, "run sync in terminal UI mode")
@@ -91,7 +91,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Short: "Accept local files into chezmoi source state",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return svc.AddTargets(args)
+			return services.Target.AddTargets(args)
 		},
 	})
 	root.AddCommand(&cobra.Command{
@@ -99,7 +99,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Short: "Apply chezmoi target state locally",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return svc.ApplyTargets(args)
+			return services.Target.ApplyTargets(args)
 		},
 	})
 	root.AddCommand(&cobra.Command{
@@ -107,7 +107,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Short: "Open chezmoi merge for targets",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return svc.MergeTargets(args)
+			return services.Target.MergeTargets(args)
 		},
 	})
 	root.AddCommand(&cobra.Command{
@@ -115,7 +115,7 @@ func newRootCommand(svc service, stdin io.Reader, stdout, stderr io.Writer) *cob
 		Short: "Open lazygit in the chezmoi source repository",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return svc.OpenSourceGit()
+			return services.SourceGit.OpenSourceGit()
 		},
 	})
 	root.AddCommand(&cobra.Command{

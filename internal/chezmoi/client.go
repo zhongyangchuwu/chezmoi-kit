@@ -1,24 +1,14 @@
 package chezmoi
 
 import (
-	"errors"
-	"fmt"
 	"io"
-	"os"
-	"os/exec"
+
+	"github.com/zhongyangchuwu/cm/internal/process"
 )
 
-type RunnerIO struct {
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-	Dir    string
-}
+type RunnerIO = process.IO
 
-type Runner interface {
-	Output(command string, args []string, io RunnerIO) ([]byte, error)
-	Run(command string, args []string, io RunnerIO) error
-}
+type Runner = process.Runner
 
 type Client struct {
 	Binary string
@@ -66,7 +56,7 @@ func (c Client) runner() Runner {
 	if c.Runner != nil {
 		return c.Runner
 	}
-	return execRunner{}
+	return process.ExecRunner{}
 }
 
 func (c Client) runnerIO() RunnerIO {
@@ -76,50 +66,4 @@ func (c Client) runnerIO() RunnerIO {
 		Stderr: c.Stderr,
 		Dir:    c.Dir,
 	}
-}
-
-type execRunner struct{}
-
-func (execRunner) Output(command string, args []string, io RunnerIO) ([]byte, error) {
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = io.Stdin
-	cmd.Stderr = writerOrDefault(io.Stderr, os.Stderr)
-	cmd.Dir = io.Dir
-
-	out, err := cmd.Output()
-	if errors.Is(err, exec.ErrNotFound) {
-		return nil, fmt.Errorf("chezmoi not found in PATH")
-	}
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (execRunner) Run(command string, args []string, io RunnerIO) error {
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = readerOrDefault(io.Stdin, os.Stdin)
-	cmd.Stdout = writerOrDefault(io.Stdout, os.Stdout)
-	cmd.Stderr = writerOrDefault(io.Stderr, os.Stderr)
-	cmd.Dir = io.Dir
-
-	err := cmd.Run()
-	if errors.Is(err, exec.ErrNotFound) {
-		return fmt.Errorf("chezmoi not found in PATH")
-	}
-	return err
-}
-
-func readerOrDefault(r io.Reader, fallback io.Reader) io.Reader {
-	if r != nil {
-		return r
-	}
-	return fallback
-}
-
-func writerOrDefault(w io.Writer, fallback io.Writer) io.Writer {
-	if w != nil {
-		return w
-	}
-	return fallback
 }

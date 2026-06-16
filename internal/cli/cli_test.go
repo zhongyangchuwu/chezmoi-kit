@@ -13,7 +13,7 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -36,7 +36,7 @@ func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	}
 	var out bytes.Buffer
 
-	code := run([]string{"status"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"status"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -58,7 +58,7 @@ func TestRunDiffUsesInternalDiff(t *testing.T) {
 	service := &fakeService{diffOutput: "internal diff\n"}
 	var out bytes.Buffer
 
-	code := run([]string{"diff", ".zshrc"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"diff", ".zshrc"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
@@ -80,7 +80,7 @@ func TestRunSyncTUIFlagUsesTUI(t *testing.T) {
 	}
 	var out bytes.Buffer
 
-	code := run([]string{"sync", "--tui", ".zshrc"}, service, strings.NewReader("a"), &out, &out)
+	code := run([]string{"sync", "--tui", ".zshrc"}, testServices(service), strings.NewReader("a"), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
@@ -103,7 +103,7 @@ func TestRunSyncPlainFlagKeepsPromptMode(t *testing.T) {
 	}
 	var out bytes.Buffer
 
-	code := run([]string{"sync", "--plain", ".zshrc"}, service, strings.NewReader("a\n"), &out, &out)
+	code := run([]string{"sync", "--plain", ".zshrc"}, testServices(service), strings.NewReader("a\n"), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
@@ -117,7 +117,7 @@ func TestRunGitOpensSourceRepositoryWithLazygit(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{"git"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"git"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -146,7 +146,7 @@ func TestRunMutatingWrappersForwardToChezmoi(t *testing.T) {
 			service := &fakeService{}
 			var out bytes.Buffer
 
-			code := run(tt.args, service, strings.NewReader(""), &out, &out)
+			code := run(tt.args, testServices(service), strings.NewReader(""), &out, &out)
 
 			if code != 0 {
 				t.Fatalf("run exit code = %d, want 0", code)
@@ -165,7 +165,7 @@ func TestRunVersionPrintsBuildInfo(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{"version"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"version"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -182,13 +182,23 @@ func TestRunCompletionPrintsShellScript(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{"completion", "bash"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"completion", "bash"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
 	if !strings.Contains(out.String(), "cm") {
 		t.Fatalf("completion output = %q, want generated script", out.String())
+	}
+}
+
+func testServices(service *fakeService) commandServices {
+	return commandServices{
+		Status:    service,
+		Diff:      service,
+		Sync:      service,
+		Target:    service,
+		SourceGit: service,
 	}
 }
 

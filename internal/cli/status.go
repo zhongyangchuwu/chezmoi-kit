@@ -7,7 +7,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func renderStatus(w io.Writer, svc service, targets []string) error {
+func renderStatus(w io.Writer, svc statusService, targets []string) error {
 	entries, err := svc.Status(targets)
 	if err != nil {
 		return err

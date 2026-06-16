@@ -2,26 +2,58 @@ package cli
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/process"
 	"github.com/zhongyangchuwu/cm/internal/syncdiff"
 )
 
-type service interface {
+type statusService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	SourceStatus() ([]sourceEntry, error)
+}
+
+type diffService interface {
+	Status(targets []string) ([]chezmoi.StatusEntry, error)
+	DiffOutput(target string) ([]byte, error)
+}
+
+type syncService interface {
+	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	DiffOutput(target string) ([]byte, error)
 	Add(target string) error
 	Apply(target string) error
 	Merge(target string) error
+}
+
+type targetCommandService interface {
 	AddTargets(targets []string) error
 	ApplyTargets(targets []string) error
 	MergeTargets(targets []string) error
+}
+
+type sourceGitService interface {
 	OpenSourceGit() error
+}
+
+type commandServices struct {
+	Status    statusService
+	Diff      diffService
+	Sync      syncService
+	Target    targetCommandService
+	SourceGit sourceGitService
+}
+
+func commandServicesFor(s chezmoiService) commandServices {
+	return commandServices{
+		Status:    s,
+		Diff:      s,
+		Sync:      s,
+		Target:    s,
+		SourceGit: s,
+	}
 }
 
 type sourceEntry struct {
@@ -46,10 +78,8 @@ func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
 		return nil, nil
 	}
 
-	cmd := exec.Command("git", "-C", sourceDir, "status", "--porcelain=v1")
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
+	out, err := s.runner().Output("git", []string{"status", "--porcelain=v1"}, process.IO{Dir: sourceDir, Stderr: &stderr})
 	if err != nil {
 		return nil, fmt.Errorf("git status %s: %w%s", sourceDir, err, formatStderr(stderr.Bytes()))
 	}
@@ -65,15 +95,12 @@ func (s chezmoiService) OpenSourceGit() error {
 		return fmt.Errorf("chezmoi source path is empty")
 	}
 
-	cmd := exec.Command("lazygit")
-	cmd.Dir = sourceDir
-	cmd.Stdin = s.client.Stdin
-	cmd.Stdout = s.client.Stdout
-	cmd.Stderr = s.client.Stderr
-	if err := cmd.Run(); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return fmt.Errorf("lazygit not found in PATH")
-		}
+	if err := s.runner().Run("lazygit", nil, process.IO{
+		Dir:    sourceDir,
+		Stdin:  s.client.Stdin,
+		Stdout: s.client.Stdout,
+		Stderr: s.client.Stderr,
+	}); err != nil {
 		return fmt.Errorf("lazygit %s: %w", sourceDir, err)
 	}
 	return nil
@@ -88,8 +115,15 @@ func (s chezmoiService) sourceDir() (string, error) {
 }
 
 func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
-	differ := syncdiff.Differ{Source: syncdiff.ChezmoiContentLoader{Client: s.client}}
+	differ := syncdiff.Differ{Source: chezmoi.ContentLoader{Client: s.client}}
 	return differ.Diff(target)
+}
+
+func (s chezmoiService) runner() process.Runner {
+	if s.client.Runner != nil {
+		return s.client.Runner
+	}
+	return process.ExecRunner{}
 }
 
 func parseSourceStatus(out []byte) []sourceEntry {

@@ -42,15 +42,20 @@ internal/cli/
   cli.go                       Cobra command wiring
   service.go                   chezmoi-backed CLI service
   status.go                    status rendering
+  diff.go                      diff command rendering
+  service_test.go
   cli_test.go
 internal/chezmoi/
   client.go                    chezmoi CLI wrapper
   status.go                    status parsing
+  content.go                   chezmoi/local content loader for sync diffs
 internal/syncdiff/
   diff.go                      internal sync diff generation
 internal/ui/
   sync.go                      plain sync prompt
   tui.go                       terminal sync UI
+internal/process/
+  runner.go                    external process execution abstraction
 internal/build/
   info.go                      version from runtime/debug
 ```
@@ -69,11 +74,18 @@ the interfaces consumed by command handlers and sync UIs.
 Owns chezmoi CLI execution and status parsing. The `Status` method
 adds `--path-style=absolute` so callers always get absolute target paths.
 The `ParseStatus` function returns raw two-column codes.
+The `ContentLoader` type adapts chezmoi-rendered target content and local files
+to `internal/syncdiff`.
 
 ### `internal/syncdiff`
 
 Generates sync diffs from rendered chezmoi target content to the current
 local file without shelling out to `chezmoi diff`.
+
+### `internal/process`
+
+Owns subprocess execution. Chezmoi, git status, and lazygit all go through this
+runner boundary so tests can inject one process fake.
 
 ### `internal/ui`
 

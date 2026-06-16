@@ -73,23 +73,3 @@ func binary(content []byte) bool {
 	}
 	return bytes.IndexByte(content, 0) >= 0
 }
-
-type ChezmoiContentLoader struct {
-	Client ChezmoiClient
-}
-
-type ChezmoiClient interface {
-	Output(args ...string) ([]byte, error)
-}
-
-func (l ChezmoiContentLoader) TargetContent(target string) ([]byte, error) {
-	return l.Client.Output("cat", target)
-}
-
-func (ChezmoiContentLoader) LocalContent(target string) ([]byte, error) {
-	content, err := os.ReadFile(target)
-	if err != nil {
-		return nil, err
-	}
-	return content, nil
-}
