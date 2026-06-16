@@ -25,7 +25,7 @@ func (m syncTUIModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, defaultSyncKeys.Down):
 		return m.handleDown()
 	case key.Matches(msg, defaultSyncKeys.Diff):
-		return m, m.loadDiff(true)
+		return m.startDiffLoad(true)
 	case key.Matches(msg, defaultSyncKeys.Add):
 		return m.togglePending(reconcile.ActionAdd), nil
 	case key.Matches(msg, defaultSyncKeys.Apply):
@@ -35,23 +35,24 @@ func (m syncTUIModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, defaultSyncKeys.Skip):
 		return m.clearPending(), nil
 	default:
-		m.message = "unknown choice"
 		return m, nil
 	}
 }
 
 func (m syncTUIModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case msg.Key().Code == tea.KeyEscape || msg.Key().Code == tea.KeyEsc:
+	case key.Matches(msg, defaultSyncKeys.Back):
 		m.mode = modeReview
 		m.message = ""
 		return m, nil
 	case key.Matches(msg, defaultSyncKeys.Quit):
 		return m, tea.Quit
-	case msg.String() == "y" || msg.String() == "Y":
-		return m, m.executePending()
+	case key.Matches(msg, defaultSyncKeys.Execute):
+		actions := m.pendingActions()
+		m.mode = modeExecuting
+		m.message = "executing " + actionCount(len(actions))
+		return m, m.executeActions(actions)
 	default:
-		m.message = "confirm with y, esc to review, q to quit"
 		return m, nil
 	}
 }
@@ -63,7 +64,7 @@ func (m syncTUIModel) handleUp() (tea.Model, tea.Cmd) {
 	var moved bool
 	m, moved = m.moveUp()
 	if moved {
-		return m, m.loadDiff(false)
+		return m.startDiffLoad(false)
 	}
 	return m, nil
 }
@@ -75,7 +76,7 @@ func (m syncTUIModel) handleDown() (tea.Model, tea.Cmd) {
 	var moved bool
 	m, moved = m.moveDown()
 	if moved {
-		return m, m.loadDiff(false)
+		return m.startDiffLoad(false)
 	}
 	return m, nil
 }

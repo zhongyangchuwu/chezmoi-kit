@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
 func TestChezmoiServiceSourceStatusUsesRunnerInSourceDir(t *testing.T) {
@@ -48,6 +49,20 @@ func TestChezmoiServiceOpenSourceGitUsesRunnerIO(t *testing.T) {
 	gotIO := runner.runIO[0]
 	if gotIO.Dir != "/home/me/src" || gotIO.Stdin != stdin || gotIO.Stdout != &stdout || gotIO.Stderr != &stderr {
 		t.Fatalf("run IO = %#v", gotIO)
+	}
+}
+
+func TestChezmoiServiceExecuteForcesConfirmedApply(t *testing.T) {
+	runner := &recordingRunner{}
+	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
+
+	err := service.Execute([]reconcile.Action{{Target: "/home/me/.zshrc", Kind: reconcile.ActionApply}})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	wantRuns := [][]string{{"chezmoi", "apply", "--force", "/home/me/.zshrc"}}
+	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
 	}
 }
 

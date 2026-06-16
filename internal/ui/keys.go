@@ -14,19 +14,25 @@ type syncKeyMap struct {
 	Apply   key.Binding
 	Merge   key.Binding
 	Skip    key.Binding
-	Confirm key.Binding
+	Enter   key.Binding
+	Execute key.Binding
+	Back    key.Binding
 	Quit    key.Binding
 }
 
 func (k syncKeyMap) reviewHelp(focus syncFocus) []key.Binding {
 	if focus == focusDiff {
-		return []key.Binding{k.Tab, k.Up, k.Down, k.Diff, k.Add, k.Apply, k.Merge, k.Confirm, k.Quit}
+		return []key.Binding{k.Tab, k.Up, k.Down, k.Diff, k.Add, k.Apply, k.Merge, k.Enter, k.Quit}
 	}
-	return []key.Binding{k.Tab, k.Up, k.Down, k.Diff, k.Add, k.Apply, k.Merge, k.Skip, k.Confirm, k.Quit}
+	return []key.Binding{k.Tab, k.Up, k.Down, k.Diff, k.Add, k.Apply, k.Merge, k.Skip, k.Enter, k.Quit}
 }
 
 func (k syncKeyMap) confirmHelp() []key.Binding {
-	return []key.Binding{k.Confirm, k.Quit}
+	return []key.Binding{k.Execute, k.Back, k.Quit}
+}
+
+func (k syncKeyMap) executingHelp() []key.Binding {
+	return []key.Binding{k.Quit}
 }
 
 func (k syncKeyMap) ShortHelp() []key.Binding {
@@ -47,7 +53,9 @@ var (
 		Apply:   key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
 		Merge:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
 		Skip:    key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "skip")),
-		Confirm: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter/y/esc", "confirm")),
+		Enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
+		Execute: key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "execute")),
+		Back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))

@@ -11,6 +11,7 @@ type syncMode int
 const (
 	modeReview syncMode = iota
 	modeConfirm
+	modeExecuting
 )
 
 type syncFocus int
@@ -31,19 +32,25 @@ type syncTUIModel struct {
 	diffScroll int
 	width      int
 	height     int
+	homeDir    string
 	help       help.Model
 	message    string
 	err        error
 }
 
 func newSyncTUIModel(service reconcile.ReviewService, entries []chezmoi.StatusEntry) syncTUIModel {
-	return syncTUIModel{
+	m := syncTUIModel{
 		service: service,
 		entries: append([]chezmoi.StatusEntry(nil), entries...),
 		pending: make(map[string]reconcile.ActionKind),
 		diffs:   make(map[string]diffState),
+		homeDir: homeDir(),
 		help:    help.New(),
 	}
+	if target := m.currentTarget(); target != "" {
+		m.diffs[target] = diffState{loading: true}
+	}
+	return m
 }
 
 func (m syncTUIModel) current() chezmoi.StatusEntry {
@@ -89,18 +96,19 @@ func (m syncTUIModel) togglePending(kind reconcile.ActionKind) syncTUIModel {
 	target := m.currentTarget()
 	if current, ok := m.pending[target]; ok && current == kind {
 		delete(m.pending, target)
-		m.message = "cleared " + target
+		display := m.displayPath(target)
+		m.message = "cleared " + display
 		return m
 	}
 	m.pending[target] = kind
-	m.message = actionLabel(kind) + " " + target
+	m.message = actionLabel(kind) + " " + m.displayPath(target)
 	return m
 }
 
 func (m syncTUIModel) clearPending() syncTUIModel {
 	target := m.currentTarget()
 	delete(m.pending, target)
-	m.message = "skipped " + target
+	m.message = "skipped " + m.displayPath(target)
 	return m
 }
 

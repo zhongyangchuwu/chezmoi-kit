@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -70,12 +69,11 @@ func (m syncTUIModel) renderFilesPane(size rect) string {
 	innerHeight := size.height - 2
 	lines := make([]string, 0, innerHeight)
 	for _, entry := range visibleEntries(m.entries, m.cursor, innerHeight) {
-		actual := entry.index
 		cursor := "  "
-		if actual == m.cursor {
+		if entry.index == m.cursor {
 			cursor = "> "
 		}
-		line := cursor + m.pendingLabel(entry.path) + " " + filepath.Base(entry.path)
+		line := cursor + m.pendingLabel(entry.path) + " " + m.displayPath(entry.path)
 		lines = append(lines, truncate(line, innerWidth))
 	}
 	for len(lines) < innerHeight {
@@ -90,7 +88,7 @@ func (m syncTUIModel) renderFilesPane(size rect) string {
 }
 
 func (m syncTUIModel) renderMainPane(size rect) string {
-	if m.mode == modeConfirm {
+	if m.mode == modeConfirm || m.mode == modeExecuting {
 		return m.renderConfirmPane(size)
 	}
 	return m.renderDiffPane(size)
@@ -106,10 +104,10 @@ func (m syncTUIModel) renderDiffPane(size rect) string {
 		content = "loading diff..."
 	case state.err != nil:
 		content = state.err.Error()
-	case state.content == "":
+	case len(state.lines) == 0:
 		content = "no diff"
 	default:
-		lines := splitLines(state.content)
+		lines := state.lines
 		if m.diffScroll > len(lines) {
 			lines = nil
 		} else {
@@ -118,10 +116,11 @@ func (m syncTUIModel) renderDiffPane(size rect) string {
 		if len(lines) > innerHeight {
 			lines = lines[:innerHeight]
 		}
-		for i := range lines {
-			lines[i] = truncate(lines[i], innerWidth)
+		visible := make([]string, len(lines))
+		for i, line := range lines {
+			visible[i] = truncate(line, innerWidth)
 		}
-		content = renderDiff(strings.Join(lines, "\n"))
+		content = renderDiff(strings.Join(visible, "\n"))
 	}
 
 	content = padLines(content, innerHeight)
@@ -135,9 +134,13 @@ func (m syncTUIModel) renderDiffPane(size rect) string {
 func (m syncTUIModel) renderConfirmPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
-	lines := []string{sectionStyle.Render("Confirm actions"), ""}
+	title := "Confirm actions"
+	if m.mode == modeExecuting {
+		title = "Executing actions"
+	}
+	lines := []string{sectionStyle.Render(title), ""}
 	for _, action := range m.pendingActions() {
-		lines = append(lines, truncate(fmt.Sprintf("%s %s", actionLabel(action.Kind), action.Target), innerWidth))
+		lines = append(lines, truncate(fmt.Sprintf("%s %s", actionLabel(action.Kind), m.displayPath(action.Target)), innerWidth))
 	}
 	if len(lines) == 2 {
 		lines = append(lines, "no pending actions")
@@ -146,9 +149,13 @@ func (m syncTUIModel) renderConfirmPane(size rect) string {
 	content = padLines(content, innerHeight)
 	return activePaneStyle.Width(size.width - 2).Height(size.height - 2).Render(content)
 }
+
 func (m syncTUIModel) footer() string {
+	if m.mode == modeExecuting {
+		return helpStyle.Render("executing... • q quit")
+	}
 	if m.mode == modeConfirm {
-		return helpStyle.Render("y execute • esc review • q quit")
+		return helpStyle.Render(m.help.ShortHelpView(defaultSyncKeys.confirmHelp()))
 	}
 	focus := "files"
 	if m.focus == focusDiff {

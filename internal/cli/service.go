@@ -119,7 +119,7 @@ func (s chezmoiService) Execute(actions []reconcile.Action) error {
 		case reconcile.ActionAdd:
 			err = s.runTarget("add", action.Target)
 		case reconcile.ActionApply:
-			err = s.runTarget("apply", action.Target)
+			err = s.client.Run("apply", "--force", action.Target)
 		case reconcile.ActionMerge:
 			err = s.runTarget("merge", action.Target)
 		default:

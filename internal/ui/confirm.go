@@ -1,12 +1,13 @@
 package ui
 
 import (
+	"fmt"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
-func (m syncTUIModel) executePending() tea.Cmd {
-	actions := m.pendingActions()
+func (m syncTUIModel) executeActions(actions []reconcile.Action) tea.Cmd {
 	return func() tea.Msg {
 		if len(actions) == 0 {
 			return executeMsg{}
@@ -37,6 +38,13 @@ func (m syncTUIModel) executePending() tea.Cmd {
 		}
 		return executeMsg{executed: kept, skipped: len(actions) - len(kept)}
 	}
+}
+
+func actionCount(count int) string {
+	if count == 1 {
+		return "1 action"
+	}
+	return fmt.Sprintf("%d actions", count)
 }
 
 func actionLabel(kind reconcile.ActionKind) string {

@@ -7,28 +7,32 @@ import (
 )
 
 type diffState struct {
-	content string
+	lines   []string
 	loading bool
 	err     error
 }
 
-func (m syncTUIModel) loadDiff(refresh bool) tea.Cmd {
+func (m syncTUIModel) startDiffLoad(refresh bool) (syncTUIModel, tea.Cmd) {
 	target := m.currentTarget()
 	if target == "" {
-		return nil
+		return m, nil
 	}
-	if state, ok := m.diffs[target]; ok && state.content != "" && !refresh {
-		return nil
+	if state, ok := m.diffs[target]; ok && len(state.lines) > 0 && !refresh {
+		return m, nil
 	}
 	m.diffs[target] = diffState{loading: true}
+	return m, loadDiffCmd(m.service, target)
+}
+
+func loadDiffCmd(service interface{ DiffOutput(string) ([]byte, error) }, target string) tea.Cmd {
 	return func() tea.Msg {
-		out, err := m.service.DiffOutput(target)
+		out, err := service.DiffOutput(target)
 		return syncDiffMsg{target: target, diff: string(out), err: err}
 	}
 }
 
 func (m *syncTUIModel) applyDiff(msg syncDiffMsg) {
-	state := diffState{content: strings.TrimRight(msg.diff, "\n"), err: msg.err}
+	state := diffState{lines: splitLines(strings.TrimRight(msg.diff, "\n")), err: msg.err}
 	m.diffs[msg.target] = state
 	if msg.err != nil {
 		m.message = msg.err.Error()
@@ -42,7 +46,7 @@ func (m syncTUIModel) currentDiffState() diffState {
 }
 
 func (m syncTUIModel) scrollDiff(delta int, height int) syncTUIModel {
-	lines := splitLines(m.currentDiffState().content)
+	lines := m.currentDiffState().lines
 	maxScroll := len(lines) - height
 	if maxScroll < 0 {
 		maxScroll = 0

@@ -78,6 +78,8 @@ focus, `j/k` scrolls the diff. Selecting the same action twice clears it.
 Selecting a different action for the same target replaces the previous pending
 action. Before execution, `cm sync` re-checks selected targets and drops any
 target that is already clean.
+Confirmed `p` actions run `chezmoi apply --force` because the TUI has already
+shown the diff and collected confirmation.
 
 In the TUI diff pane, `--- chezmoi:<path>` is the rendered chezmoi target and
 `+++ local:<path>` is the current local file. Added lines therefore show local

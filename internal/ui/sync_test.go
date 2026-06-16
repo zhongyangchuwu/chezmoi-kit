@@ -65,9 +65,9 @@ func TestExecutePendingPreflightDropsCleanTargets(t *testing.T) {
 	model.pending["/home/me/.zshrc"] = reconcile.ActionAdd
 	model.pending["/home/me/.gitconfig"] = reconcile.ActionMerge
 
-	msg := model.executePending()().(executeMsg)
+	msg := model.executeActions(model.pendingActions())().(executeMsg)
 	if msg.err != nil {
-		t.Fatalf("executePending returned error: %v", msg.err)
+		t.Fatalf("executeActions returned error: %v", msg.err)
 	}
 	wantExecuted := []reconcile.Action{{Target: "/home/me/.gitconfig", Kind: reconcile.ActionMerge}}
 	if !reflect.DeepEqual(service.executed, wantExecuted) {
@@ -103,7 +103,7 @@ func TestMoveSelectionLoadsUncachedDiff(t *testing.T) {
 func TestDiffScrollOnlyMovesInDiffFocus(t *testing.T) {
 	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 	model.height = 8
-	model.diffs["/home/me/.zshrc"] = diffState{content: "1\n2\n3\n4\n5\n6\n7\n8"}
+	model.diffs["/home/me/.zshrc"] = diffState{lines: []string{"1", "2", "3", "4", "5", "6", "7", "8"}}
 	model.focus = focusDiff
 
 	updated, _ := model.handleDown()
