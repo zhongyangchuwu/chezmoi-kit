@@ -15,39 +15,39 @@ import (
 	"golang.org/x/term"
 )
 
-type syncActionKind int
+type syncMode int
 
 const (
-	syncActionDiff syncActionKind = iota
-	syncActionAdd
-	syncActionApply
-	syncActionMerge
-	syncActionSkip
-	syncActionQuit
+	modeReview syncMode = iota
+	modeConfirm
 )
 
-type syncAction struct {
-	kind   syncActionKind
+type syncActionMsg struct {
 	target string
+	diff   string
+	err    error
 }
 
-type syncActionMsg struct {
-	action syncAction
-	err    error
-	diff   string
+type executeMsg struct {
+	executed []reconcile.Action
+	skipped  int
+	err      error
 }
 
 type syncTUIModel struct {
-	service reconcile.Service
-	entries []chezmoi.StatusEntry
-	diff    string
-	cursor  int
-	help    help.Model
-	message string
-	err     error
+	service    reconcile.ReviewService
+	entries    []chezmoi.StatusEntry
+	cursor     int
+	pending    map[string]reconcile.ActionKind
+	diffTarget string
+	diff       string
+	mode       syncMode
+	help       help.Model
+	message    string
+	err        error
 }
 
-func RunSyncTUI(service reconcile.Service, targets []string, input io.Reader, output io.Writer) error {
+func RunSyncTUI(service reconcile.ReviewService, targets []string, input io.Reader, output io.Writer) error {
 	entries, err := service.Status(targets)
 	if err != nil {
 		return err
@@ -94,16 +94,11 @@ func isTerminalWriter(w io.Writer) bool {
 	return term.IsTerminal(int(file.Fd()))
 }
 
-func newSyncTUIModel(service reconcile.Service, entries []chezmoi.StatusEntry) syncTUIModel {
-	model := newSyncModel(entries, "")
-	model.service = service
-	return model
-}
-
-func newSyncModel(entries []chezmoi.StatusEntry, diff string) syncTUIModel {
+func newSyncTUIModel(service reconcile.ReviewService, entries []chezmoi.StatusEntry) syncTUIModel {
 	return syncTUIModel{
+		service: service,
 		entries: append([]chezmoi.StatusEntry(nil), entries...),
-		diff:    diff,
+		pending: make(map[string]reconcile.ActionKind),
 		help:    help.New(),
 	}
 }
@@ -115,39 +110,80 @@ func (m syncTUIModel) Init() tea.Cmd {
 func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		switch {
-		case msg.Key().Code == tea.KeyEnter || msg.Key().Code == tea.KeyReturn:
-			return m, nil
-		case key.Matches(msg, defaultSyncKeys.Quit):
-			return m, tea.Quit
-		case key.Matches(msg, defaultSyncKeys.Up):
-			return m.moveUp(), nil
-		case key.Matches(msg, defaultSyncKeys.Down):
-			return m.moveDown(), nil
-		default:
-			action, ok := m.actionForKey(msg.String())
-			if !ok {
-				m.message = "unknown choice"
-				return m, nil
-			}
-			if action.kind == syncActionQuit {
-				return m, tea.Quit
-			}
-			return m, m.runAction(action)
+		if m.mode == modeConfirm {
+			return m.updateConfirm(msg)
 		}
+		return m.updateReview(msg)
 	case syncActionMsg:
 		if msg.err != nil {
 			m.err = msg.err
 			return m, tea.Quit
 		}
-		m = m.applyActionResult(msg.action, msg.diff)
-		if len(m.entries) == 0 {
-			m.message = "clean"
+		m.message = ""
+		m.diffTarget = msg.target
+		m.diff = strings.TrimRight(msg.diff, "\n")
+		return m, nil
+	case executeMsg:
+		if msg.err != nil {
+			m.err = msg.err
 			return m, tea.Quit
 		}
-		return m, nil
+		if len(msg.executed) == 0 {
+			m.message = "no pending dirty targets"
+		} else {
+			m.message = fmt.Sprintf("executed %d action(s)", len(msg.executed))
+		}
+		return m, tea.Quit
 	}
 	return m, nil
+}
+
+func (m syncTUIModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case msg.Key().Code == tea.KeyEnter || msg.Key().Code == tea.KeyReturn:
+		if len(m.pending) == 0 {
+			m.message = "no pending actions"
+			return m, nil
+		}
+		m.mode = modeConfirm
+		m.message = "confirm pending actions"
+		return m, nil
+	case key.Matches(msg, defaultSyncKeys.Quit):
+		return m, tea.Quit
+	case key.Matches(msg, defaultSyncKeys.Up):
+		return m.moveUp(), nil
+	case key.Matches(msg, defaultSyncKeys.Down):
+		return m.moveDown(), nil
+	case key.Matches(msg, defaultSyncKeys.Diff):
+		return m, m.loadDiff()
+	case key.Matches(msg, defaultSyncKeys.Add):
+		return m.togglePending(reconcile.ActionAdd), nil
+	case key.Matches(msg, defaultSyncKeys.Apply):
+		return m.togglePending(reconcile.ActionApply), nil
+	case key.Matches(msg, defaultSyncKeys.Merge):
+		return m.togglePending(reconcile.ActionMerge), nil
+	case key.Matches(msg, defaultSyncKeys.Skip):
+		return m.clearPending(), nil
+	default:
+		m.message = "unknown choice"
+		return m, nil
+	}
+}
+
+func (m syncTUIModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case msg.Key().Code == tea.KeyEscape || msg.Key().Code == tea.KeyEsc:
+		m.mode = modeReview
+		m.message = ""
+		return m, nil
+	case key.Matches(msg, defaultSyncKeys.Quit):
+		return m, tea.Quit
+	case msg.String() == "y" || msg.String() == "Y":
+		return m, m.executePending()
+	default:
+		m.message = "confirm with y, esc to review, q to quit"
+		return m, nil
+	}
 }
 
 func (m syncTUIModel) View() tea.View {
@@ -171,6 +207,8 @@ func (m syncTUIModel) viewString() string {
 			cursor = "> "
 		}
 		b.WriteString(cursor)
+		b.WriteString(m.pendingLabel(entry.Path))
+		b.WriteByte(' ')
 		b.WriteString(entry.Path)
 		b.WriteByte('\n')
 	}
@@ -178,11 +216,23 @@ func (m syncTUIModel) viewString() string {
 	b.WriteByte('\n')
 	b.WriteString(sectionStyle.Render("Diff"))
 	b.WriteByte('\n')
-	if m.diff == "" {
+	if m.diff == "" || m.diffTarget != m.current().Path {
 		b.WriteString("press d to show diff\n")
 	} else {
 		b.WriteString(renderDiff(m.diff))
 		b.WriteByte('\n')
+	}
+
+	if m.mode == modeConfirm {
+		b.WriteByte('\n')
+		b.WriteString(sectionStyle.Render("Confirm"))
+		b.WriteByte('\n')
+		for _, action := range m.pendingActions() {
+			b.WriteString(actionLabel(action.Kind))
+			b.WriteByte(' ')
+			b.WriteString(action.Target)
+			b.WriteByte('\n')
+		}
 	}
 
 	if m.message != "" {
@@ -230,7 +280,6 @@ func (m syncTUIModel) current() chezmoi.StatusEntry {
 func (m syncTUIModel) moveUp() syncTUIModel {
 	if m.cursor > 0 {
 		m.cursor--
-		m.diff = ""
 	}
 	return m
 }
@@ -238,111 +287,137 @@ func (m syncTUIModel) moveUp() syncTUIModel {
 func (m syncTUIModel) moveDown() syncTUIModel {
 	if m.cursor < len(m.entries)-1 {
 		m.cursor++
-		m.diff = ""
 	}
 	return m
 }
 
-func (m syncTUIModel) actionForKey(name string) (syncAction, bool) {
-	if len(m.entries) == 0 {
-		return syncAction{}, false
-	}
+func (m syncTUIModel) togglePending(kind reconcile.ActionKind) syncTUIModel {
 	target := m.current().Path
-	switch name {
-	case "d":
-		return syncAction{kind: syncActionDiff, target: target}, true
-	case "a":
-		return syncAction{kind: syncActionAdd, target: target}, true
-	case "p":
-		return syncAction{kind: syncActionApply, target: target}, true
-	case "m":
-		return syncAction{kind: syncActionMerge, target: target}, true
-	case "s":
-		return syncAction{kind: syncActionSkip, target: target}, true
-	case "q":
-		return syncAction{kind: syncActionQuit, target: target}, true
-	default:
-		return syncAction{}, false
-	}
-}
-
-func (m syncTUIModel) runAction(action syncAction) tea.Cmd {
-	return func() tea.Msg {
-		var err error
-		switch action.kind {
-		case syncActionDiff:
-			var out []byte
-			out, err = m.service.DiffOutput(action.target)
-			return syncActionMsg{action: action, diff: string(out), err: err}
-		case syncActionAdd:
-			err = m.service.Add(action.target)
-		case syncActionApply:
-			err = m.service.Apply(action.target)
-		case syncActionMerge:
-			err = m.service.Merge(action.target)
-		case syncActionSkip:
-		}
-		return syncActionMsg{action: action, err: err}
-	}
-}
-
-func (m syncTUIModel) applyActionResult(action syncAction, diff string) syncTUIModel {
-	m.message = ""
-	switch action.kind {
-	case syncActionDiff:
-		if diff == "" {
-			diff = "diff shown for " + action.target
-		}
-		m.diff = strings.TrimRight(diff, "\n")
+	if current, ok := m.pending[target]; ok && current == kind {
+		delete(m.pending, target)
+		m.message = "cleared " + target
 		return m
-	case syncActionSkip:
-		m.diff = ""
-		return m.withEntryClean(action.target)
-	case syncActionAdd, syncActionApply, syncActionMerge:
-		if m.service == nil {
-			return m.withEntryClean(action.target)
-		}
-		fresh, err := m.service.Status([]string{action.target})
-		if err != nil {
-			m.err = err
-			return m
-		}
-		if len(fresh) == 0 {
-			m.diff = ""
-			return m.withEntryClean(action.target)
-		}
-		m.entries[m.cursor] = fresh[0]
 	}
+	m.pending[target] = kind
+	m.message = actionLabel(kind) + " " + target
 	return m
 }
 
-func (m syncTUIModel) withEntryClean(target string) syncTUIModel {
-	for i, entry := range m.entries {
-		if entry.Path != target {
+func (m syncTUIModel) clearPending() syncTUIModel {
+	target := m.current().Path
+	delete(m.pending, target)
+	m.message = "skipped " + target
+	return m
+}
+
+func (m syncTUIModel) pendingActions() []reconcile.Action {
+	actions := make([]reconcile.Action, 0, len(m.pending))
+	for _, entry := range m.entries {
+		kind, ok := m.pending[entry.Path]
+		if !ok {
 			continue
 		}
-		m.entries = append(m.entries[:i], m.entries[i+1:]...)
-		if m.cursor >= len(m.entries) && m.cursor > 0 {
-			m.cursor--
-		}
-		return m
+		actions = append(actions, reconcile.Action{Target: entry.Path, Kind: kind})
 	}
-	return m
+	return actions
+}
+
+func (m syncTUIModel) loadDiff() tea.Cmd {
+	target := m.current().Path
+	if target == "" {
+		return nil
+	}
+	if m.diffTarget == target && m.diff != "" {
+		return nil
+	}
+	return func() tea.Msg {
+		out, err := m.service.DiffOutput(target)
+		return syncActionMsg{target: target, diff: string(out), err: err}
+	}
+}
+
+func (m syncTUIModel) executePending() tea.Cmd {
+	actions := m.pendingActions()
+	return func() tea.Msg {
+		if len(actions) == 0 {
+			return executeMsg{}
+		}
+		targets := make([]string, 0, len(actions))
+		for _, action := range actions {
+			targets = append(targets, action.Target)
+		}
+		fresh, err := m.service.Status(targets)
+		if err != nil {
+			return executeMsg{err: err}
+		}
+		dirty := make(map[string]struct{}, len(fresh))
+		for _, entry := range fresh {
+			dirty[entry.Path] = struct{}{}
+		}
+		kept := actions[:0]
+		for _, action := range actions {
+			if _, ok := dirty[action.Target]; ok {
+				kept = append(kept, action)
+			}
+		}
+		if len(kept) == 0 {
+			return executeMsg{skipped: len(actions)}
+		}
+		if err := m.service.Execute(kept); err != nil {
+			return executeMsg{err: err}
+		}
+		return executeMsg{executed: kept, skipped: len(actions) - len(kept)}
+	}
+}
+
+func (m syncTUIModel) pendingLabel(target string) string {
+	kind, ok := m.pending[target]
+	if !ok {
+		return "[ ]"
+	}
+	return "[" + actionMarker(kind) + "]"
+}
+
+func actionLabel(kind reconcile.ActionKind) string {
+	switch kind {
+	case reconcile.ActionAdd:
+		return "add"
+	case reconcile.ActionApply:
+		return "apply"
+	case reconcile.ActionMerge:
+		return "merge"
+	default:
+		return "?"
+	}
+}
+
+func actionMarker(kind reconcile.ActionKind) string {
+	switch kind {
+	case reconcile.ActionAdd:
+		return "A"
+	case reconcile.ActionApply:
+		return "P"
+	case reconcile.ActionMerge:
+		return "M"
+	default:
+		return "?"
+	}
 }
 
 type syncKeyMap struct {
-	Up    key.Binding
-	Down  key.Binding
-	Diff  key.Binding
-	Add   key.Binding
-	Apply key.Binding
-	Merge key.Binding
-	Skip  key.Binding
-	Quit  key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Diff    key.Binding
+	Add     key.Binding
+	Apply   key.Binding
+	Merge   key.Binding
+	Skip    key.Binding
+	Confirm key.Binding
+	Quit    key.Binding
 }
 
 func (k syncKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Diff, k.Add, k.Apply, k.Merge, k.Skip, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Diff, k.Add, k.Apply, k.Merge, k.Skip, k.Confirm, k.Quit}
 }
 
 func (k syncKeyMap) FullHelp() [][]key.Binding {
@@ -351,14 +426,15 @@ func (k syncKeyMap) FullHelp() [][]key.Binding {
 
 var (
 	defaultSyncKeys = syncKeyMap{
-		Up:    key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "move")),
-		Down:  key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "move")),
-		Diff:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "diff")),
-		Add:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
-		Apply: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
-		Merge: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
-		Skip:  key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "skip")),
-		Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "move")),
+		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "move")),
+		Diff:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "diff")),
+		Add:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
+		Apply:   key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
+		Merge:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
+		Skip:    key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "skip")),
+		Confirm: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
+		Quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
 	sectionStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))

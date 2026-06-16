@@ -28,12 +28,16 @@ Instead, status displays `!` for any mismatch.
 
 ### Explicit reconciliation
 
-`cm sync` asks the user to choose per-entry:
+`cm sync` opens a review TUI. The user marks pending per-entry actions, reviews
+the pending set, then confirms once. Before executing, `cm` re-checks selected
+targets and drops any target that is already clean.
+
+Available actions:
 
 - add local to chezmoi source
 - apply chezmoi target to local
 - merge with configured merge tool
-- skip
+- skip by leaving the entry unmarked
 
 There is no automatic recommendation. The user reviews diffs first.
 

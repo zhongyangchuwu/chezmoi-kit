@@ -3,13 +3,11 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/ui"
-	"golang.org/x/term"
 )
 
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -66,25 +64,9 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		Short: "Interactively reconcile chezmoi changes",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useTUI, err := cmd.Flags().GetBool("tui")
-			if err != nil {
-				return err
-			}
-			plain, err := cmd.Flags().GetBool("plain")
-			if err != nil {
-				return err
-			}
-			if useTUI && plain {
-				return fmt.Errorf("--tui and --plain are mutually exclusive")
-			}
-			if useTUI || (!plain && isTerminal(stdin) && isTerminal(stdout)) {
-				return ui.RunSyncTUI(services.Sync, args, stdin, stdout)
-			}
-			return ui.RunSync(services.Sync, args, stdin, stdout)
+			return ui.RunSyncTUI(services.Sync, args, stdin, stdout)
 		},
 	}
-	syncCmd.Flags().Bool("tui", false, "run sync in terminal UI mode")
-	syncCmd.Flags().Bool("plain", false, "run sync in plain prompt mode")
 	root.AddCommand(syncCmd)
 	root.AddCommand(&cobra.Command{
 		Use:   "add [target...]",
@@ -151,12 +133,4 @@ func newCompletionCommand(root *cobra.Command, stdout io.Writer) *cobra.Command 
 			}
 		},
 	}
-}
-
-func isTerminal(v any) bool {
-	file, ok := v.(*os.File)
-	if !ok {
-		return false
-	}
-	return term.IsTerminal(int(file.Fd()))
 }

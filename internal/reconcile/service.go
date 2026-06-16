@@ -2,12 +2,25 @@ package reconcile
 
 import "github.com/zhongyangchuwu/cm/internal/chezmoi"
 
-// Service is the boundary for reconciling managed local files with chezmoi state.
+// ActionKind identifies a reconciliation action selected during review.
+type ActionKind int
+
+const (
+	ActionAdd ActionKind = iota
+	ActionApply
+	ActionMerge
+)
+
+// Action is a confirmed reconciliation action for one managed target.
+type Action struct {
+	Target string
+	Kind   ActionKind
+}
+
+// ReviewService is the boundary for reviewing and executing reconciliation actions.
 // UI packages own presentation; this package owns the shared reconciliation contract.
-type Service interface {
+type ReviewService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	DiffOutput(target string) ([]byte, error)
-	Add(target string) error
-	Apply(target string) error
-	Merge(target string) error
+	Execute(actions []Action) error
 }

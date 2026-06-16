@@ -54,7 +54,6 @@ internal/syncdiff/
 internal/reconcile/
   service.go                   shared reconciliation service contract
 internal/ui/
-  sync.go                      plain sync prompt
   tui.go                       terminal sync UI
 internal/process/
   runner.go                    external process execution abstraction
@@ -86,8 +85,8 @@ local file without shelling out to `chezmoi diff`.
 
 ### `internal/reconcile`
 
-Defines the shared reconciliation service contract used by plain sync and the
-terminal UI. It keeps sync-domain capabilities out of UI presentation packages.
+Defines the shared reconciliation action model and review service contract used
+by the terminal UI. It keeps sync-domain capabilities out of UI presentation packages.
 
 ### `internal/process`
 
@@ -96,9 +95,8 @@ runner boundary so tests can inject one process fake.
 
 ### `internal/ui`
 
-Owns the plain sync prompt and terminal sync UI. Depends on the
-`internal/reconcile` service contract and does not know about chezmoi binary
-paths or git.
+Owns the terminal sync UI. Depends on the `internal/reconcile` service contract
+and does not know about chezmoi binary paths or git.
 
 ### `internal/build`
 

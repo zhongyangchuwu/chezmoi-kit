@@ -1,109 +1,92 @@
 package ui
 
 import (
-	"bytes"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
-func TestRunSyncAddsAndRefreshesTarget(t *testing.T) {
-	service := &fakeService{
+func TestSyncModelTogglesPendingAction(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+
+	model = model.togglePending(reconcile.ActionAdd)
+	if got, ok := model.pending["/home/me/.zshrc"]; !ok || got != reconcile.ActionAdd {
+		t.Fatalf("pending = %#v", model.pending)
+	}
+
+	model = model.togglePending(reconcile.ActionAdd)
+	if len(model.pending) != 0 {
+		t.Fatalf("pending = %#v, want empty", model.pending)
+	}
+}
+
+func TestSyncModelReplacesPendingAction(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+
+	model = model.togglePending(reconcile.ActionAdd)
+	model = model.togglePending(reconcile.ActionApply)
+
+	if got := model.pending["/home/me/.zshrc"]; got != reconcile.ActionApply {
+		t.Fatalf("pending action = %v, want apply", got)
+	}
+}
+
+func TestSyncModelPendingActionsKeepEntryOrder(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{
+		{Code: "MM", Path: "/home/me/.zshrc"},
+		{Code: "MM", Path: "/home/me/.gitconfig"},
+	})
+	model.cursor = 1
+	model = model.togglePending(reconcile.ActionMerge)
+	model.cursor = 0
+	model = model.togglePending(reconcile.ActionAdd)
+
+	want := []reconcile.Action{
+		{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd},
+		{Target: "/home/me/.gitconfig", Kind: reconcile.ActionMerge},
+	}
+	if got := model.pendingActions(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("pendingActions = %#v, want %#v", got, want)
+	}
+}
+
+func TestExecutePendingPreflightDropsCleanTargets(t *testing.T) {
+	service := &fakeReviewService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
+			{{Code: "MM", Path: "/home/me/.gitconfig"}},
 		},
 	}
-	var out bytes.Buffer
+	model := newSyncTUIModel(service, []chezmoi.StatusEntry{
+		{Code: "MM", Path: "/home/me/.zshrc"},
+		{Code: "MM", Path: "/home/me/.gitconfig"},
+	})
+	model.pending["/home/me/.zshrc"] = reconcile.ActionAdd
+	model.pending["/home/me/.gitconfig"] = reconcile.ActionMerge
 
-	err := RunSync(service, []string{".zshrc"}, strings.NewReader("a\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
+	msg := model.executePending()().(executeMsg)
+	if msg.err != nil {
+		t.Fatalf("executePending returned error: %v", msg.err)
 	}
-
-	wantCommands := [][]string{{"add", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
+	wantExecuted := []reconcile.Action{{Target: "/home/me/.gitconfig", Kind: reconcile.ActionMerge}}
+	if !reflect.DeepEqual(service.executed, wantExecuted) {
+		t.Fatalf("executed = %#v, want %#v", service.executed, wantExecuted)
 	}
-	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
+	wantStatusArgs := [][]string{{"/home/me/.zshrc", "/home/me/.gitconfig"}}
 	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
 		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
 	}
 }
 
-func TestRunSyncQuitDoesNotMutate(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.config/nvim/init.lua"}},
-		},
-	}
-	var out bytes.Buffer
-
-	err := RunSync(service, nil, strings.NewReader("q\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
-	}
-
-	if len(service.commands) != 0 {
-		t.Fatalf("commands = %#v, want none", service.commands)
-	}
-}
-
-func TestRunSyncDiffDoesNotAdvanceEntry(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
-		},
-		diffOutput: "internal diff\n",
-	}
-	var out bytes.Buffer
-
-	err := RunSync(service, nil, strings.NewReader("d\nm\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
-	}
-
-	wantCommands := [][]string{{"diff-output", "/home/me/.zshrc"}, {"merge", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
-	}
-	if !strings.Contains(out.String(), "internal diff") {
-		t.Fatalf("output %q does not contain diff", out.String())
-	}
-}
-
-func TestRunSyncTUIUsesDiffOutputForDiffAction(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
-		},
-		diffOutput: "diff --git a/dot_zshrc b/dot_zshrc\n",
-	}
-	var out bytes.Buffer
-
-	err := RunSyncTUI(service, []string{".zshrc"}, strings.NewReader("d\ra"), &out)
-	if err != nil {
-		t.Fatalf("RunSyncTUI returned error: %v", err)
-	}
-
-	wantCommands := [][]string{{"diff-output", "/home/me/.zshrc"}, {"add", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
-	}
-}
-
-type fakeService struct {
+type fakeReviewService struct {
 	statusResults [][]chezmoi.StatusEntry
 	statusArgs    [][]string
-	commands      [][]string
 	diffOutput    string
+	executed      []reconcile.Action
 }
 
-func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
+func (f *fakeReviewService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	f.statusArgs = append(f.statusArgs, append([]string(nil), targets...))
 	if len(f.statusResults) == 0 {
 		return nil, nil
@@ -113,22 +96,11 @@ func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	return append([]chezmoi.StatusEntry(nil), entries...), nil
 }
 
-func (f *fakeService) DiffOutput(target string) ([]byte, error) {
-	f.commands = append(f.commands, []string{"diff-output", target})
+func (f *fakeReviewService) DiffOutput(string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) Add(target string) error {
-	f.commands = append(f.commands, []string{"add", target})
-	return nil
-}
-
-func (f *fakeService) Apply(target string) error {
-	f.commands = append(f.commands, []string{"apply", target})
-	return nil
-}
-
-func (f *fakeService) Merge(target string) error {
-	f.commands = append(f.commands, []string{"merge", target})
+func (f *fakeReviewService) Execute(actions []reconcile.Action) error {
+	f.executed = append(f.executed, actions...)
 	return nil
 }

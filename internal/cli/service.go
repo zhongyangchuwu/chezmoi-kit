@@ -34,7 +34,7 @@ type sourceGitService interface {
 type commandServices struct {
 	Status    statusService
 	Diff      diffService
-	Sync      reconcile.Service
+	Sync      reconcile.ReviewService
 	Target    targetCommandService
 	SourceGit sourceGitService
 }
@@ -112,6 +112,39 @@ func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
 	return differ.Diff(target)
 }
 
+func (s chezmoiService) Execute(actions []reconcile.Action) error {
+	for _, action := range actions {
+		var err error
+		switch action.Kind {
+		case reconcile.ActionAdd:
+			err = s.runTarget("add", action.Target)
+		case reconcile.ActionApply:
+			err = s.runTarget("apply", action.Target)
+		case reconcile.ActionMerge:
+			err = s.runTarget("merge", action.Target)
+		default:
+			return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
+		}
+		if err != nil {
+			return fmt.Errorf("%s %s: %w", actionName(action.Kind), action.Target, err)
+		}
+	}
+	return nil
+}
+
+func actionName(kind reconcile.ActionKind) string {
+	switch kind {
+	case reconcile.ActionAdd:
+		return "add"
+	case reconcile.ActionApply:
+		return "apply"
+	case reconcile.ActionMerge:
+		return "merge"
+	default:
+		return "unknown"
+	}
+}
+
 func (s chezmoiService) runner() process.Runner {
 	if s.client.Runner != nil {
 		return s.client.Runner
@@ -140,18 +173,6 @@ func formatStderr(stderr []byte) string {
 		return ""
 	}
 	return ": " + string(stderr)
-}
-
-func (s chezmoiService) Add(target string) error {
-	return s.runTarget("add", target)
-}
-
-func (s chezmoiService) Apply(target string) error {
-	return s.runTarget("apply", target)
-}
-
-func (s chezmoiService) Merge(target string) error {
-	return s.runTarget("merge", target)
 }
 
 func (s chezmoiService) AddTargets(targets []string) error {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
 func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
@@ -71,45 +72,23 @@ func TestRunDiffUsesInternalDiff(t *testing.T) {
 	}
 }
 
-func TestRunSyncTUIFlagUsesTUI(t *testing.T) {
+func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
 			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
 		},
 	}
 	var out bytes.Buffer
 
-	code := run([]string{"sync", "--tui", ".zshrc"}, testServices(service), strings.NewReader("a"), &out, &out)
+	code := run([]string{"sync", ".zshrc"}, testServices(service), strings.NewReader("a\ry"), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"add", "/home/me/.zshrc"}}) {
-		t.Fatalf("commands = %#v", service.commands)
-	}
-	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
-		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
-	}
-}
-
-func TestRunSyncPlainFlagKeepsPromptMode(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
-		},
-	}
-	var out bytes.Buffer
-
-	code := run([]string{"sync", "--plain", ".zshrc"}, testServices(service), strings.NewReader("a\n"), &out, &out)
-
-	if code != 0 {
-		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
-	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"add", "/home/me/.zshrc"}}) {
-		t.Fatalf("commands = %#v", service.commands)
+	wantActions := []reconcile.Action{{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd}}
+	if !reflect.DeepEqual(service.executed, wantActions) {
+		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
 	}
 }
 
@@ -210,6 +189,7 @@ type fakeService struct {
 	statusArgs    [][]string
 	commands      [][]string
 	diffOutput    string
+	executed      []reconcile.Action
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -232,18 +212,8 @@ func (f *fakeService) DiffOutput(target string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) Add(target string) error {
-	f.commands = append(f.commands, []string{"add", target})
-	return nil
-}
-
-func (f *fakeService) Apply(target string) error {
-	f.commands = append(f.commands, []string{"apply", target})
-	return nil
-}
-
-func (f *fakeService) Merge(target string) error {
-	f.commands = append(f.commands, []string{"merge", target})
+func (f *fakeService) Execute(actions []reconcile.Action) error {
+	f.executed = append(f.executed, actions...)
 	return nil
 }
 

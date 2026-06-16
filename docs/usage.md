@@ -54,33 +54,27 @@ clean
 cm sync
 ```
 
-On a terminal, opens a TUI with the changed files, current diff pane,
-and key help. In non-terminal input/output, `cm sync` falls back to the
-plain prompt:
-
-```text
-! /home/me/.zshrc
-local differs from chezmoi
-[d]iff [a]dd local a[p]ply chezmoi [m]erge [s]kip [q]uit
->
-```
+Opens a TUI with changed files, a diff pane, pending action markers, and key
+help. `cm sync` is interactive; use `cm diff`, `cm add`, `cm apply`, or
+`cm merge` for non-interactive workflows.
 
 ### Sync keys
 
 | Key | Action | Mutates? |
 |---|---|---|
 | `d` | show diff from chezmoi target to local file | no |
-| `a` | keep local, write to chezmoi source | yes |
-| `p` | discard local, apply chezmoi target | yes |
-| `m` | open chezmoi merge | yes |
-| `s` | skip this entry | no |
-| `q` | quit sync immediately | no |
+| `a` | mark local → chezmoi source | not until confirm |
+| `p` | mark chezmoi source → local | not until confirm |
+| `m` | mark merge | not until confirm |
+| `s` | clear pending action for this entry | no |
+| `enter` | review pending actions for confirmation | no |
+| `y` | execute pending actions in confirm mode | yes |
+| `esc` | leave confirm mode | no |
+| `q` | quit without executing more actions | no |
 
-Use `cm sync --tui` to force the TUI, or `cm sync --plain` to force the
-plain prompt. Both modes use the same internal diff for `d`.
-
-After `a`, `p`, or `m`, `cm sync` re-checks the entry's status.
-If it is clean, sync continues to the next entry.
+Selecting the same action twice clears it. Selecting a different action for the
+same target replaces the previous pending action. Before execution, `cm sync`
+re-checks selected targets and drops any target that is already clean.
 
 In the TUI diff pane, `--- chezmoi:<path>` is the rendered chezmoi target and
 `+++ local:<path>` is the current local file. Added lines therefore show local
@@ -97,7 +91,7 @@ cm sync ~/.zshrc ~/.gitconfig
 ## Direct commands
 
 Use when you already know the reconciliation action. Use `cm diff` or
-`cm sync --tui` to review diffs before choosing an action:
+`cm sync` to review diffs before choosing an action:
 
 ```bash
 cm diff ~/.zshrc      # show internal sync diff
