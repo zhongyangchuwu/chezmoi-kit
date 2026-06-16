@@ -37,44 +37,72 @@ just install
 ## Project layout
 
 ```text
-cmd/cm/main.go                  Cobra command wiring
+cmd/cm/main.go                  thin process entrypoint
+internal/cli/
+  cli.go                       Cobra command wiring
+  service.go                   chezmoi-backed CLI service
+  status.go                    status rendering
+  diff.go                      diff command rendering
+  service_test.go
+  cli_test.go
 internal/chezmoi/
-  client.go                     chezmoi CLI wrapper
-  client_test.go
-  status.go                     status parsing
-  status_test.go
-internal/ui/
-  sync.go                       interactive sync prompt
-  sync_test.go
+  client.go                    chezmoi CLI wrapper
+  status.go                    status parsing
+  content.go                   chezmoi/local content loader for sync diffs
+internal/syncdiff/
+  diff.go                      internal sync diff generation
 internal/reconcile/
-  recommend.go                  status description helpers
-  recommend_test.go
+  service.go                   shared reconciliation service contract
+internal/ui/
+  tui.go                       terminal sync program entry/update
+  model.go                     sync TUI state and pending actions
+  view.go                      two-pane layout rendering
+  diff.go                      diff cache, scroll, and coloring
+  confirm.go                   confirm execution command
+  keys.go                      key bindings and styles
+  update.go                    key handling
+internal/process/
+  runner.go                    external process execution abstraction
 internal/build/
-  info.go                       version from runtime/debug
-  info_test.go
+  info.go                      version from runtime/debug
 ```
 
 ### `cmd/cm`
 
-Wires Cobra commands. Owns the `service` interface and `sourceEntry`
-type. The `service` interface is the only place that knows about both
-chezmoi and source git operations.
+Owns only process startup and delegates to `internal/cli`.
+
+### `internal/cli`
+
+Wires Cobra commands, renders command output, and adapts `internal/chezmoi` to
+the interfaces consumed by command handlers and sync UIs.
 
 ### `internal/chezmoi`
 
 Owns chezmoi CLI execution and status parsing. The `Status` method
 adds `--path-style=absolute` so callers always get absolute target paths.
 The `ParseStatus` function returns raw two-column codes.
+The `ContentLoader` type adapts chezmoi-rendered target content and local files
+to `internal/syncdiff`.
 
-### `internal/ui`
+### `internal/syncdiff`
 
-Owns the interactive sync prompt. Injects a `SyncService` interface for
-tests. Does not know about chezmoi binary paths or git.
+Generates sync diffs from rendered chezmoi target content to the current
+local file without shelling out to `chezmoi diff`.
 
 ### `internal/reconcile`
 
-Thin helpers for describing status entries. Used by `cmd/cm` and
-`internal/ui` for display text.
+Defines the shared reconciliation action model and review service contract used
+by the terminal UI. It keeps sync-domain capabilities out of UI presentation packages.
+
+### `internal/process`
+
+Owns subprocess execution. Chezmoi, git status, and lazygit all go through this
+runner boundary so tests can inject one process fake.
+
+### `internal/ui`
+
+Owns the terminal sync UI. Depends on the `internal/reconcile` service contract
+and does not know about chezmoi binary paths or git.
 
 ### `internal/build`
 
@@ -83,11 +111,15 @@ Reads `runtime/debug.ReadBuildInfo()` for `cm version` output.
 ## Dependencies
 
 ```text
-github.com/spf13/cobra     CLI framework
-github.com/fatih/color     terminal colours
+charm.land/bubbletea/v2          terminal UI runtime
+charm.land/bubbles/v2            TUI help/key bindings
+charm.land/lipgloss/v2           TUI styling
+github.com/spf13/cobra           CLI framework
+github.com/fatih/color           plain terminal colours
+github.com/rogpeppe/go-internal  anchored unified diff
 ```
 
-No Viper. No TUI framework.
+No Viper. No external diff renderer.
 
 ## Build info
 

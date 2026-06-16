@@ -1,221 +1,138 @@
 package ui
 
 import (
-	"bytes"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
-func TestRunSyncAddsAndRefreshesTarget(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
-		},
-	}
-	var out bytes.Buffer
+func TestSyncModelTogglesPendingAction(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
-	err := RunSync(service, []string{".zshrc"}, strings.NewReader("a\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
+	model = model.togglePending(reconcile.ActionAdd)
+	if got, ok := model.pending["/home/me/.zshrc"]; !ok || got != reconcile.ActionAdd {
+		t.Fatalf("pending = %#v", model.pending)
 	}
 
-	wantCommands := [][]string{{"add", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
-	}
-	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
-		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
+	model = model.togglePending(reconcile.ActionAdd)
+	if len(model.pending) != 0 {
+		t.Fatalf("pending = %#v, want empty", model.pending)
 	}
 }
 
-func TestRunSyncInvalidInputReprompts(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: " M", Path: "/home/me/.gitconfig"}},
-			nil,
-		},
-	}
-	var out bytes.Buffer
+func TestSyncModelReplacesPendingAction(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
-	err := RunSync(service, nil, strings.NewReader("x\np\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
-	}
+	model = model.togglePending(reconcile.ActionAdd)
+	model = model.togglePending(reconcile.ActionApply)
 
-	wantCommands := [][]string{{"apply", "/home/me/.gitconfig"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
-	}
-	if !strings.Contains(out.String(), "unknown choice") {
-		t.Fatalf("output %q does not contain unknown choice", out.String())
+	if got := model.pending["/home/me/.zshrc"]; got != reconcile.ActionApply {
+		t.Fatalf("pending action = %v, want apply", got)
 	}
 }
 
-func TestRunSyncQuitDoesNotMutate(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.config/nvim/init.lua"}},
-		},
-	}
-	var out bytes.Buffer
-
-	err := RunSync(service, nil, strings.NewReader("q\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
-	}
-
-	if len(service.commands) != 0 {
-		t.Fatalf("commands = %#v, want none", service.commands)
-	}
-}
-
-func TestRunSyncDiffDoesNotAdvanceEntry(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
-		},
-	}
-	var out bytes.Buffer
-
-	err := RunSync(service, nil, strings.NewReader("d\nm\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
-	}
-
-	wantCommands := [][]string{{"diff", "/home/me/.zshrc"}, {"merge", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
-	}
-}
-
-func TestSyncModelRendersEntriesAndCurrentDiff(t *testing.T) {
-	model := newSyncModel([]chezmoi.StatusEntry{
+func TestSyncModelPendingActionsKeepEntryOrder(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{
 		{Code: "MM", Path: "/home/me/.zshrc"},
-		{Code: " M", Path: "/home/me/.gitconfig"},
-	}, []string{"diff -- .zshrc"})
+		{Code: "MM", Path: "/home/me/.gitconfig"},
+	})
+	model.cursor = 1
+	model = model.togglePending(reconcile.ActionMerge)
+	model.cursor = 0
+	model = model.togglePending(reconcile.ActionAdd)
 
-	got := model.viewString()
-	for _, want := range []string{"cm sync", "> /home/me/.zshrc", "  /home/me/.gitconfig", "diff -- .zshrc", "add", "apply", "merge", "skip", "quit"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("view %q does not contain %q", got, want)
-		}
+	want := []reconcile.Action{
+		{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd},
+		{Target: "/home/me/.gitconfig", Kind: reconcile.ActionMerge},
+	}
+	if got := model.pendingActions(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("pendingActions = %#v, want %#v", got, want)
 	}
 }
 
-func TestSyncModelNavigationAndActions(t *testing.T) {
-	model := newSyncModel([]chezmoi.StatusEntry{
-		{Code: "MM", Path: "/home/me/.zshrc"},
-		{Code: " M", Path: "/home/me/.gitconfig"},
-	}, nil)
-
-	model = model.moveDown()
-	if got := model.current().Path; got != "/home/me/.gitconfig" {
-		t.Fatalf("current after down = %q, want .gitconfig", got)
-	}
-
-	action, ok := model.actionForKey("p")
-	if !ok {
-		t.Fatal("p did not resolve to an action")
-	}
-	if action.kind != syncActionApply || action.target != "/home/me/.gitconfig" {
-		t.Fatalf("action = %#v, want apply .gitconfig", action)
-	}
-
-	model = model.withEntryClean("/home/me/.gitconfig")
-	if got := model.current().Path; got != "/home/me/.zshrc" {
-		t.Fatalf("current after clean = %q, want .zshrc", got)
-	}
-	if len(model.entries) != 1 {
-		t.Fatalf("entries = %d, want 1", len(model.entries))
-	}
-}
-
-func TestRunSyncTUIExecutesKeyActions(t *testing.T) {
-	service := &fakeService{
+func TestExecutePendingPreflightDropsCleanTargets(t *testing.T) {
+	service := &fakeReviewService{
 		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
+			{{Code: "MM", Path: "/home/me/.gitconfig"}},
 		},
 	}
-	var out bytes.Buffer
+	model := newSyncTUIModel(service, []chezmoi.StatusEntry{
+		{Code: "MM", Path: "/home/me/.zshrc"},
+		{Code: "MM", Path: "/home/me/.gitconfig"},
+	})
+	model.pending["/home/me/.zshrc"] = reconcile.ActionAdd
+	model.pending["/home/me/.gitconfig"] = reconcile.ActionMerge
 
-	err := RunSyncTUI(service, []string{".zshrc"}, strings.NewReader("a"), &out)
-	if err != nil {
-		t.Fatalf("RunSyncTUI returned error: %v", err)
-	}
-
-	wantCommands := [][]string{{"add", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.commands, wantCommands) {
-		t.Fatalf("commands = %#v, want %#v", service.commands, wantCommands)
-	}
-	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
-		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
-	}
-}
-
-func TestSyncModelShowsDiffOutput(t *testing.T) {
-	service := &fakeService{diffOutput: "diff --git a/dot_zshrc b/dot_zshrc\n"}
-	model := newSyncTUIModel(service, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
-	action := syncAction{kind: syncActionDiff, target: "/home/me/.zshrc"}
-
-	msg := model.runAction(action)().(syncActionMsg)
+	msg := model.executeActions(model.pendingActions())().(executeMsg)
 	if msg.err != nil {
-		t.Fatalf("runAction returned error: %v", msg.err)
+		t.Fatalf("executeActions returned error: %v", msg.err)
 	}
-	model = model.applyActionResult(msg.action, msg.diff)
-
-	if got := model.viewString(); !strings.Contains(got, "diff --git a/dot_zshrc b/dot_zshrc") {
-		t.Fatalf("view %q does not contain diff", got)
+	wantExecuted := []reconcile.Action{{Target: "/home/me/.gitconfig", Kind: reconcile.ActionMerge}}
+	if !reflect.DeepEqual(service.executed, wantExecuted) {
+		t.Fatalf("executed = %#v, want %#v", service.executed, wantExecuted)
 	}
-}
-
-func TestRunSyncTUIRendersCleanWithoutProgram(t *testing.T) {
-	service := &fakeService{}
-	var out bytes.Buffer
-
-	err := RunSyncTUI(service, nil, strings.NewReader(""), &out)
-	if err != nil {
-		t.Fatalf("RunSyncTUI returned error: %v", err)
-	}
-	if got := strings.TrimSpace(out.String()); got != "clean" {
-		t.Fatalf("output = %q, want clean", got)
+	wantStatusArgs := [][]string{{"/home/me/.zshrc", "/home/me/.gitconfig"}}
+	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
+		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
 	}
 }
 
-func TestRunSyncShowsSimplifiedPrompt(t *testing.T) {
-	service := &fakeService{statusResults: [][]chezmoi.StatusEntry{{{Code: "MM", Path: "/home/me/.zshrc"}}}}
-	var out bytes.Buffer
+func TestMoveSelectionLoadsUncachedDiff(t *testing.T) {
+	service := &fakeReviewService{diffOutput: "diff"}
+	model := newSyncTUIModel(service, []chezmoi.StatusEntry{
+		{Code: "MM", Path: "/home/me/.zshrc"},
+		{Code: "MM", Path: "/home/me/.gitconfig"},
+	})
 
-	err := RunSync(service, nil, strings.NewReader("q\n"), &out)
-	if err != nil {
-		t.Fatalf("RunSync returned error: %v", err)
+	updated, cmd := model.handleDown()
+	model = updated.(syncTUIModel)
+	if model.cursor != 1 {
+		t.Fatalf("cursor = %d, want 1", model.cursor)
 	}
-	got := out.String()
-	for _, want := range []string{"! /home/me/.zshrc", "local differs from chezmoi", "a[p]ply chezmoi"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("output %q does not contain %q", got, want)
-		}
+	if cmd == nil {
+		t.Fatal("cmd is nil, want diff load")
 	}
-	if strings.Contains(got, "recommended") || strings.Contains(got, "MM /home") || strings.Contains(got, "[p]apply") {
-		t.Fatalf("output %q still contains obsolete prompt text", got)
+	msg := cmd().(syncDiffMsg)
+	if msg.target != "/home/me/.gitconfig" {
+		t.Fatalf("diff target = %q", msg.target)
 	}
 }
 
-type fakeService struct {
+func TestDiffScrollOnlyMovesInDiffFocus(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+	model.height = 8
+	model.diffs["/home/me/.zshrc"] = diffState{lines: []string{"1", "2", "3", "4", "5", "6", "7", "8"}}
+	model.focus = focusDiff
+
+	updated, _ := model.handleDown()
+	model = updated.(syncTUIModel)
+	if model.diffScroll != 1 {
+		t.Fatalf("diffScroll = %d, want 1", model.diffScroll)
+	}
+}
+
+func TestFocusToggle(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+	model = model.toggleFocus()
+	if model.focus != focusDiff {
+		t.Fatalf("focus = %v, want diff", model.focus)
+	}
+	model = model.toggleFocus()
+	if model.focus != focusFiles {
+		t.Fatalf("focus = %v, want files", model.focus)
+	}
+}
+
+type fakeReviewService struct {
 	statusResults [][]chezmoi.StatusEntry
 	statusArgs    [][]string
-	commands      [][]string
 	diffOutput    string
+	executed      []reconcile.Action
 }
 
-func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
+func (f *fakeReviewService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	f.statusArgs = append(f.statusArgs, append([]string(nil), targets...))
 	if len(f.statusResults) == 0 {
 		return nil, nil
@@ -225,27 +142,11 @@ func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	return append([]chezmoi.StatusEntry(nil), entries...), nil
 }
 
-func (f *fakeService) Diff(targets []string) error {
-	f.commands = append(f.commands, append([]string{"diff"}, targets...))
-	return nil
-}
-
-func (f *fakeService) DiffOutput(targets []string) ([]byte, error) {
-	f.commands = append(f.commands, append([]string{"diff-output"}, targets...))
+func (f *fakeReviewService) DiffOutput(string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) Add(target string) error {
-	f.commands = append(f.commands, []string{"add", target})
-	return nil
-}
-
-func (f *fakeService) Apply(target string) error {
-	f.commands = append(f.commands, []string{"apply", target})
-	return nil
-}
-
-func (f *fakeService) Merge(target string) error {
-	f.commands = append(f.commands, []string{"merge", target})
+func (f *fakeReviewService) Execute(actions []reconcile.Action) error {
+	f.executed = append(f.executed, actions...)
 	return nil
 }

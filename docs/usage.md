@@ -54,33 +54,37 @@ clean
 cm sync
 ```
 
-On a terminal, opens a TUI with the changed files, current diff pane,
-and key help. In non-terminal input/output, `cm sync` falls back to the
-plain prompt:
+Opens a two-pane TUI with changed files on the left and the selected file's
+diff on the right. `cm sync` is interactive; use `cm diff`, `cm add`,
+`cm apply`, or `cm merge` for non-interactive workflows.
 
-```text
-! /home/me/.zshrc
-local differs from chezmoi
-[d]iff [a]dd local a[p]ply chezmoi [m]erge [s]kip [q]uit
->
-```
-
-### Keys
+### Sync keys
 
 | Key | Action | Mutates? |
 |---|---|---|
-| `d` | show chezmoi diff | no |
-| `a` | keep local, write to chezmoi source | yes |
-| `p` | discard local, apply chezmoi target | yes |
-| `m` | open chezmoi merge | yes |
-| `s` | skip this entry | no |
-| `q` | quit sync immediately | no |
+| `tab` | switch focus between files and diff pane | no |
+| `d` | refresh diff from chezmoi target to local file | no |
+| `a` | mark local → chezmoi source | not until confirm |
+| `p` | mark chezmoi source → local | not until confirm |
+| `m` | mark merge | not until confirm |
+| `s` | clear pending action for this entry | no |
+| `enter` | review pending actions for confirmation | no |
+| `y` | execute pending actions in confirm mode | yes |
+| `esc` | leave confirm mode | no |
+| `q` | quit without executing more actions | no |
 
-Use `cm sync --tui` to force the TUI, or `cm sync --plain` to force the
-plain prompt.
+In files focus, `j/k` moves between files and loads the selected diff. In diff
+focus, `j/k` scrolls the diff. Selecting the same action twice clears it.
+Selecting a different action for the same target replaces the previous pending
+action. Before execution, `cm sync` re-checks selected targets and drops any
+target that is already clean.
+Confirmed `p` actions run `chezmoi apply --force` because the TUI has already
+shown the diff and collected confirmation.
 
-After `a`, `p`, or `m`, `cm sync` re-checks the entry's status.
-If it is clean, sync continues to the next entry.
+In the TUI diff pane, `--- chezmoi:<path>` is the rendered chezmoi target and
+`+++ local:<path>` is the current local file. Added lines therefore show local
+content that `a` would accept into chezmoi source; removed lines show target
+content that `p` would apply locally.
 
 ### Sync a single target
 
@@ -91,13 +95,14 @@ cm sync ~/.zshrc ~/.gitconfig
 
 ## Direct commands
 
-Use when you already know what you want:
+Use when you already know the reconciliation action. Use `cm diff` or
+`cm sync` to review diffs before choosing an action:
 
 ```bash
+cm diff ~/.zshrc      # show internal sync diff
 cm add ~/.zshrc       # accept local → chezmoi source
 cm apply ~/.zshrc     # accept chezmoi source → local
 cm merge ~/.zshrc     # open chezmoi merge
-cm diff ~/.zshrc      # show chezmoi diff
 ```
 
 ## Git source repository

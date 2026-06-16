@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bytes"
@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
 func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -36,7 +37,7 @@ func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	}
 	var out bytes.Buffer
 
-	code := run([]string{"status"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"status"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -54,65 +55,40 @@ func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	}
 }
 
-func TestRunDiffForwardsToChezmoi(t *testing.T) {
-	service := &fakeService{}
+func TestRunDiffUsesInternalDiff(t *testing.T) {
+	service := &fakeService{diffOutput: "internal diff\n"}
 	var out bytes.Buffer
 
-	code := run([]string{"diff", ".zshrc"}, service, strings.NewReader(""), &out, &out)
-
-	if code != 0 {
-		t.Fatalf("run exit code = %d, want 0", code)
-	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"diff", ".zshrc"}}) {
-		t.Fatalf("commands = %#v", service.commands)
-	}
-	if service.statusCalls != 0 {
-		t.Fatalf("statusCalls = %d, want 0", service.statusCalls)
-	}
-}
-
-func TestRunSyncTUIFlagUsesTUI(t *testing.T) {
-	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
-		},
-	}
-	var out bytes.Buffer
-
-	code := run([]string{"sync", "--tui", ".zshrc"}, service, strings.NewReader("a"), &out, &out)
+	code := run([]string{"diff", ".zshrc"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"add", "/home/me/.zshrc"}}) {
-		t.Fatalf("commands = %#v", service.commands)
+	if out.String() != "internal diff\n" {
+		t.Fatalf("output = %q", out.String())
 	}
-	wantStatusArgs := [][]string{{".zshrc"}, {"/home/me/.zshrc"}}
-	if !reflect.DeepEqual(service.statusArgs, wantStatusArgs) {
-		t.Fatalf("statusArgs = %#v, want %#v", service.statusArgs, wantStatusArgs)
+	if !reflect.DeepEqual(service.commands, [][]string{{"diff-output", ".zshrc"}}) {
+		t.Fatalf("commands = %#v", service.commands)
 	}
 }
 
-func TestRunSyncPlainFlagKeepsPromptMode(t *testing.T) {
+func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
 			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			nil,
+			{{Code: "MM", Path: "/home/me/.zshrc"}},
 		},
 	}
 	var out bytes.Buffer
 
-	code := run([]string{"sync", "--plain", ".zshrc"}, service, strings.NewReader("a\n"), &out, &out)
+	code := run([]string{"sync", ".zshrc"}, testServices(service), strings.NewReader("a\ry"), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	if !strings.Contains(out.String(), "[d]iff [a]dd local") {
-		t.Fatalf("output %q does not contain plain prompt", out.String())
-	}
-	if strings.Contains(out.String(), "cm sync") {
-		t.Fatalf("output %q unexpectedly contains TUI title", out.String())
+	wantActions := []reconcile.Action{{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd}}
+	if !reflect.DeepEqual(service.executed, wantActions) {
+		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
 	}
 }
 
@@ -120,7 +96,7 @@ func TestRunGitOpensSourceRepositoryWithLazygit(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{"git"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"git"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -149,7 +125,7 @@ func TestRunMutatingWrappersForwardToChezmoi(t *testing.T) {
 			service := &fakeService{}
 			var out bytes.Buffer
 
-			code := run(tt.args, service, strings.NewReader(""), &out, &out)
+			code := run(tt.args, testServices(service), strings.NewReader(""), &out, &out)
 
 			if code != 0 {
 				t.Fatalf("run exit code = %d, want 0", code)
@@ -168,7 +144,7 @@ func TestRunVersionPrintsBuildInfo(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{"version"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"version"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
@@ -185,13 +161,23 @@ func TestRunCompletionPrintsShellScript(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
 
-	code := run([]string{"completion", "bash"}, service, strings.NewReader(""), &out, &out)
+	code := run([]string{"completion", "bash"}, testServices(service), strings.NewReader(""), &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
 	if !strings.Contains(out.String(), "cm") {
 		t.Fatalf("completion output = %q, want generated script", out.String())
+	}
+}
+
+func testServices(service *fakeService) commandServices {
+	return commandServices{
+		Status:    service,
+		Diff:      service,
+		Sync:      service,
+		Target:    service,
+		SourceGit: service,
 	}
 }
 
@@ -202,6 +188,8 @@ type fakeService struct {
 	statusCalls   int
 	statusArgs    [][]string
 	commands      [][]string
+	diffOutput    string
+	executed      []reconcile.Action
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -219,23 +207,13 @@ func (f *fakeService) SourceStatus() ([]sourceEntry, error) {
 	return append([]sourceEntry(nil), f.sourceEntries...), nil
 }
 
-func (f *fakeService) Diff(targets []string) error {
-	f.commands = append(f.commands, append([]string{"diff"}, targets...))
-	return nil
+func (f *fakeService) DiffOutput(target string) ([]byte, error) {
+	f.commands = append(f.commands, []string{"diff-output", target})
+	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) Add(target string) error {
-	f.commands = append(f.commands, []string{"add", target})
-	return nil
-}
-
-func (f *fakeService) Apply(target string) error {
-	f.commands = append(f.commands, []string{"apply", target})
-	return nil
-}
-
-func (f *fakeService) Merge(target string) error {
-	f.commands = append(f.commands, []string{"merge", target})
+func (f *fakeService) Execute(actions []reconcile.Action) error {
+	f.executed = append(f.executed, actions...)
 	return nil
 }
 

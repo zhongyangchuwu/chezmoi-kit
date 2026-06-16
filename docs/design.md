@@ -28,12 +28,16 @@ Instead, status displays `!` for any mismatch.
 
 ### Explicit reconciliation
 
-`cm sync` asks the user to choose per-entry:
+`cm sync` opens a review TUI. The user marks pending per-entry actions, reviews
+the pending set, then confirms once. Before executing, `cm` re-checks selected
+targets and drops any target that is already clean.
+
+Available actions:
 
 - add local to chezmoi source
 - apply chezmoi target to local
 - merge with configured merge tool
-- skip
+- skip by leaving the entry unmarked
 
 There is no automatic recommendation. The user reviews diffs first.
 
@@ -46,7 +50,8 @@ There is no automatic recommendation. The user reviews diffs first.
 
 ### Chezmoi remains the authority
 
-`cm` delegates `add`, `apply`, `merge`, and `diff` to chezmoi.
+`cm` delegates `add`, `apply`, and `merge` to chezmoi.
+Diffs are generated internally from rendered chezmoi target content to the current local file.
 It does not manipulate chezmoi source files directly.
 
 ## Status model
@@ -91,6 +96,5 @@ empty.
 - Chezmoi templates are not supported or needed.
 - `cm` does not run git commit, push, or pull automatically.
 - No daemon, watch, or auto-sync.
-- No full-screen TUI.
 - No additional state database beyond chezmoi's own.
 - No replacement for `chezmoi`; `cm` always delegates to it.
