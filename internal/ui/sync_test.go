@@ -79,6 +79,52 @@ func TestExecutePendingPreflightDropsCleanTargets(t *testing.T) {
 	}
 }
 
+func TestMoveSelectionLoadsUncachedDiff(t *testing.T) {
+	service := &fakeReviewService{diffOutput: "diff"}
+	model := newSyncTUIModel(service, []chezmoi.StatusEntry{
+		{Code: "MM", Path: "/home/me/.zshrc"},
+		{Code: "MM", Path: "/home/me/.gitconfig"},
+	})
+
+	updated, cmd := model.handleDown()
+	model = updated.(syncTUIModel)
+	if model.cursor != 1 {
+		t.Fatalf("cursor = %d, want 1", model.cursor)
+	}
+	if cmd == nil {
+		t.Fatal("cmd is nil, want diff load")
+	}
+	msg := cmd().(syncDiffMsg)
+	if msg.target != "/home/me/.gitconfig" {
+		t.Fatalf("diff target = %q", msg.target)
+	}
+}
+
+func TestDiffScrollOnlyMovesInDiffFocus(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+	model.height = 8
+	model.diffs["/home/me/.zshrc"] = diffState{content: "1\n2\n3\n4\n5\n6\n7\n8"}
+	model.focus = focusDiff
+
+	updated, _ := model.handleDown()
+	model = updated.(syncTUIModel)
+	if model.diffScroll != 1 {
+		t.Fatalf("diffScroll = %d, want 1", model.diffScroll)
+	}
+}
+
+func TestFocusToggle(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+	model = model.toggleFocus()
+	if model.focus != focusDiff {
+		t.Fatalf("focus = %v, want diff", model.focus)
+	}
+	model = model.toggleFocus()
+	if model.focus != focusFiles {
+		t.Fatalf("focus = %v, want files", model.focus)
+	}
+}
+
 type fakeReviewService struct {
 	statusResults [][]chezmoi.StatusEntry
 	statusArgs    [][]string

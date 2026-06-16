@@ -54,7 +54,13 @@ internal/syncdiff/
 internal/reconcile/
   service.go                   shared reconciliation service contract
 internal/ui/
-  tui.go                       terminal sync UI
+  tui.go                       terminal sync program entry/update
+  model.go                     sync TUI state and pending actions
+  view.go                      two-pane layout rendering
+  diff.go                      diff cache, scroll, and coloring
+  confirm.go                   confirm execution command
+  keys.go                      key bindings and styles
+  update.go                    key handling
 internal/process/
   runner.go                    external process execution abstraction
 internal/build/
