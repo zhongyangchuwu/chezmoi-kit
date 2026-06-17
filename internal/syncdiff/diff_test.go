@@ -100,21 +100,31 @@ func TestDifferSkipsLocalReadWhenSourceIsTooLarge(t *testing.T) {
 	if source.localCalls != 0 {
 		t.Fatalf("localCalls = %d, want 0", source.localCalls)
 	}
+	if source.targetLimit != 3 {
+		t.Fatalf("targetLimit = %d, want 3", source.targetLimit)
+	}
+	if source.localLimit != 0 {
+		t.Fatalf("localLimit = %d, want 0", source.localLimit)
+	}
 }
 
 type fakeContentSource struct {
-	base       []byte
-	local      []byte
-	localErr   error
-	localCalls int
+	base        []byte
+	local       []byte
+	localErr    error
+	localCalls  int
+	targetLimit int64
+	localLimit  int64
 }
 
-func (f *fakeContentSource) TargetContent(string) ([]byte, error) {
+func (f *fakeContentSource) TargetContent(_ string, limit int64) ([]byte, error) {
+	f.targetLimit = limit
 	return append([]byte(nil), f.base...), nil
 }
 
-func (f *fakeContentSource) LocalContent(string) ([]byte, error) {
+func (f *fakeContentSource) LocalContent(_ string, limit int64) ([]byte, error) {
 	f.localCalls++
+	f.localLimit = limit
 	if f.localErr != nil {
 		return nil, f.localErr
 	}

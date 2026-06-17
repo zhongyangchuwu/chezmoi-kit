@@ -50,6 +50,19 @@ func TestClientOutputPreservesTrailingNewlines(t *testing.T) {
 	}
 }
 
+func TestClientOutputLimitCapsCapturedBytes(t *testing.T) {
+	runner := &fakeRunner{output: []byte("abcdef")}
+	client := Client{Binary: "chezmoi", Runner: runner}
+
+	out, err := client.OutputLimit(3, "cat", ".zshrc")
+	if err != nil {
+		t.Fatalf("OutputLimit returned error: %v", err)
+	}
+	if string(out) != "abcd" {
+		t.Fatalf("output = %q, want capped bytes plus sentinel", string(out))
+	}
+}
+
 func TestClientStatusWrapsRunnerError(t *testing.T) {
 	runner := &fakeRunner{err: errors.New("boom")}
 	client := Client{Binary: "chezmoi", Runner: runner}
@@ -73,8 +86,14 @@ func (f *fakeRunner) Output(command string, args []string, _ RunnerIO) ([]byte, 
 	return bytes.Clone(f.output), f.err
 }
 
-func (f *fakeRunner) Run(command string, args []string, _ RunnerIO) error {
+func (f *fakeRunner) Run(command string, args []string, io RunnerIO) error {
 	call := append([]string{command}, args...)
 	f.runCalls = append(f.runCalls, call)
+	if io.Stdout != nil {
+		_, err := io.Stdout.Write(f.output)
+		if err != nil {
+			return err
+		}
+	}
 	return f.err
 }

@@ -14,8 +14,8 @@ const (
 )
 
 type ContentSource interface {
-	TargetContent(target string) ([]byte, error)
-	LocalContent(target string) ([]byte, error)
+	TargetContent(target string, limit int64) ([]byte, error)
+	LocalContent(target string, limit int64) ([]byte, error)
 }
 
 type Differ struct {
@@ -24,15 +24,15 @@ type Differ struct {
 }
 
 func (d Differ) Diff(target string) ([]byte, error) {
-	base, err := d.Source.TargetContent(target)
+	maxFileSize := d.maxFileSize()
+	base, err := d.Source.TargetContent(target, maxFileSize)
 	if err != nil {
 		return nil, fmt.Errorf("read chezmoi target %s: %w", target, err)
 	}
-	maxFileSize := d.maxFileSize()
 	if tooLarge(base, maxFileSize) {
 		return []byte(fmt.Sprintf("file too large to diff: %s\n", target)), nil
 	}
-	local, err := d.Source.LocalContent(target)
+	local, err := d.Source.LocalContent(target, maxFileSize)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read local target %s: %w", target, err)
 	}

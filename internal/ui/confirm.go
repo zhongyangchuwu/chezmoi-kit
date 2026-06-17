@@ -48,27 +48,9 @@ func actionCount(count int) string {
 }
 
 func actionLabel(kind reconcile.ActionKind) string {
-	switch kind {
-	case reconcile.ActionAdd:
-		return "add"
-	case reconcile.ActionApply:
-		return "apply"
-	case reconcile.ActionMerge:
-		return "merge"
-	default:
-		return "?"
-	}
+	return kind.String()
 }
 
 func actionMarker(kind reconcile.ActionKind) string {
-	switch kind {
-	case reconcile.ActionAdd:
-		return "A"
-	case reconcile.ActionApply:
-		return "P"
-	case reconcile.ActionMerge:
-		return "M"
-	default:
-		return "?"
-	}
+	return kind.Marker()
 }

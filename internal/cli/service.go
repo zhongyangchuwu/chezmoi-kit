@@ -126,30 +126,14 @@ func (s chezmoiService) Execute(actions []reconcile.Action) error {
 			return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
 		}
 		if err != nil {
-			return fmt.Errorf("%s %s: %w", actionName(action.Kind), action.Target, err)
+			return fmt.Errorf("%s %s: %w", action.Kind, action.Target, err)
 		}
 	}
 	return nil
 }
 
-func actionName(kind reconcile.ActionKind) string {
-	switch kind {
-	case reconcile.ActionAdd:
-		return "add"
-	case reconcile.ActionApply:
-		return "apply"
-	case reconcile.ActionMerge:
-		return "merge"
-	default:
-		return "unknown"
-	}
-}
-
 func (s chezmoiService) runner() process.Runner {
-	if s.client.Runner != nil {
-		return s.client.Runner
-	}
-	return process.ExecRunner{}
+	return s.client.ActiveRunner()
 }
 
 func parseSourceStatus(out []byte) []sourceEntry {

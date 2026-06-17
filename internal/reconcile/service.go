@@ -11,6 +11,32 @@ const (
 	ActionMerge
 )
 
+func (k ActionKind) String() string {
+	switch k {
+	case ActionAdd:
+		return "add"
+	case ActionApply:
+		return "apply"
+	case ActionMerge:
+		return "merge"
+	default:
+		return "unknown"
+	}
+}
+
+func (k ActionKind) Marker() string {
+	switch k {
+	case ActionAdd:
+		return "A"
+	case ActionApply:
+		return "P"
+	case ActionMerge:
+		return "M"
+	default:
+		return "?"
+	}
+}
+
 // Action is a confirmed reconciliation action for one managed target.
 type Action struct {
 	Target string

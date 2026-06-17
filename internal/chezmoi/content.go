@@ -1,19 +1,36 @@
 package chezmoi
 
-import "os"
+import (
+	"io"
+	"os"
+)
 
 type ContentLoader struct {
 	Client Client
 }
 
-func (l ContentLoader) TargetContent(target string) ([]byte, error) {
-	return l.Client.Output("cat", target)
+func (l ContentLoader) TargetContent(target string, limit int64) ([]byte, error) {
+	return l.Client.OutputLimit(limit, "cat", target)
 }
 
-func (ContentLoader) LocalContent(target string) ([]byte, error) {
-	content, err := os.ReadFile(target)
+func (ContentLoader) LocalContent(target string, limit int64) ([]byte, error) {
+	return readFileLimit(target, limit)
+}
+
+func readFileLimit(path string, limit int64) ([]byte, error) {
+	if limit < 0 {
+		limit = 0
+	}
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	return content, nil
+	defer file.Close()
+
+	content := make([]byte, limit+1)
+	n, err := file.Read(content)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	return content[:n], nil
 }
