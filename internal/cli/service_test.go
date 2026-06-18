@@ -66,6 +66,21 @@ func TestChezmoiServiceExecuteForcesConfirmedApply(t *testing.T) {
 	}
 }
 
+func TestChezmoiServiceEditTargetRunsEditWithAbsolutePath(t *testing.T) {
+	t.Setenv("HOME", "/home/testuser")
+	runner := &recordingRunner{}
+	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
+
+	if err := service.EditTarget(".zshrc"); err != nil {
+		t.Fatalf("EditTarget returned error: %v", err)
+	}
+
+	wantRuns := [][]string{{"chezmoi", "edit", "/home/testuser/.zshrc"}}
+	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	}
+}
+
 type recordingRunner struct {
 	outputs     [][]byte
 	outputCalls [][]string

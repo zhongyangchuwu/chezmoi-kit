@@ -65,6 +65,14 @@ func (c Client) Run(args ...string) error {
 	return runner.Run(c.binary(), args, c.runnerIO())
 }
 
+func (c Client) ManagedFiles() ([]string, error) {
+	out, err := c.Output("managed")
+	if err != nil {
+		return nil, err
+	}
+	return ParseManagedFiles(out), nil
+}
+
 func (c Client) binary() string {
 	if c.Binary != "" {
 		return c.Binary

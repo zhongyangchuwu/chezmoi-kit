@@ -93,6 +93,21 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		},
 	})
 	root.AddCommand(&cobra.Command{
+		Use:               "edit <target>",
+		Short:             "Edit a chezmoi managed file in your configured editor",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			files, err := services.Edit.ManagedFiles()
+			if err != nil {
+				return nil, cobra.ShellCompDirectiveError
+			}
+			return files, cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return services.Edit.EditTarget(args[0])
+		},
+	})
+	root.AddCommand(&cobra.Command{
 		Use:   "git",
 		Short: "Open lazygit in the chezmoi source repository",
 		Args:  cobra.NoArgs,

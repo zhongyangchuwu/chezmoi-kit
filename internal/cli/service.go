@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
@@ -31,12 +33,18 @@ type sourceGitService interface {
 	OpenSourceGit() error
 }
 
+type editService interface {
+	EditTarget(target string) error
+	ManagedFiles() ([]string, error)
+}
+
 type commandServices struct {
 	Status    statusService
 	Diff      diffService
 	Sync      reconcile.ReviewService
 	Target    targetCommandService
 	SourceGit sourceGitService
+	Edit      editService
 }
 
 func commandServicesFor(s chezmoiService) commandServices {
@@ -46,6 +54,7 @@ func commandServicesFor(s chezmoiService) commandServices {
 		Sync:      s,
 		Target:    s,
 		SourceGit: s,
+		Edit:      s,
 	}
 }
 
@@ -169,6 +178,18 @@ func (s chezmoiService) ApplyTargets(targets []string) error {
 
 func (s chezmoiService) MergeTargets(targets []string) error {
 	return s.runTargets("merge", targets)
+}
+
+func (s chezmoiService) EditTarget(target string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	return s.client.Run("edit", filepath.Join(home, target))
+}
+
+func (s chezmoiService) ManagedFiles() ([]string, error) {
+	return s.client.ManagedFiles()
 }
 
 func (s chezmoiService) runTarget(command, target string) error {

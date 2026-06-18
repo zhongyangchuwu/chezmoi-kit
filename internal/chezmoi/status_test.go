@@ -44,3 +44,18 @@ func TestParseStatusRejectsMalformedLine(t *testing.T) {
 		t.Fatal("ParseStatus returned nil error for malformed line")
 	}
 }
+
+func TestParseManagedFilesSplitsLinesAndSkipsEmpty(t *testing.T) {
+	files := ParseManagedFiles([]byte(".zshrc\n.gitconfig\n.config/nvim/init.lua\n"))
+	want := []string{".zshrc", ".gitconfig", ".config/nvim/init.lua"}
+	if !reflect.DeepEqual(files, want) {
+		t.Fatalf("files = %#v, want %#v", files, want)
+	}
+}
+
+func TestParseManagedFilesReturnsEmptyForEmptyInput(t *testing.T) {
+	files := ParseManagedFiles([]byte(""))
+	if len(files) != 0 {
+		t.Fatalf("files = %#v, want empty", files)
+	}
+}

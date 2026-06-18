@@ -24,3 +24,14 @@ func ParseStatus(out []byte) ([]StatusEntry, error) {
 	}
 	return entries, nil
 }
+
+func ParseManagedFiles(out []byte) []string {
+	lines := bytes.Split(out, []byte{'\n'})
+	files := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if len(line) > 0 {
+			files = append(files, string(line))
+		}
+	}
+	return files
+}

@@ -73,6 +73,24 @@ func TestClientStatusWrapsRunnerError(t *testing.T) {
 	}
 }
 
+func TestClientManagedFilesReturnsParsedOutput(t *testing.T) {
+	runner := &fakeRunner{output: []byte(".zshrc\n.gitconfig\n")}
+	client := Client{Binary: "chezmoi", Runner: runner}
+
+	files, err := client.ManagedFiles()
+	if err != nil {
+		t.Fatalf("ManagedFiles returned error: %v", err)
+	}
+
+	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "managed"}}) {
+		t.Fatalf("outputCalls = %#v", runner.outputCalls)
+	}
+	want := []string{".zshrc", ".gitconfig"}
+	if !reflect.DeepEqual(files, want) {
+		t.Fatalf("files = %#v, want %#v", files, want)
+	}
+}
+
 type fakeRunner struct {
 	output      []byte
 	err         error
