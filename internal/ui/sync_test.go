@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
@@ -79,7 +81,7 @@ func TestExecutePendingPreflightDropsCleanTargets(t *testing.T) {
 	}
 }
 
-func TestMoveSelectionLoadsUncachedDiff(t *testing.T) {
+func TestMoveSelectionDoesNotLoadDiffUntilDiffFocus(t *testing.T) {
 	service := &fakeReviewService{diffOutput: "diff"}
 	model := newSyncTUIModel(service, []chezmoi.StatusEntry{
 		{Code: "MM", Path: "/home/me/.zshrc"},
@@ -90,6 +92,15 @@ func TestMoveSelectionLoadsUncachedDiff(t *testing.T) {
 	model = updated.(syncTUIModel)
 	if model.cursor != 1 {
 		t.Fatalf("cursor = %d, want 1", model.cursor)
+	}
+	if cmd != nil {
+		t.Fatal("cmd is non-nil, want lazy diff load")
+	}
+
+	updated, cmd = model.updateReview(keyPress(tea.KeyTab))
+	model = updated.(syncTUIModel)
+	if model.focus != focusDiff {
+		t.Fatalf("focus = %v, want diff", model.focus)
 	}
 	if cmd == nil {
 		t.Fatal("cmd is nil, want diff load")
@@ -123,6 +134,10 @@ func TestFocusToggle(t *testing.T) {
 	if model.focus != focusFiles {
 		t.Fatalf("focus = %v, want files", model.focus)
 	}
+}
+
+func keyPress(code rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg(tea.Key{Code: code})
 }
 
 type fakeReviewService struct {

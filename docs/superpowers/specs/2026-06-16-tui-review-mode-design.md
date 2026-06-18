@@ -67,11 +67,11 @@ The UI owns presentation state only. It may store pending `reconcile.Action` val
 
 `internal/cli.chezmoiService` implements `ReviewService` by delegating:
 
-- `ActionAdd` → `chezmoi add <target>`
-- `ActionApply` → `chezmoi apply <target>`
-- `ActionMerge` → `chezmoi merge <target>`
+- `ActionAdd` → batched `chezmoi add <targets...>`;
+- `ActionApply` → batched `chezmoi apply --force <targets...>` because the TUI has already shown the diff and collected explicit confirmation;
+- `ActionMerge` → sequential `chezmoi merge <target>` after add/apply batches, so each merge tool session blocks the current process and can surface failures immediately.
 
-Batch execution stops on the first error and returns context naming the target and action.
+Batch execution stops on the first error and returns context naming the failed action and target set.
 
 ## TUI model
 

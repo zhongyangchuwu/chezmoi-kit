@@ -56,7 +56,7 @@ Keep `Service` only if still needed by direct callers during transition; remove 
 
 - [ ] **Step 2: Implement execution adapter**
 
-Add `Execute(actions []reconcile.Action) error` to `chezmoiService` in `internal/cli/service.go`. It loops in order and delegates `ActionAdd`, `ActionApply`, and `ActionMerge` to `runTarget`. Unknown kind returns an error with target context.
+Add `Execute(actions []reconcile.Action) error` to `chezmoiService` in `internal/cli/service.go`. It batches `ActionAdd` into one `chezmoi add <targets...>` call, batches `ActionApply` into one `chezmoi apply --force <targets...>` call after TUI confirmation, and runs `ActionMerge` last, one target at a time. Unknown kind returns an error with target context.
 
 - [ ] **Step 3: Run focused compile**
 

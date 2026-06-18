@@ -17,7 +17,11 @@ func (m syncTUIModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.message = "confirm pending actions"
 		return m, nil
 	case msg.Key().Code == tea.KeyTab:
-		return m.toggleFocus(), nil
+		m = m.toggleFocus()
+		if m.focus == focusDiff {
+			return m.startDiffLoad(false)
+		}
+		return m, nil
 	case key.Matches(msg, defaultSyncKeys.Quit):
 		return m, tea.Quit
 	case key.Matches(msg, defaultSyncKeys.Up):
@@ -64,7 +68,7 @@ func (m syncTUIModel) handleUp() (tea.Model, tea.Cmd) {
 	var moved bool
 	m, moved = m.moveUp()
 	if moved {
-		return m.startDiffLoad(false)
+		return m, nil
 	}
 	return m, nil
 }
@@ -76,7 +80,7 @@ func (m syncTUIModel) handleDown() (tea.Model, tea.Cmd) {
 	var moved bool
 	m, moved = m.moveDown()
 	if moved {
-		return m.startDiffLoad(false)
+		return m, nil
 	}
 	return m, nil
 }

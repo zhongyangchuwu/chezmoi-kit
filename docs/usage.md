@@ -55,8 +55,9 @@ cm sync
 ```
 
 Opens a two-pane TUI with changed files on the left and the selected file's
-diff on the right. `cm sync` is interactive; use `cm diff`, `cm add`,
-`cm apply`, or `cm merge` for non-interactive workflows.
+diff on the right. Diffs load lazily when you switch into the diff pane or
+press `d`. `cm sync` is interactive; use `cm diff`, `cm add`, `cm apply`, or
+`cm merge` for non-interactive workflows.
 
 ### Sync keys
 
@@ -73,13 +74,14 @@ diff on the right. `cm sync` is interactive; use `cm diff`, `cm add`,
 | `esc` | leave confirm mode | no |
 | `q` | quit without executing more actions | no |
 
-In files focus, `j/k` moves between files and loads the selected diff. In diff
+In files focus, `j/k` moves between files without loading diffs. In diff
 focus, `j/k` scrolls the diff. Selecting the same action twice clears it.
 Selecting a different action for the same target replaces the previous pending
 action. Before execution, `cm sync` re-checks selected targets and drops any
 target that is already clean.
 Confirmed `p` actions run `chezmoi apply --force` because the TUI has already
-shown the diff and collected confirmation.
+shown the diff and collected confirmation. Confirmed `a` and `p` actions are
+batched; confirmed `m` actions run last, one at a time.
 
 In the TUI diff pane, `--- chezmoi:<path>` is the rendered chezmoi target and
 `+++ local:<path>` is the current local file. Added lines therefore show local

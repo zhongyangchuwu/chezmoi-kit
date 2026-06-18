@@ -70,7 +70,7 @@ func isTerminalWriter(w io.Writer) bool {
 }
 
 func (m syncTUIModel) Init() tea.Cmd {
-	return loadDiffCmd(m.service, m.currentTarget())
+	return nil
 }
 
 func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

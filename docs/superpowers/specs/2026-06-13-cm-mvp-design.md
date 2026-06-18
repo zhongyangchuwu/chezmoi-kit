@@ -24,11 +24,11 @@ Build `cm`, a small Go CLI that makes chezmoi-managed configuration reconciliati
 - Parse `chezmoi status` two-column status output.
 - Explain whether a file changed locally, changed in chezmoi target state, or changed on both sides.
 - Recommend a safe next command in `cm status`.
-- In `cm sync`, present an interactive per-entry menu:
-  - `d`: show `chezmoi diff <target>`
-  - `a`: run `chezmoi add <target>`
-  - `p`: run `chezmoi apply <target>`
-  - `m`: run `chezmoi merge <target>`
+- Original MVP `cm sync` presented an interactive per-entry menu:
+  - `d`: show a target diff
+  - `a`: add the current target
+  - `p`: apply the current target
+  - `m`: merge the current target
   - `s`: skip
   - `q`: quit
 - Re-read a target's status after a mutating sync action.

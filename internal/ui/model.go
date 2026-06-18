@@ -47,9 +47,6 @@ func newSyncTUIModel(service reconcile.ReviewService, entries []chezmoi.StatusEn
 		homeDir: homeDir(),
 		help:    help.New(),
 	}
-	if target := m.currentTarget(); target != "" {
-		m.diffs[target] = diffState{loading: true}
-	}
 	return m
 }
 

@@ -122,23 +122,49 @@ func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
 }
 
 func (s chezmoiService) Execute(actions []reconcile.Action) error {
+	var addTargets []string
+	var applyTargets []string
+	var mergeTargets []string
+
 	for _, action := range actions {
-		var err error
 		switch action.Kind {
 		case reconcile.ActionAdd:
-			err = s.runTarget("add", action.Target)
+			addTargets = append(addTargets, action.Target)
 		case reconcile.ActionApply:
-			err = s.client.Run("apply", "--force", action.Target)
+			applyTargets = append(applyTargets, action.Target)
 		case reconcile.ActionMerge:
-			err = s.runTarget("merge", action.Target)
+			mergeTargets = append(mergeTargets, action.Target)
 		default:
 			return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
 		}
-		if err != nil {
-			return fmt.Errorf("%s %s: %w", action.Kind, action.Target, err)
+	}
+
+	if len(addTargets) > 0 {
+		if err := s.runTargets("add", addTargets); err != nil {
+			return fmt.Errorf("add %s: %w", targetSummary(addTargets), err)
+		}
+	}
+	if len(applyTargets) > 0 {
+		args := make([]string, 0, 2+len(applyTargets))
+		args = append(args, "apply", "--force")
+		args = append(args, applyTargets...)
+		if err := s.client.Run(args...); err != nil {
+			return fmt.Errorf("apply %s: %w", targetSummary(applyTargets), err)
+		}
+	}
+	for _, target := range mergeTargets {
+		if err := s.runTarget("merge", target); err != nil {
+			return fmt.Errorf("merge %s: %w", target, err)
 		}
 	}
 	return nil
+}
+
+func targetSummary(targets []string) string {
+	if len(targets) == 1 {
+		return targets[0]
+	}
+	return fmt.Sprintf("%d targets", len(targets))
 }
 
 func (s chezmoiService) runner() process.Runner {

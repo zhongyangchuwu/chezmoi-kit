@@ -66,6 +66,33 @@ func TestChezmoiServiceExecuteForcesConfirmedApply(t *testing.T) {
 	}
 }
 
+func TestChezmoiServiceExecuteBatchesAddAndApplyBeforeSequentialMerges(t *testing.T) {
+	runner := &recordingRunner{}
+	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
+
+	err := service.Execute([]reconcile.Action{
+		{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd},
+		{Target: "/home/me/.gitconfig", Kind: reconcile.ActionApply},
+		{Target: "/home/me/.config/fish/config.fish", Kind: reconcile.ActionAdd},
+		{Target: "/home/me/.tmux.conf", Kind: reconcile.ActionMerge},
+		{Target: "/home/me/.inputrc", Kind: reconcile.ActionApply},
+		{Target: "/home/me/.config/nvim/init.lua", Kind: reconcile.ActionMerge},
+	})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	wantRuns := [][]string{
+		{"chezmoi", "add", "/home/me/.zshrc", "/home/me/.config/fish/config.fish"},
+		{"chezmoi", "apply", "--force", "/home/me/.gitconfig", "/home/me/.inputrc"},
+		{"chezmoi", "merge", "/home/me/.tmux.conf"},
+		{"chezmoi", "merge", "/home/me/.config/nvim/init.lua"},
+	}
+	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	}
+}
+
 func TestChezmoiServiceEditTargetRunsEditWithAbsolutePath(t *testing.T) {
 	t.Setenv("HOME", "/home/testuser")
 	runner := &recordingRunner{}
