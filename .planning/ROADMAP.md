@@ -96,7 +96,7 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 
 **Plans:**
 
-- [ ] `4-release-gate` — Final local/CI/manual verification and tag preparation.
+- [ ] `4-release-gate` — Local gate passed; waiting on remote CI and interactive smoke before tag.
 
 ## Progress
 
@@ -105,4 +105,4 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 | 1. Runtime Stability | 1/1 | Complete | 2026-06-19 |
 | 2. Release Metadata and Documentation Cleanup | 1/1 | Complete | 2026-06-19 |
 | 3. CI and Release Automation | 1/1 | Complete | 2026-06-19 |
-| 4. Release Verification | 0/1 | Not started | - |
+| 4. Release Verification | 0/1 | Blocked on remote CI/manual smoke | - |

@@ -2,7 +2,7 @@
 
 All notable changes to `cm` are documented here.
 
-## v0.1.0 - Unreleased
+## v0.1.0 - 2026-06-19
 
 ### Added
 

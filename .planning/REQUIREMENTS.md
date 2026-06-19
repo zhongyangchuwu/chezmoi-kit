@@ -31,7 +31,7 @@
 
 ### Verification
 
-- [ ] **VER-01**: Release readiness must be proven by observed local checks before tagging.
+- [x] **VER-01**: Release readiness must be proven by observed local checks before tagging.
 - [ ] **VER-02**: Manual smoke scenarios for status, diff, sync, edit, git, completion, and version must be documented or completed before v0.1.0.
 
 ## Deferred
@@ -68,7 +68,7 @@
 | DOC-03 | Phase 2 | Complete |
 | REL-03 | Phase 3 | Complete |
 | REL-04 | Phase 3 | Complete |
-| VER-01 | Phase 4 | Pending |
+| VER-01 | Phase 4 | Complete |
 | VER-02 | Phase 4 | Pending |
 
 ## Coverage Summary

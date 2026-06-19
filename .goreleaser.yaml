@@ -61,7 +61,7 @@ changelog:
 release:
   github:
     owner: zhongyangchuwu
-    name: cm
+    name: chezmoi-kit
   draft: false
   prerelease: auto
   mode: replace
