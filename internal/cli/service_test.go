@@ -32,6 +32,21 @@ func TestChezmoiServiceSourceStatusUsesRunnerInSourceDir(t *testing.T) {
 	}
 }
 
+func TestChezmoiServiceSourceStatusRejectsMalformedGitStatus(t *testing.T) {
+	runner := &recordingRunner{
+		outputs: [][]byte{[]byte("/home/me/.local/share/chezmoi\n"), []byte("warning\n")},
+	}
+	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
+
+	_, err := service.SourceStatus()
+	if err == nil {
+		t.Fatal("SourceStatus returned nil error, want malformed status error")
+	}
+	if got := err.Error(); got != "malformed git status line 1: \"warning\"" {
+		t.Fatalf("error = %q", got)
+	}
+}
+
 func TestChezmoiServiceOpenSourceGitUsesRunnerIO(t *testing.T) {
 	runner := &recordingRunner{outputs: [][]byte{[]byte("/home/me/src\n")}}
 	stdin := bytes.NewBufferString("in")

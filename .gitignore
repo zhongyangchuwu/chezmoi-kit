@@ -1,0 +1,5 @@
+/cm
+/dist/
+*.out
+*.test
+coverage.out

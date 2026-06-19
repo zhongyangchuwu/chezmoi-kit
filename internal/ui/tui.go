@@ -35,7 +35,6 @@ func RunSyncTUI(service reconcile.ReviewService, targets []string, input io.Read
 	options := []tea.ProgramOption{
 		tea.WithInput(input),
 		tea.WithOutput(output),
-		tea.WithoutSignals(),
 	}
 	renderFinal := !isTerminalWriter(output)
 	if renderFinal {
@@ -80,6 +79,9 @@ func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.mode == modeExecuting {
+			return m.updateExecuting(msg)
+		}
 		if m.mode == modeConfirm {
 			return m.updateConfirm(msg)
 		}

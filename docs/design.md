@@ -4,40 +4,46 @@
 
 `cm` is a thin CLI around chezmoi for personal config reconciliation.
 
-It does not replace chezmoi. It wraps chezmoi commands with a simpler
-status model and an interactive reconciliation prompt.
+It keeps chezmoi as the authority and adds:
+
+- a simplified read-only status view;
+- internal rendered-target vs local-file diffs;
+- explicit direct wrappers for known actions;
+- an interactive review TUI for choosing reconciliation actions.
 
 ## Design principles
 
 ### Default read-only
 
-`cm` and `cm status` never mutate files. Only `cm sync` and the direct
-mutating wrappers (`add`, `apply`, `merge`) change local config or
-chezmoi source state.
+`cm`, `cm status`, `cm diff`, `cm version`, and `cm completion` do not mutate
+managed files. Mutations happen only through `cm sync` after confirmation or
+through direct explicit wrappers: `add`, `apply`, `merge`, `edit`, and `git`.
 
-### One local state
+### One local mismatch state
 
-`cm` hides chezmoi's three-point comparison (last-written → actual → target).
+Chezmoi exposes a richer three-point comparison. `cm` intentionally shows a
+smaller user model: a managed local file either differs from the rendered
+chezmoi target or it does not.
 
-For this project, local only means: the local file content differs from
-the chezmoi source target, or it does not. This matches a personal
-config workflow without templates.
-
-The raw chezmoi status code (e.g. `MM`) is not shown to the user.
-Instead, status displays `!` for any mismatch.
+The raw chezmoi status code, such as `MM`, is parsed for internal routing but is
+not shown to users. The status view displays `!` for any local mismatch.
 
 ### Explicit reconciliation
 
 `cm sync` opens a review TUI. The user marks pending per-entry actions, reviews
-the pending set, then confirms once. Before executing, `cm` re-checks selected
-targets and drops any target that is already clean.
+the pending set, then confirms once.
+
+Before execution, `cm` re-checks selected targets and drops any target that is
+already clean. Confirmed execution then runs to completion or returns an error;
+`cm` does not advertise quit as cancellation for already-started mutating
+subprocesses.
 
 Available actions:
 
-- add local to chezmoi source
-- apply chezmoi target to local
-- merge with configured merge tool
-- skip by leaving the entry unmarked
+- add local content to chezmoi source;
+- apply chezmoi target content locally;
+- merge with the configured chezmoi merge tool;
+- skip by leaving the entry unmarked.
 
 There is no automatic recommendation. The user reviews diffs first.
 
@@ -45,14 +51,69 @@ There is no automatic recommendation. The user reviews diffs first.
 
 `cm status` shows two independent facts:
 
-1. `local:` — local managed files that differ from chezmoi source.
+1. `local:` — local managed files that differ from rendered chezmoi source.
 2. `chezmoi:` — git status inside the chezmoi source repository.
+
+`cm git` opens `lazygit` in the chezmoi source directory, but `cm` never commits,
+pulls, or pushes automatically.
 
 ### Chezmoi remains the authority
 
-`cm` delegates `add`, `apply`, and `merge` to chezmoi.
-Diffs are generated internally from rendered chezmoi target content to the current local file.
-It does not manipulate chezmoi source files directly.
+`cm` delegates `add`, `apply`, `merge`, `edit`, `source-path`, `status`,
+`managed`, and `cat` behavior to the chezmoi executable.
+
+Diffs are generated internally from rendered chezmoi target content to the
+current local file. `cm` does not manipulate chezmoi source files directly.
+
+## Package architecture
+
+```text
+cmd/cm                  process entrypoint
+internal/cli            Cobra command tree, renderers, concrete service adapter
+internal/chezmoi        chezmoi executable wrapper and output parsers
+internal/process        external process runner abstraction
+internal/reconcile      sync action types and TUI-facing service contract
+internal/syncdiff       internal diff generation from content sources
+internal/ui             Bubble Tea sync review TUI
+internal/build          version/build metadata formatting
+```
+
+### Entry point
+
+`cmd/cm/main.go` passes process arguments and standard streams into
+`internal/cli.Main`. It owns no command behavior.
+
+### CLI composition
+
+`internal/cli` builds the Cobra command tree and groups narrow service
+interfaces in `commandServices`. This keeps command tests independent from real
+chezmoi, git, and lazygit processes.
+
+### External process boundary
+
+`internal/process.Runner` is the only package-level abstraction over
+`os/exec`. `internal/chezmoi.Client` uses that runner for chezmoi commands, and
+`internal/cli.chezmoiService` uses it for git and lazygit.
+
+### Reconciliation boundary
+
+`internal/reconcile.ReviewService` is the contract consumed by the TUI:
+
+```go
+type ReviewService interface {
+    Status(targets []string) ([]chezmoi.StatusEntry, error)
+    DiffOutput(target string) ([]byte, error)
+    Execute(actions []Action) error
+}
+```
+
+The UI owns presentation state. The concrete CLI service owns command execution.
+
+### Diff boundary
+
+`internal/syncdiff.Differ` depends on a `ContentSource` interface. The chezmoi
+content loader implements that interface by reading rendered target content via
+`chezmoi cat` and local content from the filesystem.
 
 ## Status model
 
@@ -62,9 +123,13 @@ It does not manipulate chezmoi source files directly.
 chezmoi status --path-style=absolute
 ```
 
-It parses the two-column output for internal use only.
+It parses non-empty lines as:
 
-The `local:` block displays:
+```text
+XY path
+```
+
+The parsed code is internal. The public `local:` block displays:
 
 ```text
 local:
@@ -80,21 +145,13 @@ chezmoi source-path
 git -C <source-dir> status --porcelain=v1
 ```
 
-It displays git changes in the chezmoi source repo:
-
-```text
-chezmoi:
-  source repository has git changes
- M dot_zshrc
-```
-
-Both blocks are present in `cm status` output. Neither is shown when
-empty.
+Malformed non-empty git porcelain lines are treated as errors rather than being
+silently skipped.
 
 ## Non-goals
 
-- Chezmoi templates are not supported or needed.
-- `cm` does not run git commit, push, or pull automatically.
-- No daemon, watch, or auto-sync.
-- No additional state database beyond chezmoi's own.
-- No replacement for `chezmoi`; `cm` always delegates to it.
+- Chezmoi template authoring helpers.
+- Automatic git commit, push, or pull.
+- Daemon, watch, or auto-sync.
+- Persistent state database beyond chezmoi's own state.
+- Replacement for `chezmoi`; `cm` always delegates to it.

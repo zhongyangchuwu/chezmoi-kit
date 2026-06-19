@@ -152,7 +152,7 @@ func (m syncTUIModel) renderConfirmPane(size rect) string {
 
 func (m syncTUIModel) footer() string {
 	if m.mode == modeExecuting {
-		return helpStyle.Render("executing... • q quit")
+		return helpStyle.Render("executing...")
 	}
 	if m.mode == modeConfirm {
 		return helpStyle.Render(m.help.ShortHelpView(defaultSyncKeys.confirmHelp()))

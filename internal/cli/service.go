@@ -85,7 +85,7 @@ func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git status %s: %w%s", sourceDir, err, formatStderr(stderr.Bytes()))
 	}
-	return parseSourceStatus(out), nil
+	return parseSourceStatus(out)
 }
 
 func (s chezmoiService) OpenSourceGit() error {
@@ -171,19 +171,19 @@ func (s chezmoiService) runner() process.Runner {
 	return s.client.ActiveRunner()
 }
 
-func parseSourceStatus(out []byte) []sourceEntry {
+func parseSourceStatus(out []byte) ([]sourceEntry, error) {
 	lines := bytes.Split(bytes.TrimRight(out, "\n"), []byte{'\n'})
 	if len(lines) == 1 && len(lines[0]) == 0 {
-		return nil
+		return nil, nil
 	}
 	entries := make([]sourceEntry, 0, len(lines))
-	for _, line := range lines {
-		if len(line) < 4 {
-			continue
+	for i, line := range lines {
+		if len(line) < 4 || line[2] != ' ' {
+			return nil, fmt.Errorf("malformed git status line %d: %q", i+1, line)
 		}
 		entries = append(entries, sourceEntry{Code: string(line[:2]), Path: string(line[3:])})
 	}
-	return entries
+	return entries, nil
 }
 
 func formatStderr(stderr []byte) string {

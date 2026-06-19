@@ -23,7 +23,7 @@ func Current() Info {
 	}
 
 	info.GoVersion = buildInfo.GoVersion
-	if buildInfo.Main.Version != "" && buildInfo.Main.Version != "(devel)" {
+	if Version == "dev" && buildInfo.Main.Version != "" && buildInfo.Main.Version != "(devel)" {
 		info.Version = buildInfo.Main.Version
 	}
 	for _, setting := range buildInfo.Settings {

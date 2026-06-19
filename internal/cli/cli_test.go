@@ -140,6 +140,20 @@ func TestRunMutatingWrappersForwardToChezmoi(t *testing.T) {
 	}
 }
 
+func TestRunEditForwardsTargetToChezmoi(t *testing.T) {
+	service := &fakeService{}
+	var out bytes.Buffer
+
+	code := run([]string{"edit", ".zshrc"}, testServices(service), strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	if !reflect.DeepEqual(service.commands, [][]string{{"edit", ".zshrc"}}) {
+		t.Fatalf("commands = %#v", service.commands)
+	}
+}
+
 func TestRunVersionPrintsBuildInfo(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
@@ -178,6 +192,7 @@ func testServices(service *fakeService) commandServices {
 		Sync:      service,
 		Target:    service,
 		SourceGit: service,
+		Edit:      service,
 	}
 }
 
@@ -235,4 +250,13 @@ func (f *fakeService) MergeTargets(targets []string) error {
 func (f *fakeService) OpenSourceGit() error {
 	f.commands = append(f.commands, []string{"git"})
 	return nil
+}
+
+func (f *fakeService) EditTarget(target string) error {
+	f.commands = append(f.commands, []string{"edit", target})
+	return nil
+}
+
+func (f *fakeService) ManagedFiles() ([]string, error) {
+	return []string{".zshrc", ".gitconfig"}, nil
 }

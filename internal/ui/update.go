@@ -61,6 +61,10 @@ func (m syncTUIModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m syncTUIModel) updateExecuting(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	return m, nil
+}
+
 func (m syncTUIModel) handleUp() (tea.Model, tea.Cmd) {
 	if m.focus == focusDiff {
 		return m.scrollDiff(-1, m.diffPaneHeight()), nil

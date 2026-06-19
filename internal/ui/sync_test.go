@@ -81,6 +81,28 @@ func TestExecutePendingPreflightDropsCleanTargets(t *testing.T) {
 	}
 }
 
+func TestExecutingModeIgnoresQuitKey(t *testing.T) {
+	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
+	model.mode = modeExecuting
+	model.message = "executing 1 action"
+
+	updated, cmd := model.Update(keyPress('q'))
+	got := updated.(syncTUIModel)
+
+	if cmd != nil {
+		t.Fatal("cmd is non-nil, want executing mode to ignore quit")
+	}
+	if got.mode != modeExecuting || got.message != "executing 1 action" {
+		t.Fatalf("model = %#v, want unchanged executing state", got)
+	}
+}
+
+func TestExecutingHelpDoesNotAdvertiseQuit(t *testing.T) {
+	if got := defaultSyncKeys.executingHelp(); len(got) != 0 {
+		t.Fatalf("executing help = %#v, want empty", got)
+	}
+}
+
 func TestMoveSelectionDoesNotLoadDiffUntilDiffFocus(t *testing.T) {
 	service := &fakeReviewService{diffOutput: "diff"}
 	model := newSyncTUIModel(service, []chezmoi.StatusEntry{

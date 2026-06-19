@@ -32,7 +32,7 @@ func (k syncKeyMap) confirmHelp() []key.Binding {
 }
 
 func (k syncKeyMap) executingHelp() []key.Binding {
-	return []key.Binding{k.Quit}
+	return nil
 }
 
 func (k syncKeyMap) ShortHelp() []key.Binding {

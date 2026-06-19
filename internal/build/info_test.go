@@ -13,6 +13,18 @@ func TestCurrentReturnsRuntimeBuildInformation(t *testing.T) {
 	}
 }
 
+func TestExplicitVersionOverridesRuntimeModuleVersion(t *testing.T) {
+	previous := Version
+	Version = "v9.9.9"
+	t.Cleanup(func() { Version = previous })
+
+	info := Current()
+
+	if info.Version != "v9.9.9" {
+		t.Fatalf("Version = %q, want explicit ldflag version", info.Version)
+	}
+}
+
 func TestFormatDetailedIncludesCoreFields(t *testing.T) {
 	info := Info{
 		Version:   "v0.1.0",

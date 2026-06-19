@@ -1,12 +1,32 @@
 # Usage
 
+## Requirements
+
+- `chezmoi` on `PATH`.
+- `git` on `PATH` for source repository status.
+- `lazygit` on `PATH` only for `cm git`.
+- Go and `just` only when installing from this repository.
+
 ## Install
 
 ```bash
 just install
 ```
 
-Zsh completion:
+Install with an explicit version string:
+
+```bash
+VERSION=v0.1.0 just install
+```
+
+Build a release binary under `dist/`:
+
+```bash
+VERSION=v0.1.0 just build-release
+./dist/cm version
+```
+
+Zsh completion installed by `just install`:
 
 ```zsh
 fpath=(~/.zfunc $fpath)
@@ -19,6 +39,7 @@ compinit
 ```bash
 cm          # same as cm status
 cm status
+cm status ~/.zshrc
 ```
 
 Example output:
@@ -36,11 +57,11 @@ chezmoi:
 
 ### The two blocks
 
-`local:` — managed files whose current content differs from the chezmoi
-source target. This is what `cm sync` will process.
+`local:` — managed files whose current content differs from the rendered
+chezmoi source target. This is what `cm sync` processes.
 
-`chezmoi:` — git working-tree changes inside the chezmoi source
-repository. Shown for awareness only.
+`chezmoi:` — git working-tree changes inside `chezmoi source-path`. This is
+shown for awareness only; `cm` does not commit, pull, or push.
 
 ### Clean state
 
@@ -48,64 +69,82 @@ repository. Shown for awareness only.
 clean
 ```
 
+## Diff
+
+```bash
+cm diff
+cm diff ~/.zshrc
+```
+
+With no targets, `cm diff` diffs every dirty managed file from `cm status`.
+With explicit targets, it diffs only those paths.
+
+Diff headers use this direction:
+
+```text
+--- chezmoi:<path>
++++ local:<path>
+```
+
+Added lines show local content that `cm add` would accept into chezmoi source.
+Removed lines show target content that `cm apply` would write locally.
+
 ## Sync
 
 ```bash
 cm sync
+cm sync ~/.zshrc
+cm sync ~/.zshrc ~/.gitconfig
 ```
 
-Opens a two-pane TUI with changed files on the left and the selected file's
-diff on the right. Diffs load lazily when you switch into the diff pane or
-press `d`. `cm sync` is interactive; use `cm diff`, `cm add`, `cm apply`, or
-`cm merge` for non-interactive workflows.
+`cm sync` opens a two-pane TUI with changed files on the left and the selected
+file's diff on the right. Diffs load lazily when you switch into the diff pane
+or press `d`.
+
+Use `cm diff`, `cm add`, `cm apply`, or `cm merge` for non-interactive workflows.
 
 ### Sync keys
 
 | Key | Action | Mutates? |
 |---|---|---|
 | `tab` | switch focus between files and diff pane | no |
+| `j` / `down` | move down or scroll diff | no |
+| `k` / `up` | move up or scroll diff | no |
 | `d` | refresh diff from chezmoi target to local file | no |
 | `a` | mark local → chezmoi source | not until confirm |
 | `p` | mark chezmoi source → local | not until confirm |
 | `m` | mark merge | not until confirm |
 | `s` | clear pending action for this entry | no |
 | `enter` | review pending actions for confirmation | no |
-| `y` | execute pending actions in confirm mode | yes |
 | `esc` | leave confirm mode | no |
-| `q` | quit without executing more actions | no |
+| `q` / `ctrl+c` | quit before execution | no |
+| `y` | execute pending actions in confirm mode | yes |
 
-In files focus, `j/k` moves between files without loading diffs. In diff
-focus, `j/k` scrolls the diff. Selecting the same action twice clears it.
-Selecting a different action for the same target replaces the previous pending
-action. Before execution, `cm sync` re-checks selected targets and drops any
-target that is already clean.
-Confirmed `p` actions run `chezmoi apply --force` because the TUI has already
-shown the diff and collected confirmation. Confirmed `a` and `p` actions are
-batched; confirmed `m` actions run last, one at a time.
+Selecting the same action twice clears it. Selecting a different action for the
+same target replaces the previous pending action.
 
-In the TUI diff pane, `--- chezmoi:<path>` is the rendered chezmoi target and
-`+++ local:<path>` is the current local file. Added lines therefore show local
-content that `a` would accept into chezmoi source; removed lines show target
-content that `p` would apply locally.
+Before execution, `cm sync` re-checks selected targets and drops any target that
+is already clean. Confirmed `p` actions run `chezmoi apply --force` because the
+TUI has already shown the diff and collected confirmation. Confirmed `a` and `p`
+actions are batched; confirmed `m` actions run last, one at a time.
 
-### Sync a single target
-
-```bash
-cm sync ~/.zshrc
-cm sync ~/.zshrc ~/.gitconfig
-```
+Once execution starts, `cm` waits for chezmoi commands to finish. It does not
+advertise `q` as cancellation for already-started mutating subprocesses.
 
 ## Direct commands
 
-Use when you already know the reconciliation action. Use `cm diff` or
-`cm sync` to review diffs before choosing an action:
+Use these when you already know the reconciliation action. Prefer `cm diff` or
+`cm sync` when you need to review first.
 
 ```bash
-cm diff ~/.zshrc      # show internal sync diff
-cm add ~/.zshrc       # accept local → chezmoi source
-cm apply ~/.zshrc     # accept chezmoi source → local
+cm add ~/.zshrc       # accept local file content into chezmoi source
+cm apply ~/.zshrc     # apply chezmoi target content locally
 cm merge ~/.zshrc     # open chezmoi merge
+cm edit .zshrc        # edit a managed file through chezmoi edit
 ```
+
+`cm edit <target>` completes from `chezmoi managed` output. Pass managed file
+names such as `.zshrc`, not arbitrary shell globs.
 
 ## Git source repository
 
@@ -113,9 +152,9 @@ cm merge ~/.zshrc     # open chezmoi merge
 cm git
 ```
 
-Opens `lazygit` in `chezmoi source-path`. Use it to review, commit,
-pull, push, or otherwise manage the chezmoi source repository without
-leaving the `cm` workflow. `cm` does not run git operations automatically.
+Opens `lazygit` in `chezmoi source-path`. Use it to review, commit, pull, push,
+or otherwise manage the chezmoi source repository without leaving the `cm`
+workflow. `cm` does not run git operations automatically.
 
 ## Typical workflows
 
@@ -126,7 +165,9 @@ cm
 # shows ! for modified files
 cm sync
 # d → review diff
-# a → accept local
+# a → mark local content for source
+# enter → review pending action
+# y → execute
 ```
 
 ### You edited chezmoi source manually
@@ -136,20 +177,24 @@ cm
 # shows ! because source now differs from local
 cm sync
 # d → review diff
-# p → apply to local
+# p → mark source content for local apply
+# enter → review pending action
+# y → execute
 ```
 
-### Both sides have changes
+### Both sides need manual resolution
 
 ```bash
 cm sync
 # d → review diff
-# m → merge manually
+# m → mark merge
+# enter → review pending action
+# y → open merge tool
 ```
 
 ## Shell completion
 
-Generate completion script:
+Generate completion scripts:
 
 ```bash
 cm completion bash > ~/.bash_completions/cm
@@ -166,15 +211,16 @@ cm completion powershell > ~/.powershell/cm.ps1
 cm version
 ```
 
-Output:
+Example output:
 
 ```text
-cm: dev
-commit: unknown
-built: unknown
-dirty: unknown
+cm: v0.1.0
+commit: d87c12b78adb45d1fb7a0dbcabc181edd6f5956b
+built: 2026-06-18T11:00:31Z
+dirty: false
 go: go1.26.4
 ```
 
-When installed via `go install`, VCS fields are populated from the
-current git commit.
+Release builds can inject `cm:` with `VERSION=v0.1.0 just build-release`.
+When installed directly with `go install`, Go build metadata may provide VCS
+fields from the current checkout.

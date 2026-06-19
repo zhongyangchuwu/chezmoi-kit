@@ -2,28 +2,40 @@
 
 A small chezmoi reconciliation helper for personal config management.
 
-## What it does
+`cm` does not replace chezmoi. It adds a simpler status view, internal diffs,
+and an explicit review TUI before applying changes between local files and the
+chezmoi source state.
 
-- Shows whether local config differs from chezmoi source.
-- Shows git changes inside the chezmoi source repo.
-- Lets you interactively choose add / apply / merge.
-- Keeps `cm` itself read-only by default.
+## Requirements
 
-## Mental model
-
-```
-local config  =  working tree
-chezmoi source  =  config stage
-chezmoi git    =  history
-```
+- Go, for source builds and local install.
+- `chezmoi`, required by every command that inspects or mutates managed files.
+- `git`, required for source repository status.
+- `lazygit`, only required for `cm git`.
+- `just`, only required for the helper recipes in this repository.
 
 ## Install
+
+Local development install:
 
 ```bash
 just install
 ```
 
-Zsh completion:
+Versioned local install:
+
+```bash
+VERSION=v0.1.0 just install
+```
+
+Release build:
+
+```bash
+VERSION=v0.1.0 just build-release
+./dist/cm version
+```
+
+Zsh completion installed by `just install`:
 
 ```zsh
 fpath=(~/.zfunc $fpath)
@@ -34,28 +46,62 @@ compinit
 ## Quick start
 
 ```bash
-cm          # show status
-cm sync     # interactively reconcile all
+cm          # same as cm status
+cm sync     # interactively review and reconcile dirty managed files
 ```
+
+## Mental model
+
+```text
+local config    = working files in $HOME
+chezmoi source  = rendered desired config state
+chezmoi git     = history for the source repository
+```
+
+`cm status` shows two independent facts:
+
+- `local:` managed files whose current local content differs from the rendered chezmoi target.
+- `chezmoi:` git working-tree changes inside `chezmoi source-path`.
 
 ## Commands
 
 | Command | Mutates? | Meaning |
 |---|---|---|
-| `cm` | no | same as `cm status` |
-| `cm status` | no | show local mismatch and chezmoi git status |
-| `cm diff [target...]` | no | show internal sync diff |
-| `cm sync [target...]` | yes | TUI review and confirmed reconciliation |
-| `cm add [target...]` | yes | local → chezmoi source |
-| `cm apply [target...]` | yes | chezmoi source → local |
-| `cm merge [target...]` | yes | open chezmoi merge |
-| `cm git` | yes | open lazygit in the chezmoi source repo |
-| `cm version` | no | build info |
-| `cm completion bash\|zsh\|fish\|powershell` | no | shell completion |
+| `cm` | no | Same as `cm status`. |
+| `cm status [target...]` | no | Show local mismatch and chezmoi source git status. |
+| `cm diff [target...]` | no | Show internal sync diff from rendered target to local file. |
+| `cm sync [target...]` | yes, after confirm | TUI review, pending action selection, preflight re-check, confirmed reconciliation. |
+| `cm add [target...]` | yes | Run `chezmoi add`; local file content becomes source state. |
+| `cm apply [target...]` | yes | Run `chezmoi apply`; source state is applied locally. |
+| `cm merge [target...]` | yes | Run `chezmoi merge` for manual conflict resolution. |
+| `cm edit <target>` | yes | Run `chezmoi edit` for a managed file. |
+| `cm git` | yes | Open `lazygit` in the chezmoi source repository. |
+| `cm version` | no | Print build information. |
+| `cm completion bash\|zsh\|fish\|powershell` | no | Generate shell completion. |
+
+## Sync safety model
+
+`cm sync` is explicit:
+
+1. Load dirty managed files.
+2. Let the user review diffs and mark pending `add`, `apply`, or `merge` actions.
+3. Show a confirmation view.
+4. Re-check selected targets before executing.
+5. Execute only targets that are still dirty.
+
+Confirmed `apply` actions run `chezmoi apply --force` because the TUI has already
+shown the diff and collected confirmation. Once execution starts, `cm` waits for
+chezmoi commands to finish; it does not advertise cancellation for already-started
+mutating subprocesses.
 
 ## Non-goals
 
-- No templates.
-- No automatic git commit.
+- No template authoring helpers.
+- No automatic git commit, push, or pull.
 - No daemon/watch mode.
-- No remplacer for chezmoi.
+- No persistent state database.
+- No replacement for `chezmoi`.
+
+## License
+
+MIT. See `LICENSE`.
