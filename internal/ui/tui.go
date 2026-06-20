@@ -17,6 +17,7 @@ type syncDiffMsg struct {
 }
 
 type executeMsg struct {
+	target   string
 	executed []reconcile.Action
 	skipped  int
 	err      error
@@ -69,7 +70,10 @@ func isTerminalWriter(w io.Writer) bool {
 }
 
 func (m syncTUIModel) Init() tea.Cmd {
-	return nil
+	if m.service == nil || m.currentTarget() == "" {
+		return nil
+	}
+	return loadDiffCmd(m.service, m.currentTarget())
 }
 
 func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -93,16 +97,7 @@ func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case executeMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			return m, tea.Quit
-		}
-		if len(msg.executed) == 0 {
-			m.message = "no pending dirty targets"
-		} else {
-			m.message = fmt.Sprintf("executed %d action(s)", len(msg.executed))
-		}
-		return m, tea.Quit
+		return m.applyExecuteMsg(msg)
 	}
 	return m, nil
 }

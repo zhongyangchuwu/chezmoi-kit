@@ -121,41 +121,22 @@ func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
 	return differ.Diff(target)
 }
 
-func (s chezmoiService) Execute(actions []reconcile.Action) error {
-	var addTargets []string
-	var applyTargets []string
-	var mergeTargets []string
-
-	for _, action := range actions {
-		switch action.Kind {
-		case reconcile.ActionAdd:
-			addTargets = append(addTargets, action.Target)
-		case reconcile.ActionApply:
-			applyTargets = append(applyTargets, action.Target)
-		case reconcile.ActionMerge:
-			mergeTargets = append(mergeTargets, action.Target)
-		default:
-			return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
+func (s chezmoiService) ExecuteOne(action reconcile.Action) error {
+	switch action.Kind {
+	case reconcile.ActionAdd:
+		if err := s.runTarget("add", action.Target); err != nil {
+			return fmt.Errorf("add %s: %w", action.Target, err)
 		}
-	}
-
-	if len(addTargets) > 0 {
-		if err := s.runTargets("add", addTargets); err != nil {
-			return fmt.Errorf("add %s: %w", targetSummary(addTargets), err)
+	case reconcile.ActionApply:
+		if err := s.client.Run("apply", "--force", action.Target); err != nil {
+			return fmt.Errorf("apply %s: %w", action.Target, err)
 		}
-	}
-	if len(applyTargets) > 0 {
-		args := make([]string, 0, 2+len(applyTargets))
-		args = append(args, "apply", "--force")
-		args = append(args, applyTargets...)
-		if err := s.client.Run(args...); err != nil {
-			return fmt.Errorf("apply %s: %w", targetSummary(applyTargets), err)
+	case reconcile.ActionMerge:
+		if err := s.runTarget("merge", action.Target); err != nil {
+			return fmt.Errorf("merge %s: %w", action.Target, err)
 		}
-	}
-	for _, target := range mergeTargets {
-		if err := s.runTarget("merge", target); err != nil {
-			return fmt.Errorf("merge %s: %w", target, err)
-		}
+	default:
+		return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
 	}
 	return nil
 }

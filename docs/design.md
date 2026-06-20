@@ -30,13 +30,16 @@ not shown to users. The status view displays `!` for any local mismatch.
 
 ### Explicit reconciliation
 
-`cm sync` opens a review TUI. The user marks pending per-entry actions, reviews
-the pending set, then confirms once.
+`cm sync` opens a review TUI. The user marks per-entry actions, reviews the
+pending set, and confirms a batch. Confirmed actions execute one target at a
+time; each completed or newly clean target leaves the list. If files remain, the
+TUI returns to review mode so the user can handle the next batch. If none remain,
+it exits with a completion message.
 
-Before execution, `cm` re-checks selected targets and drops any target that is
-already clean. Confirmed execution then runs to completion or returns an error;
-`cm` does not advertise quit as cancellation for already-started mutating
-subprocesses.
+Before executing each action, `cm` re-checks that target and drops it if it is
+already clean. Confirmed execution then runs to completion for the current target
+or returns an error; `cm` does not advertise quit as cancellation for
+already-started mutating subprocesses.
 
 Available actions:
 
@@ -103,7 +106,7 @@ chezmoi, git, and lazygit processes.
 type ReviewService interface {
     Status(targets []string) ([]chezmoi.StatusEntry, error)
     DiffOutput(target string) ([]byte, error)
-    Execute(actions []Action) error
+    ExecuteOne(action Action) error
 }
 ```
 

@@ -48,7 +48,7 @@ var (
 		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
 		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
 		Tab:     key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "focus")),
-		Diff:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "refresh diff")),
+		Diff:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "reload diff")),
 		Add:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
 		Apply:   key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
 		Merge:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),

@@ -22,6 +22,9 @@ All notable changes to `cm` are documented here.
 - Malformed source git status output is reported instead of silently ignored.
 - `cm edit` command wiring is covered by tests.
 - Go module metadata is tidy for release checks.
+- `cm sync` now loads the selected file diff by default.
+- `cm sync` confirmed actions now run one target at a time and return to review mode when files remain.
+- `cm sync` now prints a distinct completion message when all files are resolved.
 
 ### Documentation
 

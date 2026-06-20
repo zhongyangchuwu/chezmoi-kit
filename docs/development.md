@@ -210,8 +210,9 @@ runner boundary so tests can inject one process fake.
 ### `internal/ui`
 
 Owns the terminal sync UI. Depends on the `internal/reconcile` service contract
-and does not know about chezmoi binary paths or git. Diffs load lazily when the
-user enters diff focus or requests refresh.
+and does not know about chezmoi binary paths or git. The selected file's diff
+loads by default on entry and when selection changes; confirmed actions execute
+one target at a time so the UI can return to review mode with remaining files.
 
 ### `internal/build`
 

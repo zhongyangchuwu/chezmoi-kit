@@ -98,8 +98,8 @@ cm sync ~/.zshrc ~/.gitconfig
 ```
 
 `cm sync` opens a two-pane TUI with changed files on the left and the selected
-file's diff on the right. Diffs load lazily when you switch into the diff pane
-or press `d`.
+file's diff on the right. The current file's diff loads automatically on entry
+and when you move between files; press `d` to reload it.
 
 Use `cm diff`, `cm add`, `cm apply`, or `cm merge` for non-interactive workflows.
 
@@ -123,13 +123,16 @@ Use `cm diff`, `cm add`, `cm apply`, or `cm merge` for non-interactive workflows
 Selecting the same action twice clears it. Selecting a different action for the
 same target replaces the previous pending action.
 
-Before execution, `cm sync` re-checks selected targets and drops any target that
+Before executing each action, `cm sync` re-checks that target and drops it if it
 is already clean. Confirmed `p` actions run `chezmoi apply --force` because the
-TUI has already shown the diff and collected confirmation. Confirmed `a` and `p`
-actions are batched; confirmed `m` actions run last, one at a time.
+TUI has already shown the diff and collected confirmation. Actions execute one
+target at a time, so completed files leave the list and remaining files can be
+handled in later confirm batches.
 
-Once execution starts, `cm` waits for chezmoi commands to finish. It does not
-advertise `q` as cancellation for already-started mutating subprocesses.
+Once execution starts, `cm` waits for the current chezmoi command to finish. It
+does not advertise `q` as cancellation for already-started mutating subprocesses.
+If all entries are resolved, `cm sync` exits with a completion message; if files
+remain, it returns to review mode with a remaining-file count.
 
 ## Direct commands
 
