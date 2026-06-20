@@ -1,6 +1,10 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/zhongyangchuwu/cm/internal/report"
+)
 
 func renderDiffLines(lines []string) string {
 	if len(lines) == 0 {
@@ -14,16 +18,16 @@ func renderDiffLines(lines []string) string {
 }
 
 func renderDiffLine(line string) string {
-	switch {
-	case strings.HasPrefix(line, "@@"):
+	switch report.ClassifyDiffLine(line).Kind {
+	case report.DiffLineHunk:
 		return diffHunkStyle.Render(line)
-	case strings.HasPrefix(line, "diff "), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "+++"):
+	case report.DiffLineHeader:
 		return diffHeaderStyle.Render(line)
-	case strings.HasPrefix(line, "+"):
+	case report.DiffLineAdd:
 		return diffAddStyle.Render(line)
-	case strings.HasPrefix(line, "-"):
+	case report.DiffLineRemove:
 		return diffRemoveStyle.Render(line)
-	case strings.HasPrefix(line, `\ No newline`):
+	case report.DiffLineMeta:
 		return diffMetaStyle.Render(line)
 	default:
 		return line

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/help"
+	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 )
 
@@ -23,10 +24,10 @@ const (
 )
 
 type syncTUIModel struct {
-	service        ReviewService
+	service        app.SyncService
 	entries        []chezmoi.StatusEntry
 	cursor         int
-	pending        map[string]ActionKind
+	pending        map[string]app.ActionKind
 	focus          syncFocus
 	mode           syncMode
 	diffs          map[string]diffState
@@ -39,7 +40,7 @@ type syncTUIModel struct {
 	err            error
 	timing         *syncTimingLogger
 	executionStart time.Time
-	executing      []Action
+	executing      []app.Action
 	executingIndex int
 	executedCount  int
 	skippedCount   int
@@ -47,11 +48,11 @@ type syncTUIModel struct {
 	stopped        bool
 }
 
-func newSyncTUIModel(service ReviewService, entries []chezmoi.StatusEntry, timing ...*syncTimingLogger) syncTUIModel {
+func newSyncTUIModel(service app.SyncService, entries []chezmoi.StatusEntry, timing ...*syncTimingLogger) syncTUIModel {
 	m := syncTUIModel{
 		service: service,
 		entries: append([]chezmoi.StatusEntry(nil), entries...),
-		pending: make(map[string]ActionKind),
+		pending: make(map[string]app.ActionKind),
 		diffs:   make(map[string]diffState),
 		homeDir: homeDir(),
 		help:    help.New(),
@@ -104,7 +105,7 @@ func (m syncTUIModel) toggleFocus() syncTUIModel {
 	return m
 }
 
-func (m syncTUIModel) togglePending(kind ActionKind) syncTUIModel {
+func (m syncTUIModel) togglePending(kind app.ActionKind) syncTUIModel {
 	target := m.currentTarget()
 	if current, ok := m.pending[target]; ok && current == kind {
 		delete(m.pending, target)
@@ -143,14 +144,14 @@ func (m syncTUIModel) removeEntry(target string) syncTUIModel {
 	return m
 }
 
-func (m syncTUIModel) pendingActions() []Action {
-	actions := make([]Action, 0, len(m.pending))
+func (m syncTUIModel) pendingActions() []app.Action {
+	actions := make([]app.Action, 0, len(m.pending))
 	for _, entry := range m.entries {
 		kind, ok := m.pending[entry.Path]
 		if !ok {
 			continue
 		}
-		actions = append(actions, Action{Target: entry.Path, Kind: kind})
+		actions = append(actions, app.Action{Target: entry.Path, Kind: kind})
 	}
 	return actions
 }

@@ -17,12 +17,12 @@ import (
 func TestSyncModelTogglesPendingAction(t *testing.T) {
 	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
-	model = model.togglePending(ActionAdd)
-	if got, ok := model.pending["/home/me/.zshrc"]; !ok || got != ActionAdd {
+	model = model.togglePending(app.ActionAdd)
+	if got, ok := model.pending["/home/me/.zshrc"]; !ok || got != app.ActionAdd {
 		t.Fatalf("pending = %#v", model.pending)
 	}
 
-	model = model.togglePending(ActionAdd)
+	model = model.togglePending(app.ActionAdd)
 	if len(model.pending) != 0 {
 		t.Fatalf("pending = %#v, want empty", model.pending)
 	}
@@ -31,10 +31,10 @@ func TestSyncModelTogglesPendingAction(t *testing.T) {
 func TestSyncModelReplacesPendingAction(t *testing.T) {
 	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
-	model = model.togglePending(ActionAdd)
-	model = model.togglePending(ActionApply)
+	model = model.togglePending(app.ActionAdd)
+	model = model.togglePending(app.ActionApply)
 
-	if got := model.pending["/home/me/.zshrc"]; got != ActionApply {
+	if got := model.pending["/home/me/.zshrc"]; got != app.ActionApply {
 		t.Fatalf("pending action = %v, want apply", got)
 	}
 }
@@ -45,13 +45,13 @@ func TestSyncModelPendingActionsKeepEntryOrder(t *testing.T) {
 		{Code: "MM", Path: "/home/me/.gitconfig"},
 	})
 	model.cursor = 1
-	model = model.togglePending(ActionMerge)
+	model = model.togglePending(app.ActionMerge)
 	model.cursor = 0
-	model = model.togglePending(ActionAdd)
+	model = model.togglePending(app.ActionAdd)
 
-	want := []Action{
-		{Target: "/home/me/.zshrc", Kind: ActionAdd},
-		{Target: "/home/me/.gitconfig", Kind: ActionMerge},
+	want := []app.Action{
+		{Target: "/home/me/.zshrc", Kind: app.ActionAdd},
+		{Target: "/home/me/.gitconfig", Kind: app.ActionMerge},
 	}
 	if got := model.pendingActions(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("pendingActions = %#v, want %#v", got, want)
@@ -62,7 +62,7 @@ func TestExecuteCurrentActionDropsCleanTarget(t *testing.T) {
 	service := &fakeReviewService{
 		statusResults: [][]chezmoi.StatusEntry{{}},
 	}
-	cmd := executeNonInteractiveCmd(service, Action{Target: "/home/me/.zshrc", Kind: ActionAdd}, nil)
+	cmd := executeNonInteractiveCmd(service, app.Action{Target: "/home/me/.zshrc", Kind: app.ActionAdd}, nil)
 
 	msg := cmd().(executeMsg)
 	if msg.err != nil {
@@ -88,7 +88,7 @@ func TestExecuteCurrentActionWritesTimingLog(t *testing.T) {
 	}
 	logPath := timing.Path()
 	t.Cleanup(func() { _ = os.Remove(logPath) })
-	cmd := executeNonInteractiveCmd(service, Action{Target: "/home/me/.zshrc", Kind: ActionAdd}, timing)
+	cmd := executeNonInteractiveCmd(service, app.Action{Target: "/home/me/.zshrc", Kind: app.ActionAdd}, timing)
 
 	msg := cmd().(executeMsg)
 	if msg.err != nil {
@@ -142,7 +142,7 @@ func TestExecutionReturnsToReviewWithRemainingFiles(t *testing.T) {
 		{Code: "MM", Path: "/home/me/.zshrc"},
 		{Code: "MM", Path: "/home/me/.gitconfig"},
 	})
-	model.pending["/home/me/.zshrc"] = ActionAdd
+	model.pending["/home/me/.zshrc"] = app.ActionAdd
 
 	model, cmd := model.startExecution(model.pendingActions())
 	if cmd == nil {
@@ -169,7 +169,7 @@ func TestExecutionReturnsToReviewWithRemainingFiles(t *testing.T) {
 func TestExecutionQuitsWithCompleteMessageWhenAllFilesDone(t *testing.T) {
 	service := &fakeReviewService{statusResults: [][]chezmoi.StatusEntry{{{Code: "MM", Path: "/home/me/.zshrc"}}}}
 	model := newSyncTUIModel(service, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
-	model.pending["/home/me/.zshrc"] = ActionApply
+	model.pending["/home/me/.zshrc"] = app.ActionApply
 
 	model, cmd := model.startExecution(model.pendingActions())
 	msg := cmd().(executeMsg)
@@ -287,7 +287,7 @@ type fakeReviewService struct {
 	statusArgs    [][]string
 	diffOutput    string
 	diffArgs      []string
-	executed      []Action
+	executed      []app.Action
 }
 
 func (f *fakeReviewService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -305,11 +305,11 @@ func (f *fakeReviewService) DiffOutput(target string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeReviewService) ExecuteNonInteractive(action Action) error {
+func (f *fakeReviewService) ExecuteNonInteractive(action app.Action) error {
 	f.executed = append(f.executed, action)
 	return nil
 }
-func (f *fakeReviewService) TerminalCommand(action Action) (TerminalCommand, error) {
+func (f *fakeReviewService) TerminalCommand(action app.Action) (app.TerminalCommand, error) {
 	return terminalCommand{run: func() error {
 		f.executed = append(f.executed, action)
 		return nil

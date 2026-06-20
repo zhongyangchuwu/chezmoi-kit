@@ -75,12 +75,12 @@ current local file. `cm` does not manipulate chezmoi source files directly.
 
 ```text
 cmd/cm                  process entrypoint
-internal/cli            Cobra command tree, renderers, concrete service adapter
-internal/app            process options and version metadata
+internal/cli            Cobra command tree, stream plumbing, exit behavior
+internal/app            service graph, reports, use cases, sync actions, options, version metadata
 internal/chezmoi        chezmoi executable wrapper and output parsers
 internal/process        external process runner abstraction
 internal/diff           internal diff generation from content sources
-internal/tui            Bubble Tea sync review TUI and sync action contract
+internal/tui            Bubble Tea sync review TUI
 ```
 
 ### Entry point
@@ -90,27 +90,28 @@ internal/tui            Bubble Tea sync review TUI and sync action contract
 
 ### CLI composition
 
-`internal/cli` builds the Cobra command tree and groups narrow service
-interfaces in `commandServices`. This keeps command tests independent from real
-chezmoi, git, and lazygit processes.
+`internal/cli` builds the Cobra command tree, wires process streams, maps command
+arguments to app services, and handles command exit behavior. It does not own
+chezmoi, git, lazygit, or diff orchestration.
 
-### App support
+### App services
 
-`internal/app` owns process-wide options and version metadata. Release builds
-override `app.Version` through ldflags.
+`internal/app` owns process-wide options, version metadata, the app service
+graph, and application use cases for status, diff, sync execution, direct target
+wrappers, source git, edit, and managed-file completion. `app.NewServices`
+constructs the default graph from a `chezmoi.Client`. Release builds override
+`app.Version` through ldflags.
 
-### External process boundary
+Status, diff, and version output are built as `internal/report.Document` values.
+CLI renderers convert those semantic documents to plain or ANSI text. ANSI color
+is automatic only for TTY output and is disabled when `NO_COLOR` is non-empty.
+Markdown rendering exists as an output renderer; Markdown is not the internal
+model.
 
-`internal/process.Runner` is the only package-level abstraction over
-`os/exec`. `internal/chezmoi.Client` uses that runner for chezmoi commands, and
-`internal/cli.chezmoiService` uses it for git and lazygit.
-
-### Sync TUI boundary
-
-`internal/tui.ReviewService` is the contract consumed by the TUI:
+The sync action contract is app-owned:
 
 ```go
-type ReviewService interface {
+type SyncService interface {
     Status(targets []string) ([]chezmoi.StatusEntry, error)
     DiffOutput(target string) ([]byte, error)
     ExecuteNonInteractive(action Action) error
@@ -118,14 +119,32 @@ type ReviewService interface {
 }
 ```
 
-The TUI owns presentation state and sync action types. The concrete CLI service
-owns command execution.
+### External process boundary
+
+`internal/process.Runner` is the only package-level abstraction over
+`os/exec`. `internal/chezmoi.Client` uses that runner for chezmoi commands, and
+`internal/app` services use it for source git status, lazygit, and terminal merge
+command construction.
+
+### Sync TUI boundary
+
+`internal/tui` consumes `app.SyncService` and `app.Action` values. The TUI owns
+presentation state, key handling, diff display, confirmation flow, and terminal
+handoff. App services own command execution.
 
 ### Diff boundary
 
 `internal/diff.Differ` depends on a `ContentSource` interface. The chezmoi
 content loader implements that interface by reading rendered target content via
 `chezmoi cat` and local content from the filesystem.
+
+### Report boundary
+
+`internal/report` defines semantic document blocks, inline roles, diff line
+classification, and plain/ANSI/Markdown renderers. Roles such as warning,
+muted, path, command, status, and diff line kind are mapped by renderers rather
+than embedded as presentation strings in app services. `internal/tui/diff_view.go`
+uses the same diff line classifier as report rendering.
 
 ## Status model
 

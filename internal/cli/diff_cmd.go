@@ -1,34 +1,15 @@
 package cli
 
 import (
-	"fmt"
 	"io"
+
+	"github.com/zhongyangchuwu/cm/internal/app"
 )
 
-func renderDiff(w io.Writer, svc diffService, targets []string) error {
-	if len(targets) == 0 {
-		entries, err := svc.Status(nil)
-		if err != nil {
-			return err
-		}
-		if len(entries) == 0 {
-			_, err = fmt.Fprintln(w, "clean")
-			return err
-		}
-		targets = make([]string, 0, len(entries))
-		for _, entry := range entries {
-			targets = append(targets, entry.Path)
-		}
+func renderDiff(w io.Writer, svc app.DiffService, targets []string) error {
+	doc, err := svc.DiffReport(targets)
+	if err != nil {
+		return err
 	}
-
-	for _, target := range targets {
-		diff, err := svc.DiffOutput(target)
-		if err != nil {
-			return err
-		}
-		if _, err := w.Write(diff); err != nil {
-			return err
-		}
-	}
-	return nil
+	return renderReport(w, doc)
 }

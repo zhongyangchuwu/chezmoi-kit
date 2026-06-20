@@ -19,23 +19,23 @@ type syncDiffMsg struct {
 
 type executeMsg struct {
 	target   string
-	executed []Action
+	executed []app.Action
 	skipped  int
 	err      error
 }
 
 type terminalRequestMsg struct {
-	action Action
-	cmd    TerminalCommand
+	action app.Action
+	cmd    app.TerminalCommand
 	err    error
 }
 
 type terminalExecuteMsg struct {
-	action Action
+	action app.Action
 	err    error
 }
 
-func RunSyncTUI(service ReviewService, targets []string, input io.Reader, output io.Writer, options *app.Options) error {
+func RunSyncTUI(service app.SyncService, targets []string, input io.Reader, output io.Writer, options *app.Options) error {
 	options = app.NormalizeOptions(options)
 	timing, err := newSyncTimingLogger(options.Debug)
 	if err != nil {

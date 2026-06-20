@@ -5,16 +5,16 @@
 See: `.planning/PROJECT.md` (updated 2026-06-20)
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** Phase 6: App Services and Test Ownership
+**Current focus:** All planned phases complete; external release gates remain
 
 ## Current Position
 
-- Phase: 6 of 7 (App Services and Test Ownership)
-- Plan: `6-app-services`
-- Status: not-started
-- Active Artifact: `.planning/phases/phase-6-app-services/PLAN.md`
-- Last activity: 2026-06-20 — Phase 5 completed and captured
-- Progress: Phase 5 package architecture cleanup passed targeted tests, full tests, vet, tidy diff, and version ldflag smoke.
+- Phase: Complete (7 of 7 phases complete)
+- Plan: None
+- Status: complete
+- Active Artifact: `.planning/phases/phase-7-semantic-reports/CAPTURE.md`
+- Last activity: 2026-06-20 — Phase 7 completed, verified, and captured
+- Progress: Phase 7 semantic reports passed targeted tests, full tests, vet, tidy diff, diagnostics, smoke build/version, NO_COLOR smoke, status/diff smoke, and stale output searches.
 
 ## Accumulated Context
 
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-20)
 ### Blockers/Concerns
 
 - `v0.1.0` publication still requires observed remote GitHub CI, explicit user tag approval, and any available real-terminal smoke for `cm sync` Ctrl+C cleanup and `cm git` lazygit startup.
-- Phase 6 implementation should follow `.planning/phases/phase-6-app-services/PLAN.md` before Phase 7 work.
+- Planned architecture phases 5-7 are complete; next work should be external release-gate observation or user-directed new scope.
 
 ## Recent Evidence
 
@@ -43,13 +43,15 @@ See: `.planning/PROJECT.md` (updated 2026-06-20)
 - Phase 4 capture recorded external ship inputs: remote CI observation, real-terminal smoke where available, and explicit tag approval.
 - Phase 5-7 planning artifacts added: package architecture cleanup, app service ownership, and semantic reports/palette rendering.
 - Phase 5 verification passed: targeted package tests, `go test ./...`, `go vet ./...`, `go mod tidy -diff`, stale package-path search, and `VERSION=v9.9.9 just build-release && ./dist/cm version`.
+- Phase 6 verification passed: `go test ./internal/app ./internal/cli ./internal/tui`, `go test ./...`, `go vet ./...`, `go mod tidy -diff`, Go diagnostics, stale orchestration searches, and `/tmp/cm-app-services version` smoke.
+- Phase 7 verification passed: `go test ./internal/report ./internal/app ./internal/cli ./internal/tui`, `go test ./...`, `go vet ./...`, `go mod tidy -diff`, Go diagnostics, stale output searches, `/tmp/cm-report-check version`, `NO_COLOR=1 /tmp/cm-report-check version`, `/tmp/cm-report-check status`, and `/tmp/cm-report-check diff`.
 
 ## Session Continuity
 
 - Last session: 2026-06-20
-- Stopped at: Phase 5 complete; Phase 6 ready to execute
-- Next Action: execute Phase 6 app services and test ownership
-- Resume file: `.planning/phases/phase-6-app-services/PLAN.md`
+- Stopped at: All planned phases complete; release publication remains gated externally
+- Next Action: observe remote CI and run real-terminal smoke before explicit user-approved tag publication
+- Resume file: `.planning/phases/phase-7-semantic-reports/CAPTURE.md`
 
 ## Updated
 

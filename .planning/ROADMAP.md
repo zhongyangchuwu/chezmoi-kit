@@ -10,9 +10,9 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 - [x] **Phase 2: Release Metadata and Documentation Cleanup** — Deleted stale docs, added release metadata, and rewrote public docs to match current behavior.
 - [x] **Phase 3: CI and Release Automation** — Added GitHub workflows and GoReleaser config for validation and tag-based release artifacts.
 - [x] **Phase 4: Release Verification** — Completed local release gate, smoke-tested safe commands, documented external terminal/CI/tag gates, and prepared v0.1.0 release inputs.
-- [ ] **Phase 5: Package Architecture Cleanup** — Normalize package names, remove undersized packages, and split mixed TUI files before behavior moves.
-- [ ] **Phase 6: App Services and Test Ownership** — Move application services and sync action ownership into `internal/app`; shrink CLI/TUI tests to their real boundaries.
-- [ ] **Phase 7: Semantic Reports and Palette Rendering** — Add semantic output documents and renderers for status, diff, version, CLI, and TUI reuse.
+- [x] **Phase 5: Package Architecture Cleanup** — Normalized package names, removed undersized packages, and split mixed TUI files before behavior moves.
+- [x] **Phase 6: App Services and Test Ownership** — Moved application services and sync action ownership into `internal/app`; shrank CLI/TUI tests to their real boundaries.
+- [x] **Phase 7: Semantic Reports and Palette Rendering** — Added semantic output documents and renderers for status, diff, version, CLI, and TUI reuse.
 
 ## Phase Details
 
@@ -143,7 +143,7 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 
 **Plans:**
 
-- [x] `6-app-services` — Planning complete; implementation pending.
+- [x] `6-app-services` — App service graph, use cases, sync contracts, test ownership, docs, and verification complete.
 
 ### Phase 7: Semantic Reports and Palette Rendering
 
@@ -165,7 +165,7 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 
 **Plans:**
 
-- [x] `7-semantic-reports` — Research and planning complete; implementation pending.
+- [x] `7-semantic-reports` — Semantic report model, renderers, color policy, shared diff classification, docs, and verification complete.
 
 ## Progress
 
@@ -176,5 +176,5 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 | 3. CI and Release Automation | 1/1 | Complete | 2026-06-19 |
 | 4. Release Verification | 1/1 | Complete | 2026-06-20 |
 | 5. Package Architecture Cleanup | 1/1 | Complete | 2026-06-20 |
-| 6. App Services and Test Ownership | 1/1 | Planned | - |
-| 7. Semantic Reports and Palette Rendering | 1/1 | Planned | - |
+| 6. App Services and Test Ownership | 1/1 | Complete | 2026-06-20 |
+| 7. Semantic Reports and Palette Rendering | 1/1 | Complete | 2026-06-20 |

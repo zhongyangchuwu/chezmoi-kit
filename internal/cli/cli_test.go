@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/tui"
+	"github.com/zhongyangchuwu/cm/internal/report"
 )
 
 func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
@@ -21,8 +22,8 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
-	if service.statusCalls != 1 {
-		t.Fatalf("statusCalls = %d, want 1", service.statusCalls)
+	if !reflect.DeepEqual(service.statusReportArgs, [][]string{nil}) {
+		t.Fatalf("statusReportArgs = %#v", service.statusReportArgs)
 	}
 	if len(service.commands) != 0 {
 		t.Fatalf("mutating/diff commands were called: %#v", service.commands)
@@ -32,11 +33,8 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	}
 }
 
-func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
-	service := &fakeService{
-		entries:       []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}},
-		sourceEntries: []chezmoi.StatusEntry{{Code: " M", Path: "dot_zshrc"}},
-	}
+func TestRunStatusWritesAppReportOutput(t *testing.T) {
+	service := &fakeService{statusReport: "app status\n"}
 	var out bytes.Buffer
 
 	code := run([]string{"status"}, testServices(service), strings.NewReader(""), &out, &out)
@@ -44,20 +42,15 @@ func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
-	got := out.String()
-	for _, want := range []string{"local:", "! /home/me/.zshrc", "differs from chezmoi", "run cm sync", "chezmoi:", " M dot_zshrc"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("output %q does not contain %q", got, want)
-		}
+	if out.String() != "app status\n" {
+		t.Fatalf("output = %q", out.String())
 	}
-	for _, notWant := range []string{"MM /home/me/.zshrc", "local drift", "apply pending", "run cm sync /home/me/.zshrc"} {
-		if strings.Contains(got, notWant) {
-			t.Fatalf("output %q unexpectedly contains %q", got, notWant)
-		}
+	if !reflect.DeepEqual(service.statusReportArgs, [][]string{nil}) {
+		t.Fatalf("statusReportArgs = %#v", service.statusReportArgs)
 	}
 }
 
-func TestRunDiffUsesInternalDiff(t *testing.T) {
+func TestRunDiffWritesAppReportOutput(t *testing.T) {
 	service := &fakeService{diffOutput: "internal diff\n"}
 	var out bytes.Buffer
 
@@ -69,8 +62,8 @@ func TestRunDiffUsesInternalDiff(t *testing.T) {
 	if out.String() != "internal diff\n" {
 		t.Fatalf("output = %q", out.String())
 	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"diff-output", ".zshrc"}}) {
-		t.Fatalf("commands = %#v", service.commands)
+	if !reflect.DeepEqual(service.diffArgs, [][]string{{".zshrc"}}) {
+		t.Fatalf("diffArgs = %#v", service.diffArgs)
 	}
 }
 
@@ -88,7 +81,7 @@ func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	wantActions := []tui.Action{{Target: "/home/me/.zshrc", Kind: tui.ActionAdd}}
+	wantActions := []app.Action{{Target: "/home/me/.zshrc", Kind: app.ActionAdd}}
 	if !reflect.DeepEqual(service.executed, wantActions) {
 		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
 	}
@@ -227,14 +220,16 @@ func testServices(service *fakeService) commandServices {
 }
 
 type fakeService struct {
-	entries       []chezmoi.StatusEntry
-	statusResults [][]chezmoi.StatusEntry
-	sourceEntries []chezmoi.StatusEntry
-	statusCalls   int
-	statusArgs    [][]string
-	commands      [][]string
-	diffOutput    string
-	executed      []tui.Action
+	entries          []chezmoi.StatusEntry
+	statusResults    [][]chezmoi.StatusEntry
+	statusReport     string
+	statusCalls      int
+	statusArgs       [][]string
+	statusReportArgs [][]string
+	diffArgs         [][]string
+	commands         [][]string
+	diffOutput       string
+	executed         []app.Action
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -248,20 +243,28 @@ func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	return append([]chezmoi.StatusEntry(nil), f.entries...), nil
 }
 
-func (f *fakeService) SourceStatus() ([]chezmoi.StatusEntry, error) {
-	return append([]chezmoi.StatusEntry(nil), f.sourceEntries...), nil
+func (f *fakeService) StatusReport(targets []string) (report.Document, error) {
+	f.statusReportArgs = append(f.statusReportArgs, append([]string(nil), targets...))
+	if f.statusReport != "" {
+		return report.Document{Blocks: []report.Block{report.CodeBlock("", f.statusReport)}}, nil
+	}
+	return report.Document{Blocks: []report.Block{report.Paragraph(report.Text("clean"))}}, nil
+}
+
+func (f *fakeService) DiffReport(targets []string) (report.Document, error) {
+	f.diffArgs = append(f.diffArgs, append([]string(nil), targets...))
+	return report.Document{Blocks: []report.Block{report.DiffBlock(f.diffOutput)}}, nil
 }
 
 func (f *fakeService) DiffOutput(target string) ([]byte, error) {
-	f.commands = append(f.commands, []string{"diff-output", target})
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) ExecuteNonInteractive(action tui.Action) error {
+func (f *fakeService) ExecuteNonInteractive(action app.Action) error {
 	f.executed = append(f.executed, action)
 	return nil
 }
-func (f *fakeService) TerminalCommand(action tui.Action) (tui.TerminalCommand, error) {
+func (f *fakeService) TerminalCommand(action app.Action) (app.TerminalCommand, error) {
 	return terminalCommand{run: func() error {
 		f.executed = append(f.executed, action)
 		return nil

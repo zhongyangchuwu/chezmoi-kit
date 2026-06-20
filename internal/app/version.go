@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"runtime/debug"
+
+	"github.com/zhongyangchuwu/cm/internal/report"
 )
 
 var Version = "dev"
@@ -43,8 +45,14 @@ func (i Info) FormatShort(name string) string {
 	return fmt.Sprintf("%s %s", name, i.Version)
 }
 
-func (i Info) FormatDetailed(name string) string {
-	return fmt.Sprintf("%s: %s\ncommit: %s\nbuilt: %s\ndirty: %s\ngo: %s\n", name, i.Version, fallback(i.Commit, "unknown"), fallback(i.Time, "unknown"), fallback(i.Modified, "unknown"), fallback(i.GoVersion, "unknown"))
+func (i Info) Report(name string) report.Document {
+	return report.Document{Blocks: []report.Block{
+		report.Paragraph(report.Strong(name+":"), report.Text(" "), report.Status(i.Version)),
+		report.Paragraph(report.Muted("commit:"), report.Text(" "), report.Code(fallback(i.Commit, "unknown"))),
+		report.Paragraph(report.Muted("built:"), report.Text(" "), report.Text(fallback(i.Time, "unknown"))),
+		report.Paragraph(report.Muted("dirty:"), report.Text(" "), report.Text(fallback(i.Modified, "unknown"))),
+		report.Paragraph(report.Muted("go:"), report.Text(" "), report.Text(fallback(i.GoVersion, "unknown"))),
+	}}
 }
 
 func fallback(value, fallback string) string {

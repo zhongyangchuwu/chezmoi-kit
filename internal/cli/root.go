@@ -12,8 +12,7 @@ import (
 
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	client := chezmoi.Client{Stdin: stdin, Stdout: stdout, Stderr: stderr}
-	svc := chezmoiService{client: client}
-	return run(args, commandServicesFor(svc), stdin, stdout, stderr)
+	return run(args, app.NewServices(client), stdin, stdout, stderr)
 }
 
 func run(args []string, services commandServices, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -122,8 +121,7 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		Short: "Print build version information",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := fmt.Fprint(stdout, info.FormatDetailed("cm"))
-			return err
+			return renderReport(stdout, info.Report("cm"))
 		},
 	})
 	root.AddCommand(newCompletionCommand(root, stdout))

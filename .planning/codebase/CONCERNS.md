@@ -34,6 +34,5 @@
 
 ## Maintainability gaps
 
-- `internal/cli/service.go` still owns broad application orchestration for status, diff, sync execution, source git, and edit. Phase 6 should move that ownership into `internal/app`.
-- `internal/tui` currently owns the sync action contract. Phase 6 should move domain contracts into `internal/app` so TUI is only the terminal adapter.
-- CLI rendering still owns user-facing status/diff strings. Phase 7 should move content into semantic report documents with renderers.
+- Report rendering now uses a small semantic model; future output expansion should avoid adding generic table/layout abstractions until a command needs them.
+- TUI file/diff layout still truncates by byte length, not display width or rune boundaries; Unicode paths or diff lines may render poorly.

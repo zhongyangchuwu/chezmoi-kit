@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/zhongyangchuwu/cm/internal/report"
+)
 
 func TestCurrentReturnsRuntimeBuildInformation(t *testing.T) {
 	info := Current()
@@ -25,19 +29,13 @@ func TestExplicitVersionOverridesRuntimeModuleVersion(t *testing.T) {
 	}
 }
 
-func TestFormatDetailedIncludesCoreFields(t *testing.T) {
-	info := Info{
-		Version:   "v0.1.0",
-		Commit:    "abc123",
-		Time:      "2026-06-13T00:00:00Z",
-		Modified:  "false",
-		GoVersion: "go1.26.4",
-	}
+func TestVersionReportUsesSemanticDocument(t *testing.T) {
+	info := Info{Version: "v0.1.0", Commit: "abc123", Time: "2026-06-13T00:00:00Z", Modified: "false", GoVersion: "go1.26.4"}
 
-	got := info.FormatDetailed("cm")
+	got := string(report.Plain(info.Report("cm")))
 	for _, want := range []string{"cm: v0.1.0", "commit: abc123", "built: 2026-06-13T00:00:00Z", "dirty: false", "go: go1.26.4"} {
 		if !containsLine(got, want) {
-			t.Fatalf("FormatDetailed() = %q, missing line %q", got, want)
+			t.Fatalf("Report() = %q, missing line %q", got, want)
 		}
 	}
 }

@@ -157,12 +157,17 @@ cmd/cm/main.go                  thin process entrypoint
 internal/app/
   options.go                    process-wide CLI options
   version.go                    version from runtime/debug and ldflags
+  services.go                   service graph, use cases, and sync action contract
+  services_test.go              app command construction and use-case tests
+internal/report/
+  report.go                     semantic document model
+  render.go                     plain, ANSI, and Markdown renderers
+  diff.go                       shared diff line classification
 internal/cli/
   root.go                       Cobra command wiring
-  service.go                    chezmoi-backed CLI service
-  status.go                     status rendering
-  diff_cmd.go                   diff command rendering
-  service_test.go               service adapter tests
+  service.go                    alias to app service graph for command wiring
+  status.go                     status output stream plumbing
+  diff_cmd.go                   diff output stream plumbing
   cli_test.go                   command wiring tests
 internal/chezmoi/
   client.go                     chezmoi CLI wrapper
@@ -171,7 +176,6 @@ internal/chezmoi/
 internal/diff/
   diff.go                       internal diff generation
 internal/tui/
-  service.go                    sync action model and TUI-facing service contract
   tui.go                        terminal sync program entry/update
   model.go                      sync TUI state and pending actions
   view.go                       two-pane layout rendering
@@ -192,13 +196,16 @@ Owns only process startup and delegates to `internal/cli`.
 
 ### `internal/app`
 
-Owns process-wide options and version metadata used by the application. Release
-builds override `app.Version` with ldflags.
+Owns process-wide options, version metadata, the application service graph,
+status/diff/sync/edit/source-git use cases, direct target wrappers, semantic
+status/diff/version report construction, and the sync action contract consumed
+by the TUI. Release builds override `app.Version` with ldflags.
 
 ### `internal/cli`
 
-Wires Cobra commands, renders command output, and adapts `internal/chezmoi` to
-the interfaces consumed by command handlers and sync TUIs.
+Wires Cobra commands, process streams, shell completion, and exit behavior. It
+delegates status, diff, sync, source git, edit, and mutating command behavior to
+`internal/app` services.
 
 ### `internal/chezmoi`
 
@@ -207,6 +214,12 @@ Owns chezmoi CLI execution and status parsing. The `Status` method adds
 `ManagedFiles` backs `cm edit` completion. `ContentLoader` adapts
 chezmoi-rendered target content and local files to `internal/diff`.
 
+### `internal/report`
+
+Owns semantic command-output documents, inline roles, diff line classification,
+and plain/ANSI/Markdown renderers. ANSI rendering uses semantic palette roles,
+auto-detects TTY stdout, and disables color when `NO_COLOR` is non-empty.
+
 ### `internal/diff`
 
 Generates sync diffs from rendered chezmoi target content to the current local
@@ -214,10 +227,10 @@ file without shelling out to `chezmoi diff` or an external diff renderer.
 
 ### `internal/tui`
 
-Owns the terminal sync UI and its sync action contract. It does not know about
-chezmoi binary paths or git. The selected file's diff loads by default on entry
-and when selection changes; confirmed actions execute one target at a time so
-the UI can return to review mode with remaining files.
+Owns the terminal sync UI. It consumes `app.SyncService` and `app.Action`, but it
+does not know about chezmoi binary paths or git. The selected file's diff loads
+by default on entry and when selection changes; confirmed actions execute one
+target at a time so the UI can return to review mode with remaining files.
 
 ### `internal/process`
 
@@ -234,9 +247,8 @@ charm.land/bubbletea/v2          terminal UI runtime
 charm.land/bubbles/v2            TUI help/key bindings
 charm.land/lipgloss/v2           TUI styling
 github.com/spf13/cobra           CLI framework
-github.com/fatih/color           plain terminal colours
 github.com/rogpeppe/go-internal  unified diff implementation
-golang.org/x/term                terminal detection
+golang.org/x/term                terminal detection for CLI reports and TUI
 ```
 
 No Viper. No external diff renderer. No generated code.

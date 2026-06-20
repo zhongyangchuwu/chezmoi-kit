@@ -5,11 +5,12 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/zhongyangchuwu/cm/internal/app"
 )
 
-func (m syncTUIModel) startExecution(actions []Action) (syncTUIModel, tea.Cmd) {
+func (m syncTUIModel) startExecution(actions []app.Action) (syncTUIModel, tea.Cmd) {
 	m.mode = modeExecuting
-	m.executing = append([]Action(nil), actions...)
+	m.executing = append([]app.Action(nil), actions...)
 	m.executingIndex = 0
 	m.executedCount = 0
 	m.skippedCount = 0
@@ -24,13 +25,13 @@ func (m syncTUIModel) executeCurrentAction() tea.Cmd {
 		return nil
 	}
 	action := m.executing[m.executingIndex]
-	if action.Kind == ActionMerge {
+	if action.Kind == app.ActionMerge {
 		return prepareTerminalActionCmd(m.service, action, m.timing)
 	}
 	return executeNonInteractiveCmd(m.service, action, m.timing)
 }
 
-func executeNonInteractiveCmd(service ReviewService, action Action, timing *syncTimingLogger) tea.Cmd {
+func executeNonInteractiveCmd(service app.SyncService, action app.Action, timing *syncTimingLogger) tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
 		dirty, err := service.Status([]string{action.Target})
@@ -47,11 +48,11 @@ func executeNonInteractiveCmd(service ReviewService, action Action, timing *sync
 		if err != nil {
 			return executeMsg{err: err}
 		}
-		return executeMsg{target: action.Target, executed: []Action{action}}
+		return executeMsg{target: action.Target, executed: []app.Action{action}}
 	}
 }
 
-func prepareTerminalActionCmd(service ReviewService, action Action, timing *syncTimingLogger) tea.Cmd {
+func prepareTerminalActionCmd(service app.SyncService, action app.Action, timing *syncTimingLogger) tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
 		dirty, err := service.Status([]string{action.Target})
@@ -87,7 +88,7 @@ func (m syncTUIModel) applyTerminalExecuteMsg(msg terminalExecuteMsg) (syncTUIMo
 		m.err = msg.err
 		return m, tea.Quit
 	}
-	return m.applyExecuteMsg(executeMsg{target: msg.action.Target, executed: []Action{msg.action}})
+	return m.applyExecuteMsg(executeMsg{target: msg.action.Target, executed: []app.Action{msg.action}})
 }
 
 func (m syncTUIModel) applyExecuteMsg(msg executeMsg) (syncTUIModel, tea.Cmd) {
