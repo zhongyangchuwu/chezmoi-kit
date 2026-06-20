@@ -76,11 +76,11 @@ current local file. `cm` does not manipulate chezmoi source files directly.
 ```text
 cmd/cm                  process entrypoint
 internal/cli            Cobra command tree, renderers, concrete service adapter
+internal/app            process options and version metadata
 internal/chezmoi        chezmoi executable wrapper and output parsers
 internal/process        external process runner abstraction
 internal/diff           internal diff generation from content sources
-internal/ui             Bubble Tea sync review TUI and sync action contract
-internal/build          version/build metadata formatting
+internal/tui            Bubble Tea sync review TUI and sync action contract
 ```
 
 ### Entry point
@@ -94,15 +94,20 @@ internal/build          version/build metadata formatting
 interfaces in `commandServices`. This keeps command tests independent from real
 chezmoi, git, and lazygit processes.
 
+### App support
+
+`internal/app` owns process-wide options and version metadata. Release builds
+override `app.Version` through ldflags.
+
 ### External process boundary
 
 `internal/process.Runner` is the only package-level abstraction over
 `os/exec`. `internal/chezmoi.Client` uses that runner for chezmoi commands, and
 `internal/cli.chezmoiService` uses it for git and lazygit.
 
-### Sync UI boundary
+### Sync TUI boundary
 
-`internal/ui.ReviewService` is the contract consumed by the TUI:
+`internal/tui.ReviewService` is the contract consumed by the TUI:
 
 ```go
 type ReviewService interface {
@@ -113,7 +118,7 @@ type ReviewService interface {
 }
 ```
 
-The UI owns presentation state and sync action types. The concrete CLI service
+The TUI owns presentation state and sync action types. The concrete CLI service
 owns command execution.
 
 ### Diff boundary

@@ -11,7 +11,7 @@ import (
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/diff"
 	"github.com/zhongyangchuwu/cm/internal/process"
-	"github.com/zhongyangchuwu/cm/internal/ui"
+	"github.com/zhongyangchuwu/cm/internal/tui"
 )
 
 type statusService interface {
@@ -42,7 +42,7 @@ type editService interface {
 type commandServices struct {
 	Status    statusService
 	Diff      diffService
-	Sync      ui.ReviewService
+	Sync      tui.ReviewService
 	Target    targetCommandService
 	SourceGit sourceGitService
 	Edit      editService
@@ -117,21 +117,21 @@ func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
 	return differ.Diff(target)
 }
 
-func (s chezmoiService) ExecuteNonInteractive(action ui.Action) error {
+func (s chezmoiService) ExecuteNonInteractive(action tui.Action) error {
 	switch action.Kind {
-	case ui.ActionAdd:
+	case tui.ActionAdd:
 		return s.runBuffered("add", action.Target)
-	case ui.ActionApply:
+	case tui.ActionApply:
 		return s.runBuffered("apply", "--force", action.Target)
-	case ui.ActionMerge:
+	case tui.ActionMerge:
 		return fmt.Errorf("merge requires terminal execution")
 	default:
 		return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
 	}
 }
 
-func (s chezmoiService) TerminalCommand(action ui.Action) (ui.TerminalCommand, error) {
-	if action.Kind != ui.ActionMerge {
+func (s chezmoiService) TerminalCommand(action tui.Action) (tui.TerminalCommand, error) {
+	if action.Kind != tui.ActionMerge {
 		return nil, fmt.Errorf("%s does not require terminal execution", action.Kind)
 	}
 	return &runnerCommand{runner: s.runner(), command: s.client.BinaryName(), args: []string{"merge", action.Target}, io: process.IO{Dir: s.client.Dir}}, nil

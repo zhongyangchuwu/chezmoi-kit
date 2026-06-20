@@ -6,9 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zhongyangchuwu/cm/internal/app"
-	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/ui"
+	"github.com/zhongyangchuwu/cm/internal/tui"
 )
 
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -29,7 +28,7 @@ func run(args []string, services commandServices, stdin io.Reader, stdout, stder
 }
 
 func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io.Writer, options *app.Options) *cobra.Command {
-	info := build.Current()
+	info := app.Current()
 	root := &cobra.Command{
 		Use:           "cm",
 		Short:         "Chezmoi reconciliation manager",
@@ -67,7 +66,7 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		Short: "Interactively reconcile chezmoi changes",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ui.RunSyncTUI(services.Sync, args, stdin, stdout, options)
+			return tui.RunSyncTUI(services.Sync, args, stdin, stdout, options)
 		},
 	}
 	root.AddCommand(syncCmd)

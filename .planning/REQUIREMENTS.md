@@ -36,10 +36,10 @@
 
 ### Architecture and Output Refactor
 
-- [ ] **ARCH-01**: Package boundaries must use one visible architecture language: CLI and TUI adapters, app use cases/services, and infrastructure capabilities.
+- [x] **ARCH-01**: Package boundaries must use one visible architecture language: CLI and TUI adapters, app use cases/services, and infrastructure capabilities.
 - [ ] **ARCH-02**: `internal/app` must own the service graph, sync action contract, command use cases, and version metadata currently split across CLI/UI/build packages.
 - [ ] **ARCH-03**: `internal/cli` must own only Cobra command wiring, flag parsing, stream plumbing, and exit behavior; it must not own status/diff content formatting or chezmoi/git orchestration.
-- [ ] **TUI-01**: The interactive terminal package must be named and organized as TUI-specific code, with diff state/loading separated from diff rendering.
+- [x] **TUI-01**: The interactive terminal package must be named and organized as TUI-specific code, with diff state/loading separated from diff rendering.
 - [ ] **OUT-01**: Status, diff, and version outputs must be represented as semantic report documents that separate content meaning from plain, ANSI, Markdown, or TUI presentation.
 - [ ] **OUT-02**: Report rendering must use a semantic palette for emphasis, warnings, paths, commands, and diff lines, with color behavior respecting TTY detection and `NO_COLOR`.
 - [ ] **TEST-01**: Tests must align with package ownership so app-owned terminal command construction is tested once in app, and shared test utility packages are avoided unless they earn a stable boundary.
@@ -80,10 +80,10 @@
 | REL-04 | Phase 3 | Complete |
 | VER-01 | Phase 4 | Complete |
 | VER-02 | Phase 4 | Complete |
-| ARCH-01 | Phase 5 | Pending |
+| ARCH-01 | Phase 5 | Complete |
 | ARCH-02 | Phase 6 | Pending |
 | ARCH-03 | Phase 6 | Pending |
-| TUI-01 | Phase 5 | Pending |
+| TUI-01 | Phase 5 | Complete |
 | OUT-01 | Phase 7 | Pending |
 | OUT-02 | Phase 7 | Pending |
 | TEST-01 | Phase 6 | Pending |

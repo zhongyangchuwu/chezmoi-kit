@@ -2,14 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/testutil"
-	"github.com/zhongyangchuwu/cm/internal/ui"
+	"github.com/zhongyangchuwu/cm/internal/tui"
 )
 
 func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
@@ -88,7 +88,7 @@ func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	wantActions := []ui.Action{{Target: "/home/me/.zshrc", Kind: ui.ActionAdd}}
+	wantActions := []tui.Action{{Target: "/home/me/.zshrc", Kind: tui.ActionAdd}}
 	if !reflect.DeepEqual(service.executed, wantActions) {
 		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
 	}
@@ -111,7 +111,7 @@ func TestRunSyncDebugWritesTempLogPathToStderr(t *testing.T) {
 	if !strings.Contains(debug, "debug log: ") || !strings.Contains(debug, "debug log kept at: ") {
 		t.Fatalf("stderr = %q, want debug log path messages", debug)
 	}
-	path := testutil.DebugLogPathFromLine(t, debug, "debug log: ")
+	path := debugLogPathFromLine(t, debug, "debug log: ")
 	defer os.Remove(path)
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -234,7 +234,7 @@ type fakeService struct {
 	statusArgs    [][]string
 	commands      [][]string
 	diffOutput    string
-	executed      []ui.Action
+	executed      []tui.Action
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -257,15 +257,41 @@ func (f *fakeService) DiffOutput(target string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) ExecuteNonInteractive(action ui.Action) error {
+func (f *fakeService) ExecuteNonInteractive(action tui.Action) error {
 	f.executed = append(f.executed, action)
 	return nil
 }
-func (f *fakeService) TerminalCommand(action ui.Action) (ui.TerminalCommand, error) {
-	return testutil.TerminalCommand{RunFunc: func() error {
+func (f *fakeService) TerminalCommand(action tui.Action) (tui.TerminalCommand, error) {
+	return terminalCommand{run: func() error {
 		f.executed = append(f.executed, action)
 		return nil
 	}}, nil
+}
+
+type terminalCommand struct {
+	run func() error
+}
+
+func (c terminalCommand) Run() error {
+	if c.run == nil {
+		return nil
+	}
+	return c.run()
+}
+
+func (terminalCommand) SetStdin(io.Reader)  {}
+func (terminalCommand) SetStdout(io.Writer) {}
+func (terminalCommand) SetStderr(io.Writer) {}
+
+func debugLogPathFromLine(t *testing.T, output, prefix string) string {
+	t.Helper()
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		}
+	}
+	t.Fatalf("output %q missing prefix %q", output, prefix)
+	return ""
 }
 
 func (f *fakeService) AddTargets(targets []string) error {

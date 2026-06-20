@@ -1,4 +1,4 @@
-package build
+package app
 
 import (
 	"fmt"

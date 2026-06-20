@@ -7,7 +7,7 @@ import (
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/process"
-	"github.com/zhongyangchuwu/cm/internal/ui"
+	"github.com/zhongyangchuwu/cm/internal/tui"
 )
 
 func TestChezmoiServiceSourceStatusUsesRunnerInSourceDir(t *testing.T) {
@@ -72,10 +72,10 @@ func TestChezmoiServiceExecuteNonInteractiveBuffersAddApply(t *testing.T) {
 	runner := &recordingRunner{}
 	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
 
-	if err := service.ExecuteNonInteractive(ui.Action{Target: "/home/me/.zshrc", Kind: ui.ActionAdd}); err != nil {
+	if err := service.ExecuteNonInteractive(tui.Action{Target: "/home/me/.zshrc", Kind: tui.ActionAdd}); err != nil {
 		t.Fatalf("ExecuteNonInteractive add returned error: %v", err)
 	}
-	if err := service.ExecuteNonInteractive(ui.Action{Target: "/home/me/.gitconfig", Kind: ui.ActionApply}); err != nil {
+	if err := service.ExecuteNonInteractive(tui.Action{Target: "/home/me/.gitconfig", Kind: tui.ActionApply}); err != nil {
 		t.Fatalf("ExecuteNonInteractive apply returned error: %v", err)
 	}
 
@@ -97,7 +97,7 @@ func TestChezmoiServiceTerminalCommandBuildsMergeCommand(t *testing.T) {
 	runner := &recordingRunner{}
 	service := chezmoiService{client: chezmoi.Client{Runner: runner, Dir: "/work"}}
 
-	cmd, err := service.TerminalCommand(ui.Action{Target: "/home/me/.tmux.conf", Kind: ui.ActionMerge})
+	cmd, err := service.TerminalCommand(tui.Action{Target: "/home/me/.tmux.conf", Kind: tui.ActionMerge})
 	if err != nil {
 		t.Fatalf("TerminalCommand returned error: %v", err)
 	}

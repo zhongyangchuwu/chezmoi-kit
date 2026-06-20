@@ -1,7 +1,8 @@
-package ui
+package tui
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/testutil"
 )
 
 func TestSyncModelTogglesPendingAction(t *testing.T) {
@@ -125,7 +125,7 @@ func TestRunSyncTUIDebugPrintsTempLogPath(t *testing.T) {
 	if !strings.Contains(debug, "debug log: ") || !strings.Contains(debug, "debug log kept at: ") {
 		t.Fatalf("stderr = %q, want start and end debug log paths", debug)
 	}
-	path := testutil.DebugLogPathFromLine(t, debug, "debug log: ")
+	path := debugLogPathFromLine(t, debug, "debug log: ")
 	defer os.Remove(path)
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -310,8 +310,34 @@ func (f *fakeReviewService) ExecuteNonInteractive(action Action) error {
 	return nil
 }
 func (f *fakeReviewService) TerminalCommand(action Action) (TerminalCommand, error) {
-	return testutil.TerminalCommand{RunFunc: func() error {
+	return terminalCommand{run: func() error {
 		f.executed = append(f.executed, action)
 		return nil
 	}}, nil
+}
+
+type terminalCommand struct {
+	run func() error
+}
+
+func (c terminalCommand) Run() error {
+	if c.run == nil {
+		return nil
+	}
+	return c.run()
+}
+
+func (terminalCommand) SetStdin(io.Reader)  {}
+func (terminalCommand) SetStdout(io.Writer) {}
+func (terminalCommand) SetStderr(io.Writer) {}
+
+func debugLogPathFromLine(t *testing.T, output, prefix string) string {
+	t.Helper()
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		}
+	}
+	t.Fatalf("output %q missing prefix %q", output, prefix)
+	return ""
 }

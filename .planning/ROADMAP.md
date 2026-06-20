@@ -121,7 +121,7 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 
 **Plans:**
 
-- [x] `5-package-architecture` — Planning complete; implementation pending.
+- [x] `5-package-architecture` — Package rename, build/app merge, testutil removal, diff file split, docs update, and verification complete.
 
 ### Phase 6: App Services and Test Ownership
 
@@ -175,6 +175,6 @@ The v0.1.0 release path starts by stabilizing runtime behavior and module state,
 | 2. Release Metadata and Documentation Cleanup | 1/1 | Complete | 2026-06-19 |
 | 3. CI and Release Automation | 1/1 | Complete | 2026-06-19 |
 | 4. Release Verification | 1/1 | Complete | 2026-06-20 |
-| 5. Package Architecture Cleanup | 1/1 | Planned | - |
+| 5. Package Architecture Cleanup | 1/1 | Complete | 2026-06-20 |
 | 6. App Services and Test Ownership | 1/1 | Planned | - |
 | 7. Semantic Reports and Palette Rendering | 1/1 | Planned | - |

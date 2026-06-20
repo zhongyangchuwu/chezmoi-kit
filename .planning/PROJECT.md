@@ -25,6 +25,7 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - ✓ Public release metadata and documentation are clean for v0.1.0 — Phase 2 complete.
 - ✓ GitHub CI and GoReleaser release automation are configured and locally verified — Phase 3 complete.
 - ✓ Release readiness is locally verified and remaining external terminal/CI/tag gates are documented — Phase 4 complete.
+- ✓ Package boundaries now use CLI/TUI adapters, app support, and infrastructure capability packages — Phase 5 complete.
 
 ### Active
 
@@ -36,7 +37,7 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - [x] Document current installation, requirements, usage, architecture, and release workflow.
 - [x] Add GitHub CI and release workflows for tag-based `v0.1.0` publishing.
 - [x] Close release readiness with local gates and documented external ship gates.
-- [ ] Normalize package boundaries into CLI/TUI adapters, app services, and infrastructure capabilities.
+- [x] Normalize package boundaries into CLI/TUI adapters, app services, and infrastructure capabilities.
 - [ ] Move application service ownership into `internal/app` and make CLI/TUI tests match real package ownership.
 - [ ] Introduce semantic report documents and palette renderers for reusable status, diff, version, and TUI output.
 
@@ -81,5 +82,6 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 | 2026-06-20 | Completed Phase 4 release verification closure. | Local gates, snapshot artifacts, and safe CLI smoke passed; external terminal/CI/tag gates are documented as ship inputs. | Phase 5 package architecture cleanup can proceed. |
 | 2026-06-20 | Plan architecture cleanup as Phases 5-7 after release verification. | Package names and tests currently mix adapters, app behavior, and infrastructure. | Added package architecture, app services, and semantic report phases. |
 | 2026-06-20 | Use semantic report documents rather than Markdown as the internal output model. | Markdown is useful output, but it loses app semantics needed by ANSI, TUI, and future formats. | Phase 7 will add semantic reports plus plain/ANSI/Markdown renderers. |
+| 2026-06-20 | Completed Phase 5 package architecture cleanup. | Package names and file boundaries now match the planned architecture language before moving app services. | Phase 6 app services and test ownership can proceed. |
 
 _Last updated: 2026-06-20_

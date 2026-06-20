@@ -32,11 +32,11 @@ go mod verify
 Targeted:
 
 ```bash
+go test ./internal/app
 go test ./internal/cli
 go test ./internal/chezmoi
 go test ./internal/diff
-go test ./internal/ui
-go test ./internal/build
+go test ./internal/tui
 ```
 
 Vulnerability scan:
@@ -72,7 +72,7 @@ VERSION=v0.1.0 just build-release
 The local recipe uses:
 
 ```bash
-go build -trimpath -ldflags "-s -w -X github.com/zhongyangchuwu/cm/internal/build.Version=$VERSION" -o dist/cm ./cmd/cm
+go build -trimpath -ldflags "-s -w -X github.com/zhongyangchuwu/cm/internal/app.Version=$VERSION" -o dist/cm ./cmd/cm
 ```
 
 For release artifacts, use GoReleaser:
@@ -83,7 +83,7 @@ go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
 ```
 
 GoReleaser reads `.goreleaser.yaml`, builds Linux/macOS/Windows archives, injects
-`internal/build.Version={{ .Version }}`, and writes checksums under `dist/`.
+`internal/app.Version={{ .Version }}`, and writes checksums under `dist/`.
 
 ## v0.1.0 local release gate
 
@@ -154,32 +154,34 @@ release artifacts.
 
 ```text
 cmd/cm/main.go                  thin process entrypoint
+internal/app/
+  options.go                    process-wide CLI options
+  version.go                    version from runtime/debug and ldflags
 internal/cli/
-  cli.go                       Cobra command wiring
-  service.go                   chezmoi-backed CLI service
-  status.go                    status rendering
-  diff.go                      diff command rendering
-  service_test.go              service adapter tests
-  cli_test.go                  command wiring tests
+  root.go                       Cobra command wiring
+  service.go                    chezmoi-backed CLI service
+  status.go                     status rendering
+  diff_cmd.go                   diff command rendering
+  service_test.go               service adapter tests
+  cli_test.go                   command wiring tests
 internal/chezmoi/
-  client.go                    chezmoi CLI wrapper
-  status.go                    status and managed-file parsing
-  content.go                   chezmoi/local content loader for sync diffs
+  client.go                     chezmoi CLI wrapper
+  status.go                     status and managed-file parsing
+  content.go                    chezmoi/local content loader for sync diffs
 internal/diff/
-  diff.go                      internal sync diff generation
-internal/ui/
-  service.go                   sync action model and TUI-facing service contract
-  tui.go                       terminal sync program entry/update
-  model.go                     sync TUI state and pending actions
-  view.go                      two-pane layout rendering
-  diff.go                      diff cache, scroll, and coloring
-  confirm.go                   preflight and confirmed execution command
-  keys.go                      key bindings and styles
-  update.go                    key handling
+  diff.go                       internal diff generation
+internal/tui/
+  service.go                    sync action model and TUI-facing service contract
+  tui.go                        terminal sync program entry/update
+  model.go                      sync TUI state and pending actions
+  view.go                       two-pane layout rendering
+  diff_state.go                 diff cache, loading, scrolling, and splitting
+  diff_view.go                  diff line styling
+  confirm.go                    preflight and confirmed execution command
+  keys.go                       key bindings and styles
+  update.go                     key handling
 internal/process/
-  runner.go                    external process execution abstraction
-internal/build/
-  info.go                      version from runtime/debug and ldflags
+  runner.go                     external process execution abstraction
 ```
 
 ## Package responsibilities
@@ -188,10 +190,15 @@ internal/build/
 
 Owns only process startup and delegates to `internal/cli`.
 
+### `internal/app`
+
+Owns process-wide options and version metadata used by the application. Release
+builds override `app.Version` with ldflags.
+
 ### `internal/cli`
 
 Wires Cobra commands, renders command output, and adapts `internal/chezmoi` to
-the interfaces consumed by command handlers and sync UIs.
+the interfaces consumed by command handlers and sync TUIs.
 
 ### `internal/chezmoi`
 
@@ -205,7 +212,7 @@ chezmoi-rendered target content and local files to `internal/diff`.
 Generates sync diffs from rendered chezmoi target content to the current local
 file without shelling out to `chezmoi diff` or an external diff renderer.
 
-### `internal/ui`
+### `internal/tui`
 
 Owns the terminal sync UI and its sync action contract. It does not know about
 chezmoi binary paths or git. The selected file's diff loads by default on entry
@@ -219,11 +226,6 @@ runner boundary so tests can inject one process fake.
 During sync execution, add/apply subprocesses use buffered stdout/stderr and nil
 stdin to avoid sharing the active TUI terminal. Merge remains terminal-bound for
 interactive merge tools.
-
-### `internal/build`
-
-Reads `runtime/debug.ReadBuildInfo()` and the `Version` ldflag variable for
-`cm version` output.
 
 ## Dependencies
 
