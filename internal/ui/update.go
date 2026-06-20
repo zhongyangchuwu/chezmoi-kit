@@ -3,7 +3,6 @@ package ui
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
 func (m syncTUIModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -31,11 +30,11 @@ func (m syncTUIModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, defaultSyncKeys.Diff):
 		return m.startDiffLoad(true)
 	case key.Matches(msg, defaultSyncKeys.Add):
-		return m.togglePending(reconcile.ActionAdd), nil
+		return m.togglePending(ActionAdd), nil
 	case key.Matches(msg, defaultSyncKeys.Apply):
-		return m.togglePending(reconcile.ActionApply), nil
+		return m.togglePending(ActionApply), nil
 	case key.Matches(msg, defaultSyncKeys.Merge):
-		return m.togglePending(reconcile.ActionMerge), nil
+		return m.togglePending(ActionMerge), nil
 	case key.Matches(msg, defaultSyncKeys.Skip):
 		return m.clearPending(), nil
 	default:

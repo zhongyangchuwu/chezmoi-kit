@@ -123,7 +123,7 @@ func (m syncTUIModel) renderDiffPane(size rect) string {
 		for i, line := range lines {
 			visible[i] = truncate(line, innerWidth)
 		}
-		content = renderDiff(strings.Join(visible, "\n"))
+		content = renderDiffLines(visible)
 	}
 
 	content = padLines(content, innerHeight)
@@ -145,12 +145,12 @@ func (m syncTUIModel) renderConfirmPane(size rect) string {
 	if m.mode == modeExecuting {
 		if m.executingIndex < len(m.executing) {
 			action := m.executing[m.executingIndex]
-			lines = append(lines, truncate(fmt.Sprintf("%d/%d %s %s", m.executingIndex+1, len(m.executing), actionLabel(action.Kind), m.displayPath(action.Target)), innerWidth))
+			lines = append(lines, truncate(fmt.Sprintf("%d/%d %s %s", m.executingIndex+1, len(m.executing), action.Kind.String(), m.displayPath(action.Target)), innerWidth))
 		}
 		lines = append(lines, "", fmt.Sprintf("executed: %d", m.executedCount), fmt.Sprintf("skipped: %d", m.skippedCount))
 	} else {
 		for _, action := range m.pendingActions() {
-			lines = append(lines, truncate(fmt.Sprintf("%s %s", actionLabel(action.Kind), m.displayPath(action.Target)), innerWidth))
+			lines = append(lines, truncate(fmt.Sprintf("%s %s", action.Kind.String(), m.displayPath(action.Target)), innerWidth))
 		}
 		if len(lines) == 2 {
 			lines = append(lines, "no pending actions")

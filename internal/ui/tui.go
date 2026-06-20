@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
+	"github.com/zhongyangchuwu/cm/internal/app"
 	"golang.org/x/term"
 )
 
@@ -18,13 +19,37 @@ type syncDiffMsg struct {
 
 type executeMsg struct {
 	target   string
-	executed []reconcile.Action
+	executed []Action
 	skipped  int
 	err      error
 }
 
-func RunSyncTUI(service reconcile.ReviewService, targets []string, input io.Reader, output io.Writer) error {
+type terminalRequestMsg struct {
+	action Action
+	cmd    TerminalCommand
+	err    error
+}
+
+type terminalExecuteMsg struct {
+	action Action
+	err    error
+}
+
+func RunSyncTUI(service ReviewService, targets []string, input io.Reader, output io.Writer, options *app.Options) error {
+	options = app.NormalizeOptions(options)
+	timing, err := newSyncTimingLogger(options.Debug)
+	if err != nil {
+		return fmt.Errorf("create debug log: %w", err)
+	}
+	if timing.Enabled() {
+		_, _ = fmt.Fprintf(options.Stderr, "debug log: %s\n", timing.Path())
+		defer fmt.Fprintf(options.Stderr, "debug log kept at: %s\n", timing.Path())
+	}
+	defer timing.Close()
+
+	start := time.Now()
 	entries, err := service.Status(targets)
+	timing.Info("sync initial status", "targets", len(targets), "entries", len(entries), "duration", elapsed(start), "err", err)
 	if err != nil {
 		return err
 	}
@@ -33,16 +58,16 @@ func RunSyncTUI(service reconcile.ReviewService, targets []string, input io.Read
 		return err
 	}
 
-	options := []tea.ProgramOption{
+	programOptions := []tea.ProgramOption{
 		tea.WithInput(input),
 		tea.WithOutput(output),
 	}
 	renderFinal := !isTerminalWriter(output)
 	if renderFinal {
-		options = append(options, tea.WithoutRenderer())
+		programOptions = append(programOptions, tea.WithoutRenderer())
 	}
 
-	program := tea.NewProgram(newSyncTUIModel(service, entries), options...)
+	program := tea.NewProgram(newSyncTUIModel(service, entries, timing), programOptions...)
 	model, err := program.Run()
 	if err != nil {
 		return err
@@ -73,7 +98,7 @@ func (m syncTUIModel) Init() tea.Cmd {
 	if m.service == nil || m.currentTarget() == "" {
 		return nil
 	}
-	return loadDiffCmd(m.service, m.currentTarget())
+	return loadDiffCmd(m.service, m.currentTarget(), m.timing)
 }
 
 func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -98,6 +123,10 @@ func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case executeMsg:
 		return m.applyExecuteMsg(msg)
+	case terminalRequestMsg:
+		return m.applyTerminalRequestMsg(msg)
+	case terminalExecuteMsg:
+		return m.applyTerminalExecuteMsg(msg)
 	}
 	return m, nil
 }

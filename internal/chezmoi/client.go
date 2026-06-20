@@ -8,17 +8,13 @@ import (
 	"github.com/zhongyangchuwu/cm/internal/process"
 )
 
-type RunnerIO = process.IO
-
-type Runner = process.Runner
-
 type Client struct {
 	Binary string
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 	Dir    string
-	Runner Runner
+	Runner process.Runner
 }
 
 func (c Client) Status(targets []string) ([]StatusEntry, error) {
@@ -65,12 +61,24 @@ func (c Client) Run(args ...string) error {
 	return runner.Run(c.binary(), args, c.runnerIO())
 }
 
+func (c Client) RunBuffered(args ...string) ([]byte, []byte, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	io := process.IO{Stdout: &stdout, Stderr: &stderr, Dir: c.Dir}
+	err := c.ActiveRunner().Run(c.binary(), args, io)
+	return stdout.Bytes(), stderr.Bytes(), err
+}
+
 func (c Client) ManagedFiles() ([]string, error) {
 	out, err := c.Output("managed")
 	if err != nil {
 		return nil, err
 	}
 	return ParseManagedFiles(out), nil
+}
+
+func (c Client) BinaryName() string {
+	return c.binary()
 }
 
 func (c Client) binary() string {
@@ -80,15 +88,15 @@ func (c Client) binary() string {
 	return "chezmoi"
 }
 
-func (c Client) ActiveRunner() Runner {
+func (c Client) ActiveRunner() process.Runner {
 	if c.Runner != nil {
 		return c.Runner
 	}
 	return process.ExecRunner{}
 }
 
-func (c Client) runnerIO() RunnerIO {
-	return RunnerIO{
+func (c Client) runnerIO() process.IO {
+	return process.IO{
 		Stdin:  c.Stdin,
 		Stdout: c.Stdout,
 		Stderr: c.Stderr,

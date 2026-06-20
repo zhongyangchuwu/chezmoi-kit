@@ -40,6 +40,9 @@ Before executing each action, `cm` re-checks that target and drops it if it is
 already clean. Confirmed execution then runs to completion for the current target
 or returns an error; `cm` does not advertise quit as cancellation for
 already-started mutating subprocesses.
+Add/apply execution is treated as non-interactive and captures subprocess
+stdout/stderr instead of sharing the active TUI terminal. Merge remains a
+terminal-owning action because the configured merge tool can be interactive.
 
 Available actions:
 
@@ -75,9 +78,8 @@ cmd/cm                  process entrypoint
 internal/cli            Cobra command tree, renderers, concrete service adapter
 internal/chezmoi        chezmoi executable wrapper and output parsers
 internal/process        external process runner abstraction
-internal/reconcile      sync action types and TUI-facing service contract
-internal/syncdiff       internal diff generation from content sources
-internal/ui             Bubble Tea sync review TUI
+internal/diff           internal diff generation from content sources
+internal/ui             Bubble Tea sync review TUI and sync action contract
 internal/build          version/build metadata formatting
 ```
 
@@ -98,23 +100,25 @@ chezmoi, git, and lazygit processes.
 `os/exec`. `internal/chezmoi.Client` uses that runner for chezmoi commands, and
 `internal/cli.chezmoiService` uses it for git and lazygit.
 
-### Reconciliation boundary
+### Sync UI boundary
 
-`internal/reconcile.ReviewService` is the contract consumed by the TUI:
+`internal/ui.ReviewService` is the contract consumed by the TUI:
 
 ```go
 type ReviewService interface {
     Status(targets []string) ([]chezmoi.StatusEntry, error)
     DiffOutput(target string) ([]byte, error)
-    ExecuteOne(action Action) error
+    ExecuteNonInteractive(action Action) error
+    TerminalCommand(action Action) (TerminalCommand, error)
 }
 ```
 
-The UI owns presentation state. The concrete CLI service owns command execution.
+The UI owns presentation state and sync action types. The concrete CLI service
+owns command execution.
 
 ### Diff boundary
 
-`internal/syncdiff.Differ` depends on a `ContentSource` interface. The chezmoi
+`internal/diff.Differ` depends on a `ContentSource` interface. The chezmoi
 content loader implements that interface by reading rendered target content via
 `chezmoi cat` and local content from the filesystem.
 

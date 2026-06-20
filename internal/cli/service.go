@@ -3,19 +3,20 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"github.com/zhongyangchuwu/cm/internal/diff"
 	"github.com/zhongyangchuwu/cm/internal/process"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
-	"github.com/zhongyangchuwu/cm/internal/syncdiff"
+	"github.com/zhongyangchuwu/cm/internal/ui"
 )
 
 type statusService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
-	SourceStatus() ([]sourceEntry, error)
+	SourceStatus() ([]chezmoi.StatusEntry, error)
 }
 
 type diffService interface {
@@ -41,7 +42,7 @@ type editService interface {
 type commandServices struct {
 	Status    statusService
 	Diff      diffService
-	Sync      reconcile.ReviewService
+	Sync      ui.ReviewService
 	Target    targetCommandService
 	SourceGit sourceGitService
 	Edit      editService
@@ -58,11 +59,6 @@ func commandServicesFor(s chezmoiService) commandServices {
 	}
 }
 
-type sourceEntry struct {
-	Code string
-	Path string
-}
-
 type chezmoiService struct {
 	client chezmoi.Client
 }
@@ -71,7 +67,7 @@ func (s chezmoiService) Status(targets []string) ([]chezmoi.StatusEntry, error) 
 	return s.client.Status(targets)
 }
 
-func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
+func (s chezmoiService) SourceStatus() ([]chezmoi.StatusEntry, error) {
 	sourceDir, err := s.sourceDir()
 	if err != nil {
 		return nil, err
@@ -85,7 +81,7 @@ func (s chezmoiService) SourceStatus() ([]sourceEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git status %s: %w%s", sourceDir, err, formatStderr(stderr.Bytes()))
 	}
-	return parseSourceStatus(out)
+	return chezmoi.ParseGitStatus(out)
 }
 
 func (s chezmoiService) OpenSourceGit() error {
@@ -117,54 +113,61 @@ func (s chezmoiService) sourceDir() (string, error) {
 }
 
 func (s chezmoiService) DiffOutput(target string) ([]byte, error) {
-	differ := syncdiff.Differ{Source: chezmoi.ContentLoader{Client: s.client}}
+	differ := diff.Differ{Source: chezmoi.ContentLoader{Client: s.client}}
 	return differ.Diff(target)
 }
 
-func (s chezmoiService) ExecuteOne(action reconcile.Action) error {
+func (s chezmoiService) ExecuteNonInteractive(action ui.Action) error {
 	switch action.Kind {
-	case reconcile.ActionAdd:
-		if err := s.runTarget("add", action.Target); err != nil {
-			return fmt.Errorf("add %s: %w", action.Target, err)
-		}
-	case reconcile.ActionApply:
-		if err := s.client.Run("apply", "--force", action.Target); err != nil {
-			return fmt.Errorf("apply %s: %w", action.Target, err)
-		}
-	case reconcile.ActionMerge:
-		if err := s.runTarget("merge", action.Target); err != nil {
-			return fmt.Errorf("merge %s: %w", action.Target, err)
-		}
+	case ui.ActionAdd:
+		return s.runBuffered("add", action.Target)
+	case ui.ActionApply:
+		return s.runBuffered("apply", "--force", action.Target)
+	case ui.ActionMerge:
+		return fmt.Errorf("merge requires terminal execution")
 	default:
 		return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
 	}
-	return nil
 }
 
-func targetSummary(targets []string) string {
-	if len(targets) == 1 {
-		return targets[0]
+func (s chezmoiService) TerminalCommand(action ui.Action) (ui.TerminalCommand, error) {
+	if action.Kind != ui.ActionMerge {
+		return nil, fmt.Errorf("%s does not require terminal execution", action.Kind)
 	}
-	return fmt.Sprintf("%d targets", len(targets))
+	return &runnerCommand{runner: s.runner(), command: s.client.BinaryName(), args: []string{"merge", action.Target}, io: process.IO{Dir: s.client.Dir}}, nil
+}
+
+type runnerCommand struct {
+	runner  process.Runner
+	command string
+	args    []string
+	io      process.IO
+}
+
+func (c *runnerCommand) Run() error {
+	return c.runner.Run(c.command, c.args, c.io)
+}
+
+func (c *runnerCommand) SetStdin(r io.Reader) {
+	if c.io.Stdin == nil {
+		c.io.Stdin = r
+	}
+}
+
+func (c *runnerCommand) SetStdout(w io.Writer) {
+	if c.io.Stdout == nil {
+		c.io.Stdout = w
+	}
+}
+
+func (c *runnerCommand) SetStderr(w io.Writer) {
+	if c.io.Stderr == nil {
+		c.io.Stderr = w
+	}
 }
 
 func (s chezmoiService) runner() process.Runner {
 	return s.client.ActiveRunner()
-}
-
-func parseSourceStatus(out []byte) ([]sourceEntry, error) {
-	lines := bytes.Split(bytes.TrimRight(out, "\n"), []byte{'\n'})
-	if len(lines) == 1 && len(lines[0]) == 0 {
-		return nil, nil
-	}
-	entries := make([]sourceEntry, 0, len(lines))
-	for i, line := range lines {
-		if len(line) < 4 || line[2] != ' ' {
-			return nil, fmt.Errorf("malformed git status line %d: %q", i+1, line)
-		}
-		entries = append(entries, sourceEntry{Code: string(line[:2]), Path: string(line[3:])})
-	}
-	return entries, nil
 }
 
 func formatStderr(stderr []byte) string {
@@ -199,8 +202,12 @@ func (s chezmoiService) ManagedFiles() ([]string, error) {
 	return s.client.ManagedFiles()
 }
 
-func (s chezmoiService) runTarget(command, target string) error {
-	return s.runTargets(command, []string{target})
+func (s chezmoiService) runBuffered(args ...string) error {
+	_, stderr, err := s.client.RunBuffered(args...)
+	if err != nil {
+		return fmt.Errorf("%w%s", err, formatStderr(stderr))
+	}
+	return nil
 }
 
 func (s chezmoiService) runTargets(command string, targets []string) error {

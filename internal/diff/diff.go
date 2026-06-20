@@ -1,4 +1,4 @@
-package syncdiff
+package diff
 
 import (
 	"bytes"

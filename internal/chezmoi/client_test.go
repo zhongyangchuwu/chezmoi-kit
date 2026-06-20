@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/zhongyangchuwu/cm/internal/process"
 )
 
 func TestClientStatusRequestsAbsolutePathsAndParsesOutput(t *testing.T) {
@@ -35,6 +37,26 @@ func TestClientRunForwardsCommand(t *testing.T) {
 
 	if !reflect.DeepEqual(runner.runCalls, [][]string{{"chezmoi", "diff", ".zshrc"}}) {
 		t.Fatalf("runCalls = %#v", runner.runCalls)
+	}
+}
+
+func TestClientRunBufferedCapturesOutputAndDisablesStdin(t *testing.T) {
+	runner := &fakeRunner{output: []byte("stdout")}
+	client := Client{Binary: "chezmoi", Runner: runner, Stdin: bytes.NewBufferString("ignored"), Dir: "/work"}
+
+	stdout, stderr, err := client.RunBuffered("add", ".zshrc")
+	if err != nil {
+		t.Fatalf("RunBuffered returned error: %v", err)
+	}
+	if string(stdout) != "stdout" || len(stderr) != 0 {
+		t.Fatalf("stdout=%q stderr=%q", stdout, stderr)
+	}
+	if !reflect.DeepEqual(runner.runCalls, [][]string{{"chezmoi", "add", ".zshrc"}}) {
+		t.Fatalf("runCalls = %#v", runner.runCalls)
+	}
+	gotIO := runner.runIO[0]
+	if gotIO.Stdin != nil || gotIO.Stdout == nil || gotIO.Stderr == nil || gotIO.Dir != "/work" {
+		t.Fatalf("run IO = %#v, want buffered output, nil stdin, preserved dir", gotIO)
 	}
 }
 func TestClientOutputPreservesTrailingNewlines(t *testing.T) {
@@ -96,17 +118,19 @@ type fakeRunner struct {
 	err         error
 	outputCalls [][]string
 	runCalls    [][]string
+	runIO       []process.IO
 }
 
-func (f *fakeRunner) Output(command string, args []string, _ RunnerIO) ([]byte, error) {
+func (f *fakeRunner) Output(command string, args []string, _ process.IO) ([]byte, error) {
 	call := append([]string{command}, args...)
 	f.outputCalls = append(f.outputCalls, call)
 	return bytes.Clone(f.output), f.err
 }
 
-func (f *fakeRunner) Run(command string, args []string, io RunnerIO) error {
+func (f *fakeRunner) Run(command string, args []string, io process.IO) error {
 	call := append([]string{command}, args...)
 	f.runCalls = append(f.runCalls, call)
+	f.runIO = append(f.runIO, io)
 	if io.Stdout != nil {
 		_, err := io.Stdout.Write(f.output)
 		if err != nil {

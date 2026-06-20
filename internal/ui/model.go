@@ -1,9 +1,10 @@
 package ui
 
 import (
+	"time"
+
 	"charm.land/bubbles/v2/help"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
 )
 
 type syncMode int
@@ -22,10 +23,10 @@ const (
 )
 
 type syncTUIModel struct {
-	service        reconcile.ReviewService
+	service        ReviewService
 	entries        []chezmoi.StatusEntry
 	cursor         int
-	pending        map[string]reconcile.ActionKind
+	pending        map[string]ActionKind
 	focus          syncFocus
 	mode           syncMode
 	diffs          map[string]diffState
@@ -36,7 +37,9 @@ type syncTUIModel struct {
 	help           help.Model
 	message        string
 	err            error
-	executing      []reconcile.Action
+	timing         *syncTimingLogger
+	executionStart time.Time
+	executing      []Action
 	executingIndex int
 	executedCount  int
 	skippedCount   int
@@ -44,14 +47,17 @@ type syncTUIModel struct {
 	stopped        bool
 }
 
-func newSyncTUIModel(service reconcile.ReviewService, entries []chezmoi.StatusEntry) syncTUIModel {
+func newSyncTUIModel(service ReviewService, entries []chezmoi.StatusEntry, timing ...*syncTimingLogger) syncTUIModel {
 	m := syncTUIModel{
 		service: service,
 		entries: append([]chezmoi.StatusEntry(nil), entries...),
-		pending: make(map[string]reconcile.ActionKind),
+		pending: make(map[string]ActionKind),
 		diffs:   make(map[string]diffState),
 		homeDir: homeDir(),
 		help:    help.New(),
+	}
+	if len(timing) > 0 {
+		m.timing = timing[0]
 	}
 	if service != nil && len(m.entries) > 0 {
 		m.diffs[m.currentTarget()] = diffState{loading: true}
@@ -98,7 +104,7 @@ func (m syncTUIModel) toggleFocus() syncTUIModel {
 	return m
 }
 
-func (m syncTUIModel) togglePending(kind reconcile.ActionKind) syncTUIModel {
+func (m syncTUIModel) togglePending(kind ActionKind) syncTUIModel {
 	target := m.currentTarget()
 	if current, ok := m.pending[target]; ok && current == kind {
 		delete(m.pending, target)
@@ -107,7 +113,7 @@ func (m syncTUIModel) togglePending(kind reconcile.ActionKind) syncTUIModel {
 		return m
 	}
 	m.pending[target] = kind
-	m.message = actionLabel(kind) + " " + m.displayPath(target)
+	m.message = kind.String() + " " + m.displayPath(target)
 	return m
 }
 
@@ -137,14 +143,14 @@ func (m syncTUIModel) removeEntry(target string) syncTUIModel {
 	return m
 }
 
-func (m syncTUIModel) pendingActions() []reconcile.Action {
-	actions := make([]reconcile.Action, 0, len(m.pending))
+func (m syncTUIModel) pendingActions() []Action {
+	actions := make([]Action, 0, len(m.pending))
 	for _, entry := range m.entries {
 		kind, ok := m.pending[entry.Path]
 		if !ok {
 			continue
 		}
-		actions = append(actions, reconcile.Action{Target: entry.Path, Kind: kind})
+		actions = append(actions, Action{Target: entry.Path, Kind: kind})
 	}
 	return actions
 }
@@ -154,5 +160,5 @@ func (m syncTUIModel) pendingLabel(target string) string {
 	if !ok {
 		return "[ ]"
 	}
-	return "[" + actionMarker(kind) + "]"
+	return "[" + kind.Marker() + "]"
 }

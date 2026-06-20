@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
+	"github.com/zhongyangchuwu/cm/internal/process"
+	"github.com/zhongyangchuwu/cm/internal/ui"
 )
 
 func TestChezmoiServiceSourceStatusUsesRunnerInSourceDir(t *testing.T) {
@@ -19,7 +20,7 @@ func TestChezmoiServiceSourceStatusUsesRunnerInSourceDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SourceStatus returned error: %v", err)
 	}
-	wantEntries := []sourceEntry{{Code: " M", Path: "dot_zshrc"}}
+	wantEntries := []chezmoi.StatusEntry{{Code: " M", Path: "dot_zshrc"}}
 	if !reflect.DeepEqual(entries, wantEntries) {
 		t.Fatalf("entries = %#v, want %#v", entries, wantEntries)
 	}
@@ -67,27 +68,49 @@ func TestChezmoiServiceOpenSourceGitUsesRunnerIO(t *testing.T) {
 	}
 }
 
-func TestChezmoiServiceExecuteOneRunsSingleTarget(t *testing.T) {
+func TestChezmoiServiceExecuteNonInteractiveBuffersAddApply(t *testing.T) {
 	runner := &recordingRunner{}
 	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
 
-	if err := service.ExecuteOne(reconcile.Action{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd}); err != nil {
-		t.Fatalf("ExecuteOne add returned error: %v", err)
+	if err := service.ExecuteNonInteractive(ui.Action{Target: "/home/me/.zshrc", Kind: ui.ActionAdd}); err != nil {
+		t.Fatalf("ExecuteNonInteractive add returned error: %v", err)
 	}
-	if err := service.ExecuteOne(reconcile.Action{Target: "/home/me/.gitconfig", Kind: reconcile.ActionApply}); err != nil {
-		t.Fatalf("ExecuteOne apply returned error: %v", err)
-	}
-	if err := service.ExecuteOne(reconcile.Action{Target: "/home/me/.tmux.conf", Kind: reconcile.ActionMerge}); err != nil {
-		t.Fatalf("ExecuteOne merge returned error: %v", err)
+	if err := service.ExecuteNonInteractive(ui.Action{Target: "/home/me/.gitconfig", Kind: ui.ActionApply}); err != nil {
+		t.Fatalf("ExecuteNonInteractive apply returned error: %v", err)
 	}
 
 	wantRuns := [][]string{
 		{"chezmoi", "add", "/home/me/.zshrc"},
 		{"chezmoi", "apply", "--force", "/home/me/.gitconfig"},
-		{"chezmoi", "merge", "/home/me/.tmux.conf"},
 	}
 	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
 		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	}
+	for i, gotIO := range runner.runIO {
+		if gotIO.Stdin != nil || gotIO.Stdout == nil || gotIO.Stderr == nil {
+			t.Fatalf("runIO[%d] = %#v, want nil stdin and buffered stdout/stderr", i, gotIO)
+		}
+	}
+}
+
+func TestChezmoiServiceTerminalCommandBuildsMergeCommand(t *testing.T) {
+	runner := &recordingRunner{}
+	service := chezmoiService{client: chezmoi.Client{Runner: runner, Dir: "/work"}}
+
+	cmd, err := service.TerminalCommand(ui.Action{Target: "/home/me/.tmux.conf", Kind: ui.ActionMerge})
+	if err != nil {
+		t.Fatalf("TerminalCommand returned error: %v", err)
+	}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("terminal command Run returned error: %v", err)
+	}
+
+	wantRuns := [][]string{{"chezmoi", "merge", "/home/me/.tmux.conf"}}
+	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	}
+	if got := runner.runIO[0].Dir; got != "/work" {
+		t.Fatalf("Dir = %q, want /work", got)
 	}
 }
 
@@ -110,11 +133,11 @@ type recordingRunner struct {
 	outputs     [][]byte
 	outputCalls [][]string
 	runCalls    [][]string
-	outputIO    []chezmoi.RunnerIO
-	runIO       []chezmoi.RunnerIO
+	outputIO    []process.IO
+	runIO       []process.IO
 }
 
-func (r *recordingRunner) Output(command string, args []string, io chezmoi.RunnerIO) ([]byte, error) {
+func (r *recordingRunner) Output(command string, args []string, io process.IO) ([]byte, error) {
 	r.outputCalls = append(r.outputCalls, append([]string{command}, args...))
 	r.outputIO = append(r.outputIO, io)
 	if len(r.outputs) == 0 {
@@ -125,7 +148,7 @@ func (r *recordingRunner) Output(command string, args []string, io chezmoi.Runne
 	return out, nil
 }
 
-func (r *recordingRunner) Run(command string, args []string, io chezmoi.RunnerIO) error {
+func (r *recordingRunner) Run(command string, args []string, io process.IO) error {
 	r.runCalls = append(r.runCalls, append([]string{command}, args...))
 	r.runIO = append(r.runIO, io)
 	return nil

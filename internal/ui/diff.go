@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -21,12 +22,14 @@ func (m syncTUIModel) startDiffLoad(refresh bool) (syncTUIModel, tea.Cmd) {
 		return m, nil
 	}
 	m.diffs[target] = diffState{loading: true}
-	return m, loadDiffCmd(m.service, target)
+	return m, loadDiffCmd(m.service, target, m.timing)
 }
 
-func loadDiffCmd(service interface{ DiffOutput(string) ([]byte, error) }, target string) tea.Cmd {
+func loadDiffCmd(service interface{ DiffOutput(string) ([]byte, error) }, target string, timing *syncTimingLogger) tea.Cmd {
 	return func() tea.Msg {
+		start := time.Now()
 		out, err := service.DiffOutput(target)
+		timing.Info("sync diff", "target", target, "bytes", len(out), "duration", elapsed(start), "err", err)
 		return syncDiffMsg{target: target, diff: string(out), err: err}
 	}
 }
@@ -61,27 +64,32 @@ func (m syncTUIModel) scrollDiff(delta int, height int) syncTUIModel {
 	return m
 }
 
-func renderDiff(diff string) string {
-	if diff == "" {
+func renderDiffLines(lines []string) string {
+	if len(lines) == 0 {
 		return ""
 	}
-
-	lines := strings.Split(diff, "\n")
+	styled := make([]string, len(lines))
 	for i, line := range lines {
-		switch {
-		case strings.HasPrefix(line, "@@"):
-			lines[i] = diffHunkStyle.Render(line)
-		case strings.HasPrefix(line, "diff "), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "+++"):
-			lines[i] = diffHeaderStyle.Render(line)
-		case strings.HasPrefix(line, "+"):
-			lines[i] = diffAddStyle.Render(line)
-		case strings.HasPrefix(line, "-"):
-			lines[i] = diffRemoveStyle.Render(line)
-		case strings.HasPrefix(line, `\ No newline`):
-			lines[i] = diffMetaStyle.Render(line)
-		}
+		styled[i] = renderDiffLine(line)
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(styled, "\n")
+}
+
+func renderDiffLine(line string) string {
+	switch {
+	case strings.HasPrefix(line, "@@"):
+		return diffHunkStyle.Render(line)
+	case strings.HasPrefix(line, "diff "), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "+++"):
+		return diffHeaderStyle.Render(line)
+	case strings.HasPrefix(line, "+"):
+		return diffAddStyle.Render(line)
+	case strings.HasPrefix(line, "-"):
+		return diffRemoveStyle.Render(line)
+	case strings.HasPrefix(line, `\ No newline`):
+		return diffMetaStyle.Render(line)
+	default:
+		return line
+	}
 }
 
 func splitLines(s string) []string {

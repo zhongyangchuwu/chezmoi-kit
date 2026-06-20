@@ -1,24 +1,28 @@
 package ui
 
 import (
+	"bytes"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
+	"github.com/zhongyangchuwu/cm/internal/testutil"
 )
 
 func TestSyncModelTogglesPendingAction(t *testing.T) {
 	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
-	model = model.togglePending(reconcile.ActionAdd)
-	if got, ok := model.pending["/home/me/.zshrc"]; !ok || got != reconcile.ActionAdd {
+	model = model.togglePending(ActionAdd)
+	if got, ok := model.pending["/home/me/.zshrc"]; !ok || got != ActionAdd {
 		t.Fatalf("pending = %#v", model.pending)
 	}
 
-	model = model.togglePending(reconcile.ActionAdd)
+	model = model.togglePending(ActionAdd)
 	if len(model.pending) != 0 {
 		t.Fatalf("pending = %#v, want empty", model.pending)
 	}
@@ -27,10 +31,10 @@ func TestSyncModelTogglesPendingAction(t *testing.T) {
 func TestSyncModelReplacesPendingAction(t *testing.T) {
 	model := newSyncTUIModel(nil, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
 
-	model = model.togglePending(reconcile.ActionAdd)
-	model = model.togglePending(reconcile.ActionApply)
+	model = model.togglePending(ActionAdd)
+	model = model.togglePending(ActionApply)
 
-	if got := model.pending["/home/me/.zshrc"]; got != reconcile.ActionApply {
+	if got := model.pending["/home/me/.zshrc"]; got != ActionApply {
 		t.Fatalf("pending action = %v, want apply", got)
 	}
 }
@@ -41,13 +45,13 @@ func TestSyncModelPendingActionsKeepEntryOrder(t *testing.T) {
 		{Code: "MM", Path: "/home/me/.gitconfig"},
 	})
 	model.cursor = 1
-	model = model.togglePending(reconcile.ActionMerge)
+	model = model.togglePending(ActionMerge)
 	model.cursor = 0
-	model = model.togglePending(reconcile.ActionAdd)
+	model = model.togglePending(ActionAdd)
 
-	want := []reconcile.Action{
-		{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd},
-		{Target: "/home/me/.gitconfig", Kind: reconcile.ActionMerge},
+	want := []Action{
+		{Target: "/home/me/.zshrc", Kind: ActionAdd},
+		{Target: "/home/me/.gitconfig", Kind: ActionMerge},
 	}
 	if got := model.pendingActions(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("pendingActions = %#v, want %#v", got, want)
@@ -58,7 +62,7 @@ func TestExecuteCurrentActionDropsCleanTarget(t *testing.T) {
 	service := &fakeReviewService{
 		statusResults: [][]chezmoi.StatusEntry{{}},
 	}
-	cmd := executeActionCmd(service, reconcile.Action{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd})
+	cmd := executeNonInteractiveCmd(service, Action{Target: "/home/me/.zshrc", Kind: ActionAdd}, nil)
 
 	msg := cmd().(executeMsg)
 	if msg.err != nil {
@@ -76,13 +80,69 @@ func TestExecuteCurrentActionDropsCleanTarget(t *testing.T) {
 	}
 }
 
+func TestExecuteCurrentActionWritesTimingLog(t *testing.T) {
+	service := &fakeReviewService{statusResults: [][]chezmoi.StatusEntry{{{Code: "MM", Path: "/home/me/.zshrc"}}}}
+	timing, err := newSyncTimingLogger(true)
+	if err != nil {
+		t.Fatalf("newSyncTimingLogger returned error: %v", err)
+	}
+	logPath := timing.Path()
+	t.Cleanup(func() { _ = os.Remove(logPath) })
+	cmd := executeNonInteractiveCmd(service, Action{Target: "/home/me/.zshrc", Kind: ActionAdd}, timing)
+
+	msg := cmd().(executeMsg)
+	if msg.err != nil {
+		t.Fatalf("executeActionCmd returned error: %v", msg.err)
+	}
+	if err := timing.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	log := string(content)
+	for _, want := range []string{"sync status preflight", "sync execute target", "target=/home/me/.zshrc", "action=add", "duration="} {
+		if !strings.Contains(log, want) {
+			t.Fatalf("log %q does not contain %q", log, want)
+		}
+	}
+}
+
+func TestRunSyncTUIDebugPrintsTempLogPath(t *testing.T) {
+	service := &fakeReviewService{}
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := RunSyncTUI(service, nil, strings.NewReader(""), &out, &app.Options{Debug: true, Stderr: &stderr})
+	if err != nil {
+		t.Fatalf("RunSyncTUI returned error: %v", err)
+	}
+	if strings.TrimSpace(out.String()) != "clean" {
+		t.Fatalf("stdout = %q, want clean", out.String())
+	}
+	debug := stderr.String()
+	if !strings.Contains(debug, "debug log: ") || !strings.Contains(debug, "debug log kept at: ") {
+		t.Fatalf("stderr = %q, want start and end debug log paths", debug)
+	}
+	path := testutil.DebugLogPathFromLine(t, debug, "debug log: ")
+	defer os.Remove(path)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) returned error: %v", path, err)
+	}
+	if !strings.Contains(string(content), "sync initial status") {
+		t.Fatalf("debug log %q does not contain initial status: %q", path, string(content))
+	}
+}
+
 func TestExecutionReturnsToReviewWithRemainingFiles(t *testing.T) {
 	service := &fakeReviewService{statusResults: [][]chezmoi.StatusEntry{{{Code: "MM", Path: "/home/me/.zshrc"}}}}
 	model := newSyncTUIModel(service, []chezmoi.StatusEntry{
 		{Code: "MM", Path: "/home/me/.zshrc"},
 		{Code: "MM", Path: "/home/me/.gitconfig"},
 	})
-	model.pending["/home/me/.zshrc"] = reconcile.ActionAdd
+	model.pending["/home/me/.zshrc"] = ActionAdd
 
 	model, cmd := model.startExecution(model.pendingActions())
 	if cmd == nil {
@@ -109,7 +169,7 @@ func TestExecutionReturnsToReviewWithRemainingFiles(t *testing.T) {
 func TestExecutionQuitsWithCompleteMessageWhenAllFilesDone(t *testing.T) {
 	service := &fakeReviewService{statusResults: [][]chezmoi.StatusEntry{{{Code: "MM", Path: "/home/me/.zshrc"}}}}
 	model := newSyncTUIModel(service, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}})
-	model.pending["/home/me/.zshrc"] = reconcile.ActionApply
+	model.pending["/home/me/.zshrc"] = ActionApply
 
 	model, cmd := model.startExecution(model.pendingActions())
 	msg := cmd().(executeMsg)
@@ -227,7 +287,7 @@ type fakeReviewService struct {
 	statusArgs    [][]string
 	diffOutput    string
 	diffArgs      []string
-	executed      []reconcile.Action
+	executed      []Action
 }
 
 func (f *fakeReviewService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -245,7 +305,13 @@ func (f *fakeReviewService) DiffOutput(target string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeReviewService) ExecuteOne(action reconcile.Action) error {
+func (f *fakeReviewService) ExecuteNonInteractive(action Action) error {
 	f.executed = append(f.executed, action)
 	return nil
+}
+func (f *fakeReviewService) TerminalCommand(action Action) (TerminalCommand, error) {
+	return testutil.TerminalCommand{RunFunc: func() error {
+		f.executed = append(f.executed, action)
+		return nil
+	}}, nil
 }

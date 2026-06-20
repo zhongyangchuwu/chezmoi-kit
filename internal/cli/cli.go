@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
+	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/build"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/ui"
@@ -17,7 +18,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func run(args []string, services commandServices, stdin io.Reader, stdout, stderr io.Writer) int {
-	cmd := newRootCommand(services, stdin, stdout, stderr)
+	options := &app.Options{Stderr: stderr}
+	cmd := newRootCommand(services, stdin, stdout, stderr, options)
 	cmd.SetArgs(args)
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -26,7 +28,7 @@ func run(args []string, services commandServices, stdin io.Reader, stdout, stder
 	return 0
 }
 
-func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io.Writer, options *app.Options) *cobra.Command {
 	info := build.Current()
 	root := &cobra.Command{
 		Use:           "cm",
@@ -42,6 +44,7 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
+	root.PersistentFlags().BoolVar(&options.Debug, "debug", false, "write debug diagnostics to a temporary log file")
 
 	root.AddCommand(&cobra.Command{
 		Use:   "status [target...]",
@@ -64,7 +67,7 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		Short: "Interactively reconcile chezmoi changes",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ui.RunSyncTUI(services.Sync, args, stdin, stdout)
+			return ui.RunSyncTUI(services.Sync, args, stdin, stdout, options)
 		},
 	}
 	root.AddCommand(syncCmd)
@@ -93,9 +96,9 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		},
 	})
 	root.AddCommand(&cobra.Command{
-		Use:               "edit <target>",
-		Short:             "Edit a chezmoi managed file in your configured editor",
-		Args:              cobra.ExactArgs(1),
+		Use:   "edit <target>",
+		Short: "Edit a chezmoi managed file in your configured editor",
+		Args:  cobra.ExactArgs(1),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			files, err := services.Edit.ManagedFiles()
 			if err != nil {

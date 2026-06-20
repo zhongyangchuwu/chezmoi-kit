@@ -2,12 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
+	"github.com/zhongyangchuwu/cm/internal/testutil"
+	"github.com/zhongyangchuwu/cm/internal/ui"
 )
 
 func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
@@ -33,7 +35,7 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	service := &fakeService{
 		entries:       []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}},
-		sourceEntries: []sourceEntry{{Code: " M", Path: "dot_zshrc"}},
+		sourceEntries: []chezmoi.StatusEntry{{Code: " M", Path: "dot_zshrc"}},
 	}
 	var out bytes.Buffer
 
@@ -86,9 +88,37 @@ func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	wantActions := []reconcile.Action{{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd}}
+	wantActions := []ui.Action{{Target: "/home/me/.zshrc", Kind: ui.ActionAdd}}
 	if !reflect.DeepEqual(service.executed, wantActions) {
 		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
+	}
+}
+
+func TestRunSyncDebugWritesTempLogPathToStderr(t *testing.T) {
+	service := &fakeService{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := run([]string{"sync", "--debug"}, testServices(service), strings.NewReader(""), &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; stderr %q", code, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != "clean" {
+		t.Fatalf("stdout = %q, want clean", stdout.String())
+	}
+	debug := stderr.String()
+	if !strings.Contains(debug, "debug log: ") || !strings.Contains(debug, "debug log kept at: ") {
+		t.Fatalf("stderr = %q, want debug log path messages", debug)
+	}
+	path := testutil.DebugLogPathFromLine(t, debug, "debug log: ")
+	defer os.Remove(path)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) returned error: %v", path, err)
+	}
+	if !strings.Contains(string(content), "sync initial status") {
+		t.Fatalf("debug log %q does not contain initial status: %q", path, string(content))
 	}
 }
 
@@ -199,12 +229,12 @@ func testServices(service *fakeService) commandServices {
 type fakeService struct {
 	entries       []chezmoi.StatusEntry
 	statusResults [][]chezmoi.StatusEntry
-	sourceEntries []sourceEntry
+	sourceEntries []chezmoi.StatusEntry
 	statusCalls   int
 	statusArgs    [][]string
 	commands      [][]string
 	diffOutput    string
-	executed      []reconcile.Action
+	executed      []ui.Action
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -218,8 +248,8 @@ func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	return append([]chezmoi.StatusEntry(nil), f.entries...), nil
 }
 
-func (f *fakeService) SourceStatus() ([]sourceEntry, error) {
-	return append([]sourceEntry(nil), f.sourceEntries...), nil
+func (f *fakeService) SourceStatus() ([]chezmoi.StatusEntry, error) {
+	return append([]chezmoi.StatusEntry(nil), f.sourceEntries...), nil
 }
 
 func (f *fakeService) DiffOutput(target string) ([]byte, error) {
@@ -227,9 +257,15 @@ func (f *fakeService) DiffOutput(target string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) ExecuteOne(action reconcile.Action) error {
+func (f *fakeService) ExecuteNonInteractive(action ui.Action) error {
 	f.executed = append(f.executed, action)
 	return nil
+}
+func (f *fakeService) TerminalCommand(action ui.Action) (ui.TerminalCommand, error) {
+	return testutil.TerminalCommand{RunFunc: func() error {
+		f.executed = append(f.executed, action)
+		return nil
+	}}, nil
 }
 
 func (f *fakeService) AddTargets(targets []string) error {

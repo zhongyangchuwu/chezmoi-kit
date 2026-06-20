@@ -1,6 +1,10 @@
-package reconcile
+package ui
 
-import "github.com/zhongyangchuwu/cm/internal/chezmoi"
+import (
+	"io"
+
+	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+)
 
 // ActionKind identifies a reconciliation action selected during review.
 type ActionKind int
@@ -43,10 +47,18 @@ type Action struct {
 	Kind   ActionKind
 }
 
-// ReviewService is the boundary for reviewing and executing reconciliation actions.
-// UI packages own presentation; this package owns the shared reconciliation contract.
+// TerminalCommand is a reconciliation command that temporarily owns the terminal.
+type TerminalCommand interface {
+	Run() error
+	SetStdin(io.Reader)
+	SetStdout(io.Writer)
+	SetStderr(io.Writer)
+}
+
+// ReviewService is the boundary for reviewing and executing sync actions.
 type ReviewService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	DiffOutput(target string) ([]byte, error)
-	ExecuteOne(action Action) error
+	ExecuteNonInteractive(action Action) error
+	TerminalCommand(action Action) (TerminalCommand, error)
 }
