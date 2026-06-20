@@ -24,6 +24,10 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - ✓ TUI signal handling, executing-mode semantics, source git parser strictness, `cm edit` command wiring tests, and module tidy state are release-ready — Phase 1 complete.
 - ✓ Public release metadata and documentation are clean for v0.1.0 — Phase 2 complete.
 - ✓ GitHub CI and GoReleaser release automation are configured and locally verified — Phase 3 complete.
+- ✓ Release readiness is locally verified and remaining external terminal/CI/tag gates are documented — Phase 4 complete.
+- ✓ Package boundaries now use CLI/TUI adapters, app support, and infrastructure capability packages — Phase 5 complete.
+- ✓ Application service ownership now lives in `internal/app`, with CLI/TUI tests aligned to package ownership — Phase 6 complete.
+- ✓ Semantic report documents and palette renderers now back status, diff, version, and shared diff classification — Phase 7 complete.
 
 ### Active
 
@@ -34,7 +38,10 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - [x] Provide release metadata: license, changelog, ignore rules, versioned build commands.
 - [x] Document current installation, requirements, usage, architecture, and release workflow.
 - [x] Add GitHub CI and release workflows for tag-based `v0.1.0` publishing.
-- [ ] Verify release readiness with local and CI gates before tagging.
+- [x] Close release readiness with local gates and documented external ship gates.
+- [x] Normalize package boundaries into CLI/TUI adapters, app services, and infrastructure capabilities.
+- [x] Move application service ownership into `internal/app` and make CLI/TUI tests match real package ownership.
+- [x] Introduce semantic report documents and palette renderers for reusable status, diff, version, and TUI output.
 
 ### Out of Scope
 
@@ -49,7 +56,7 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 
 - Brownfield codebase map lives in `.planning/codebase/MAP.md`.
 - Historical `docs/superpowers/` files were deleted from public docs in Phase 2.
-- Current release preparation preference: runtime fixes, docs/metadata, and GoReleaser automation are complete; next is final local/remote verification and tag preparation.
+- Release verification is complete locally; `v0.1.0` publication remains gated on observed remote CI, real-terminal smoke where available, and explicit tag approval.
 
 ## Constraints
 
@@ -58,6 +65,7 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - Keep tests behavior-focused at command/service/model boundaries.
 - Do not expand `v0.1.0` scope into large new features; `cm doctor` is deferred unless explicitly pulled into release scope.
 - Release docs must match observed code, not historical plans.
+- User-facing non-interactive output should be modeled semantically in app and rendered by explicit plain/ANSI/Markdown/TUI renderers.
 - CI must run the same checks expected before tagging.
 
 ## Key Decisions
@@ -73,5 +81,11 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 | 2026-06-19 | Use MIT license for v0.1.0. | User approved MIT; it is simple and suitable for a small public CLI. | Added `LICENSE`. |
 | 2026-06-19 | Completed Phase 2 documentation and release metadata cleanup. | Public docs now match current code and release helpers inject explicit versions. | Phase 3 can start on CI/release workflows. |
 | 2026-06-19 | Completed Phase 3 CI and release automation. | Local GoReleaser check and snapshot builds passed. | Phase 4 can start final release verification. |
+| 2026-06-20 | Completed Phase 4 release verification closure. | Local gates, snapshot artifacts, and safe CLI smoke passed; external terminal/CI/tag gates are documented as ship inputs. | Phase 5 package architecture cleanup can proceed. |
+| 2026-06-20 | Plan architecture cleanup as Phases 5-7 after release verification. | Package names and tests currently mix adapters, app behavior, and infrastructure. | Added package architecture, app services, and semantic report phases. |
+| 2026-06-20 | Use semantic report documents rather than Markdown as the internal output model. | Markdown is useful output, but it loses app semantics needed by ANSI, TUI, and future formats. | Phase 7 will add semantic reports plus plain/ANSI/Markdown renderers. |
+| 2026-06-20 | Completed Phase 5 package architecture cleanup. | Package names and file boundaries now match the planned architecture language before moving app services. | Phase 6 app services and test ownership can proceed. |
+| 2026-06-20 | Completed Phase 6 app service ownership. | CLI/TUI packages no longer own concrete app orchestration or sync action domain contracts. | Phase 7 semantic reports and palette rendering can proceed. |
+| 2026-06-20 | Completed Phase 7 semantic reports and palette rendering. | Status, diff, and version output now preserve semantic roles before rendering. | Planned post-release architecture phases are complete; remaining release blockers are external gates. |
 
-_Last updated: 2026-06-19_
+_Last updated: 2026-06-20_

@@ -1,7 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 version := env_var_or_default("VERSION", "dev")
-ldflags := "-X github.com/zhongyangchuwu/cm/internal/build.Version=" + version
+ldflags := "-X github.com/zhongyangchuwu/cm/internal/app.Version=" + version
 
 install:
     #!/usr/bin/env bash

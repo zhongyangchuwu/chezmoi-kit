@@ -18,7 +18,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/zhongyangchuwu/cm/internal/build.Version={{ .Version }}
+      - -s -w -X github.com/zhongyangchuwu/cm/internal/app.Version={{ .Version }}
     goos:
       - linux
       - darwin
@@ -51,12 +51,7 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
+  disable: true
 
 release:
   github:
@@ -68,4 +63,4 @@ release:
   header: |
     ## cm {{ .Tag }}
 
-    See `CHANGELOG.md` for the curated release notes.
+    Full release notes are in [CHANGELOG.md](https://github.com/zhongyangchuwu/chezmoi-kit/blob/main/CHANGELOG.md).

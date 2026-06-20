@@ -128,11 +128,29 @@ is already clean. Confirmed `p` actions run `chezmoi apply --force` because the
 TUI has already shown the diff and collected confirmation. Actions execute one
 target at a time, so completed files leave the list and remaining files can be
 handled in later confirm batches.
+Confirmed add/apply commands run as non-interactive subprocesses with captured
+output so the TUI can keep rendering progress. Confirmed merge keeps terminal
+control because merge tools can be interactive.
 
 Once execution starts, `cm` waits for the current chezmoi command to finish. It
 does not advertise `q` as cancellation for already-started mutating subprocesses.
 If all entries are resolved, `cm sync` exits with a completion message; if files
 remain, it returns to review mode with a remaining-file count.
+
+### Debug log
+
+Use the global `--debug` flag to write sync timing diagnostics to a temporary
+log file:
+
+```bash
+cm sync --debug
+# or
+cm --debug sync
+```
+
+`cm` prints the log path to stderr before the TUI starts and again after it
+exits. The log records initial status, diff loading, per-target status
+preflight, per-target execution, and batch completion durations.
 
 ## Direct commands
 

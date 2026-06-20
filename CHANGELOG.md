@@ -4,11 +4,20 @@ All notable changes to `cm` are documented here.
 
 ## Unreleased
 
+### Added
+
+- Global `--debug` writes `cm sync` timing diagnostics to a temporary log file and prints the path to stderr.
+
+### Changed
+
+- Package boundaries now use `internal/tui`, `internal/app`, and `internal/diff`; version ldflags target `internal/app.Version`.
+
 ### Fixed
 
 - `cm sync` now loads the selected file diff by default.
 - `cm sync` confirmed actions now run one target at a time and return to review mode when files remain.
 - `cm sync` now prints a distinct completion message when all files are resolved.
+- `cm sync` add/apply subprocesses no longer inherit the active TUI terminal, avoiding slow terminal-stdio interactions.
 
 ## v0.1.0 - 2026-06-19
 

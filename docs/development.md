@@ -32,11 +32,11 @@ go mod verify
 Targeted:
 
 ```bash
+go test ./internal/app
 go test ./internal/cli
 go test ./internal/chezmoi
-go test ./internal/syncdiff
-go test ./internal/ui
-go test ./internal/build
+go test ./internal/diff
+go test ./internal/tui
 ```
 
 Vulnerability scan:
@@ -72,7 +72,7 @@ VERSION=v0.1.0 just build-release
 The local recipe uses:
 
 ```bash
-go build -trimpath -ldflags "-s -w -X github.com/zhongyangchuwu/cm/internal/build.Version=$VERSION" -o dist/cm ./cmd/cm
+go build -trimpath -ldflags "-s -w -X github.com/zhongyangchuwu/cm/internal/app.Version=$VERSION" -o dist/cm ./cmd/cm
 ```
 
 For release artifacts, use GoReleaser:
@@ -83,7 +83,7 @@ go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
 ```
 
 GoReleaser reads `.goreleaser.yaml`, builds Linux/macOS/Windows archives, injects
-`internal/build.Version={{ .Version }}`, and writes checksums under `dist/`.
+`internal/app.Version={{ .Version }}`, and writes checksums under `dist/`.
 
 ## v0.1.0 local release gate
 
@@ -118,6 +118,16 @@ For `cm sync`, verify:
 - Confirmed execution no longer advertises `q` as cancellation.
 - Errors from chezmoi commands are returned to the CLI.
 
+To collect sync phase timings during manual smoke:
+
+```bash
+cm sync --debug
+```
+
+Inspect the temporary log path printed to stderr for `sync initial status`,
+`sync diff`, `sync status preflight`, `sync execute target`, and `sync execution
+finish` entries.
+
 ## GitHub workflows
 
 `.github/workflows/ci.yml` runs on pushes to `main` and pull requests. It runs
@@ -144,33 +154,38 @@ release artifacts.
 
 ```text
 cmd/cm/main.go                  thin process entrypoint
+internal/app/
+  options.go                    process-wide CLI options
+  version.go                    version from runtime/debug and ldflags
+  services.go                   service graph, use cases, and sync action contract
+  services_test.go              app command construction and use-case tests
+internal/report/
+  report.go                     semantic document model
+  render.go                     plain, ANSI, and Markdown renderers
+  diff.go                       shared diff line classification
 internal/cli/
-  cli.go                       Cobra command wiring
-  service.go                   chezmoi-backed CLI service
-  status.go                    status rendering
-  diff.go                      diff command rendering
-  service_test.go              service adapter tests
-  cli_test.go                  command wiring tests
+  root.go                       Cobra command wiring
+  service.go                    alias to app service graph for command wiring
+  status.go                     status output stream plumbing
+  diff_cmd.go                   diff output stream plumbing
+  cli_test.go                   command wiring tests
 internal/chezmoi/
-  client.go                    chezmoi CLI wrapper
-  status.go                    status and managed-file parsing
-  content.go                   chezmoi/local content loader for sync diffs
-internal/syncdiff/
-  diff.go                      internal sync diff generation
-internal/reconcile/
-  service.go                   shared reconciliation action model and service contract
-internal/ui/
-  tui.go                       terminal sync program entry/update
-  model.go                     sync TUI state and pending actions
-  view.go                      two-pane layout rendering
-  diff.go                      diff cache, scroll, and coloring
-  confirm.go                   preflight and confirmed execution command
-  keys.go                      key bindings and styles
-  update.go                    key handling
+  client.go                     chezmoi CLI wrapper
+  status.go                     status and managed-file parsing
+  content.go                    chezmoi/local content loader for sync diffs
+internal/diff/
+  diff.go                       internal diff generation
+internal/tui/
+  tui.go                        terminal sync program entry/update
+  model.go                      sync TUI state and pending actions
+  view.go                       two-pane layout rendering
+  diff_state.go                 diff cache, loading, scrolling, and splitting
+  diff_view.go                  diff line styling
+  confirm.go                    preflight and confirmed execution command
+  keys.go                       key bindings and styles
+  update.go                     key handling
 internal/process/
-  runner.go                    external process execution abstraction
-internal/build/
-  info.go                      version from runtime/debug and ldflags
+  runner.go                     external process execution abstraction
 ```
 
 ## Package responsibilities
@@ -179,45 +194,51 @@ internal/build/
 
 Owns only process startup and delegates to `internal/cli`.
 
+### `internal/app`
+
+Owns process-wide options, version metadata, the application service graph,
+status/diff/sync/edit/source-git use cases, direct target wrappers, semantic
+status/diff/version report construction, and the sync action contract consumed
+by the TUI. Release builds override `app.Version` with ldflags.
+
 ### `internal/cli`
 
-Wires Cobra commands, renders command output, and adapts `internal/chezmoi` to
-the interfaces consumed by command handlers and sync UIs.
+Wires Cobra commands, process streams, shell completion, and exit behavior. It
+delegates status, diff, sync, source git, edit, and mutating command behavior to
+`internal/app` services.
 
 ### `internal/chezmoi`
 
 Owns chezmoi CLI execution and status parsing. The `Status` method adds
 `--path-style=absolute` so callers always get absolute target paths.
 `ManagedFiles` backs `cm edit` completion. `ContentLoader` adapts
-chezmoi-rendered target content and local files to `internal/syncdiff`.
+chezmoi-rendered target content and local files to `internal/diff`.
 
-### `internal/syncdiff`
+### `internal/report`
+
+Owns semantic command-output documents, inline roles, diff line classification,
+and plain/ANSI/Markdown renderers. ANSI rendering uses semantic palette roles,
+auto-detects TTY stdout, and disables color when `NO_COLOR` is non-empty.
+
+### `internal/diff`
 
 Generates sync diffs from rendered chezmoi target content to the current local
 file without shelling out to `chezmoi diff` or an external diff renderer.
 
-### `internal/reconcile`
+### `internal/tui`
 
-Defines the shared reconciliation action model and review service contract used
-by the terminal UI. It keeps sync-domain capabilities out of UI presentation
-packages.
+Owns the terminal sync UI. It consumes `app.SyncService` and `app.Action`, but it
+does not know about chezmoi binary paths or git. The selected file's diff loads
+by default on entry and when selection changes; confirmed actions execute one
+target at a time so the UI can return to review mode with remaining files.
 
 ### `internal/process`
 
 Owns subprocess execution. Chezmoi, git status, and lazygit all go through this
 runner boundary so tests can inject one process fake.
-
-### `internal/ui`
-
-Owns the terminal sync UI. Depends on the `internal/reconcile` service contract
-and does not know about chezmoi binary paths or git. The selected file's diff
-loads by default on entry and when selection changes; confirmed actions execute
-one target at a time so the UI can return to review mode with remaining files.
-
-### `internal/build`
-
-Reads `runtime/debug.ReadBuildInfo()` and the `Version` ldflag variable for
-`cm version` output.
+During sync execution, add/apply subprocesses use buffered stdout/stderr and nil
+stdin to avoid sharing the active TUI terminal. Merge remains terminal-bound for
+interactive merge tools.
 
 ## Dependencies
 
@@ -226,9 +247,8 @@ charm.land/bubbletea/v2          terminal UI runtime
 charm.land/bubbles/v2            TUI help/key bindings
 charm.land/lipgloss/v2           TUI styling
 github.com/spf13/cobra           CLI framework
-github.com/fatih/color           plain terminal colours
 github.com/rogpeppe/go-internal  unified diff implementation
-golang.org/x/term                terminal detection
+golang.org/x/term                terminal detection for CLI reports and TUI
 ```
 
 No Viper. No external diff renderer. No generated code.

@@ -9,6 +9,7 @@
 - Updated `CHANGELOG.md` from `Unreleased` to `2026-06-19` for v0.1.0.
 - Corrected `.goreleaser.yaml` GitHub release target from `zhongyangchuwu/cm` to the actual remote repository `zhongyangchuwu/chezmoi-kit`.
 - Recorded environment-limited checks that need a real terminal or remote GitHub Actions.
+- Captured ship-time inputs for remote CI observation, real-terminal smoke where available, and explicit tag approval.
 
 ## Files Changed
 
@@ -18,6 +19,7 @@
 - `.planning/phases/phase-4-release-gate/PLAN.md`
 - `.planning/phases/phase-4-release-gate/SUMMARY.md`
 - `.planning/phases/phase-4-release-gate/VERIFICATION.md`
+- `.planning/phases/phase-4-release-gate/CAPTURE.md`
 
 ## Deviations
 

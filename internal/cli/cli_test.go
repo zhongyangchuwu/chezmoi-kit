@@ -2,12 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/reconcile"
+	"github.com/zhongyangchuwu/cm/internal/report"
 )
 
 func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
@@ -19,8 +22,8 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
-	if service.statusCalls != 1 {
-		t.Fatalf("statusCalls = %d, want 1", service.statusCalls)
+	if !reflect.DeepEqual(service.statusReportArgs, [][]string{nil}) {
+		t.Fatalf("statusReportArgs = %#v", service.statusReportArgs)
 	}
 	if len(service.commands) != 0 {
 		t.Fatalf("mutating/diff commands were called: %#v", service.commands)
@@ -30,11 +33,8 @@ func TestRunDefaultsToReadOnlyStatus(t *testing.T) {
 	}
 }
 
-func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
-	service := &fakeService{
-		entries:       []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}},
-		sourceEntries: []sourceEntry{{Code: " M", Path: "dot_zshrc"}},
-	}
+func TestRunStatusWritesAppReportOutput(t *testing.T) {
+	service := &fakeService{statusReport: "app status\n"}
 	var out bytes.Buffer
 
 	code := run([]string{"status"}, testServices(service), strings.NewReader(""), &out, &out)
@@ -42,20 +42,15 @@ func TestRunStatusRendersSimplifiedLocalAndSourceGitStatus(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0", code)
 	}
-	got := out.String()
-	for _, want := range []string{"local:", "! /home/me/.zshrc", "differs from chezmoi", "run cm sync", "chezmoi:", " M dot_zshrc"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("output %q does not contain %q", got, want)
-		}
+	if out.String() != "app status\n" {
+		t.Fatalf("output = %q", out.String())
 	}
-	for _, notWant := range []string{"MM /home/me/.zshrc", "local drift", "apply pending", "run cm sync /home/me/.zshrc"} {
-		if strings.Contains(got, notWant) {
-			t.Fatalf("output %q unexpectedly contains %q", got, notWant)
-		}
+	if !reflect.DeepEqual(service.statusReportArgs, [][]string{nil}) {
+		t.Fatalf("statusReportArgs = %#v", service.statusReportArgs)
 	}
 }
 
-func TestRunDiffUsesInternalDiff(t *testing.T) {
+func TestRunDiffWritesAppReportOutput(t *testing.T) {
 	service := &fakeService{diffOutput: "internal diff\n"}
 	var out bytes.Buffer
 
@@ -67,8 +62,8 @@ func TestRunDiffUsesInternalDiff(t *testing.T) {
 	if out.String() != "internal diff\n" {
 		t.Fatalf("output = %q", out.String())
 	}
-	if !reflect.DeepEqual(service.commands, [][]string{{"diff-output", ".zshrc"}}) {
-		t.Fatalf("commands = %#v", service.commands)
+	if !reflect.DeepEqual(service.diffArgs, [][]string{{".zshrc"}}) {
+		t.Fatalf("diffArgs = %#v", service.diffArgs)
 	}
 }
 
@@ -86,9 +81,37 @@ func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	wantActions := []reconcile.Action{{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd}}
+	wantActions := []app.Action{{Target: "/home/me/.zshrc", Kind: app.ActionAdd}}
 	if !reflect.DeepEqual(service.executed, wantActions) {
 		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
+	}
+}
+
+func TestRunSyncDebugWritesTempLogPathToStderr(t *testing.T) {
+	service := &fakeService{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := run([]string{"sync", "--debug"}, testServices(service), strings.NewReader(""), &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; stderr %q", code, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != "clean" {
+		t.Fatalf("stdout = %q, want clean", stdout.String())
+	}
+	debug := stderr.String()
+	if !strings.Contains(debug, "debug log: ") || !strings.Contains(debug, "debug log kept at: ") {
+		t.Fatalf("stderr = %q, want debug log path messages", debug)
+	}
+	path := debugLogPathFromLine(t, debug, "debug log: ")
+	defer os.Remove(path)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) returned error: %v", path, err)
+	}
+	if !strings.Contains(string(content), "sync initial status") {
+		t.Fatalf("debug log %q does not contain initial status: %q", path, string(content))
 	}
 }
 
@@ -197,14 +220,16 @@ func testServices(service *fakeService) commandServices {
 }
 
 type fakeService struct {
-	entries       []chezmoi.StatusEntry
-	statusResults [][]chezmoi.StatusEntry
-	sourceEntries []sourceEntry
-	statusCalls   int
-	statusArgs    [][]string
-	commands      [][]string
-	diffOutput    string
-	executed      []reconcile.Action
+	entries          []chezmoi.StatusEntry
+	statusResults    [][]chezmoi.StatusEntry
+	statusReport     string
+	statusCalls      int
+	statusArgs       [][]string
+	statusReportArgs [][]string
+	diffArgs         [][]string
+	commands         [][]string
+	diffOutput       string
+	executed         []app.Action
 }
 
 func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
@@ -218,18 +243,58 @@ func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
 	return append([]chezmoi.StatusEntry(nil), f.entries...), nil
 }
 
-func (f *fakeService) SourceStatus() ([]sourceEntry, error) {
-	return append([]sourceEntry(nil), f.sourceEntries...), nil
+func (f *fakeService) StatusReport(targets []string) (report.Document, error) {
+	f.statusReportArgs = append(f.statusReportArgs, append([]string(nil), targets...))
+	if f.statusReport != "" {
+		return report.Document{Blocks: []report.Block{report.CodeBlock("", f.statusReport)}}, nil
+	}
+	return report.Document{Blocks: []report.Block{report.Paragraph(report.Text("clean"))}}, nil
+}
+
+func (f *fakeService) DiffReport(targets []string) (report.Document, error) {
+	f.diffArgs = append(f.diffArgs, append([]string(nil), targets...))
+	return report.Document{Blocks: []report.Block{report.DiffBlock(f.diffOutput)}}, nil
 }
 
 func (f *fakeService) DiffOutput(target string) ([]byte, error) {
-	f.commands = append(f.commands, []string{"diff-output", target})
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) ExecuteOne(action reconcile.Action) error {
+func (f *fakeService) ExecuteNonInteractive(action app.Action) error {
 	f.executed = append(f.executed, action)
 	return nil
+}
+func (f *fakeService) TerminalCommand(action app.Action) (app.TerminalCommand, error) {
+	return terminalCommand{run: func() error {
+		f.executed = append(f.executed, action)
+		return nil
+	}}, nil
+}
+
+type terminalCommand struct {
+	run func() error
+}
+
+func (c terminalCommand) Run() error {
+	if c.run == nil {
+		return nil
+	}
+	return c.run()
+}
+
+func (terminalCommand) SetStdin(io.Reader)  {}
+func (terminalCommand) SetStdout(io.Writer) {}
+func (terminalCommand) SetStderr(io.Writer) {}
+
+func debugLogPathFromLine(t *testing.T, output, prefix string) string {
+	t.Helper()
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		}
+	}
+	t.Fatalf("output %q missing prefix %q", output, prefix)
+	return ""
 }
 
 func (f *fakeService) AddTargets(targets []string) error {

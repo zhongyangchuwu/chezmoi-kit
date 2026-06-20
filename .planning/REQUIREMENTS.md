@@ -32,7 +32,17 @@
 ### Verification
 
 - [x] **VER-01**: Release readiness must be proven by observed local checks before tagging.
-- [ ] **VER-02**: Manual smoke scenarios for status, diff, sync, edit, git, completion, and version must be documented or completed before v0.1.0.
+- [x] **VER-02**: Manual smoke scenarios for status, diff, sync, edit, git, completion, and version must be documented or completed before v0.1.0.
+
+### Architecture and Output Refactor
+
+- [x] **ARCH-01**: Package boundaries must use one visible architecture language: CLI and TUI adapters, app use cases/services, and infrastructure capabilities.
+- [x] **ARCH-02**: `internal/app` must own the service graph, sync action contract, command use cases, and version metadata currently split across CLI/UI/build packages.
+- [x] **ARCH-03**: `internal/cli` must own only Cobra command wiring, flag parsing, stream plumbing, and exit behavior; it must not own status/diff content formatting or chezmoi/git orchestration.
+- [x] **TUI-01**: The interactive terminal package must be named and organized as TUI-specific code, with diff state/loading separated from diff rendering.
+- [x] **OUT-01**: Status, diff, and version outputs must be represented as semantic report documents that separate content meaning from plain, ANSI, Markdown, or TUI presentation.
+- [x] **OUT-02**: Report rendering must use a semantic palette for emphasis, warnings, paths, commands, and diff lines, with color behavior respecting TTY detection and `NO_COLOR`.
+- [x] **TEST-01**: Tests must align with package ownership so app-owned terminal command construction is tested once in app, and shared test utility packages are avoided unless they earn a stable boundary.
 
 ## Deferred
 
@@ -69,10 +79,17 @@
 | REL-03 | Phase 3 | Complete |
 | REL-04 | Phase 3 | Complete |
 | VER-01 | Phase 4 | Complete |
-| VER-02 | Phase 4 | Pending |
+| VER-02 | Phase 4 | Complete |
+| ARCH-01 | Phase 5 | Complete |
+| ARCH-02 | Phase 6 | Complete |
+| ARCH-03 | Phase 6 | Complete |
+| TUI-01 | Phase 5 | Complete |
+| OUT-01 | Phase 7 | Complete |
+| OUT-02 | Phase 7 | Complete |
+| TEST-01 | Phase 6 | Complete |
 
 ## Coverage Summary
 
-- Total current requirements: 14
-- Mapped count: 14
+- Total current requirements: 21
+- Mapped count: 21
 - Unmapped count: 0

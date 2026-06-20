@@ -11,6 +11,14 @@ type StatusEntry struct {
 }
 
 func ParseStatus(out []byte) ([]StatusEntry, error) {
+	return parseStatusLines(out, "chezmoi")
+}
+
+func ParseGitStatus(out []byte) ([]StatusEntry, error) {
+	return parseStatusLines(out, "git")
+}
+
+func parseStatusLines(out []byte, source string) ([]StatusEntry, error) {
 	lines := bytes.Split(out, []byte{'\n'})
 	entries := make([]StatusEntry, 0, len(lines))
 	for i, line := range lines {
@@ -18,7 +26,7 @@ func ParseStatus(out []byte) ([]StatusEntry, error) {
 			continue
 		}
 		if len(line) < 4 || line[2] != ' ' {
-			return nil, fmt.Errorf("malformed chezmoi status line %d: %q", i+1, line)
+			return nil, fmt.Errorf("malformed %s status line %d: %q", source, i+1, line)
 		}
 		entries = append(entries, StatusEntry{Code: string(line[:2]), Path: string(line[3:])})
 	}
