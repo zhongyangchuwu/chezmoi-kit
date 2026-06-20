@@ -20,6 +20,9 @@ func (m syncTUIModel) View() tea.View {
 
 func (m syncTUIModel) viewString() string {
 	if len(m.entries) == 0 {
+		if m.completed && m.message != "" {
+			return m.message + "\n"
+		}
 		return "clean\n"
 	}
 
@@ -139,11 +142,19 @@ func (m syncTUIModel) renderConfirmPane(size rect) string {
 		title = "Executing actions"
 	}
 	lines := []string{sectionStyle.Render(title), ""}
-	for _, action := range m.pendingActions() {
-		lines = append(lines, truncate(fmt.Sprintf("%s %s", actionLabel(action.Kind), m.displayPath(action.Target)), innerWidth))
-	}
-	if len(lines) == 2 {
-		lines = append(lines, "no pending actions")
+	if m.mode == modeExecuting {
+		if m.executingIndex < len(m.executing) {
+			action := m.executing[m.executingIndex]
+			lines = append(lines, truncate(fmt.Sprintf("%d/%d %s %s", m.executingIndex+1, len(m.executing), actionLabel(action.Kind), m.displayPath(action.Target)), innerWidth))
+		}
+		lines = append(lines, "", fmt.Sprintf("executed: %d", m.executedCount), fmt.Sprintf("skipped: %d", m.skippedCount))
+	} else {
+		for _, action := range m.pendingActions() {
+			lines = append(lines, truncate(fmt.Sprintf("%s %s", actionLabel(action.Kind), m.displayPath(action.Target)), innerWidth))
+		}
+		if len(lines) == 2 {
+			lines = append(lines, "no pending actions")
+		}
 	}
 	content := strings.Join(lines, "\n")
 	content = padLines(content, innerHeight)

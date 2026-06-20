@@ -14,7 +14,7 @@ type diffState struct {
 
 func (m syncTUIModel) startDiffLoad(refresh bool) (syncTUIModel, tea.Cmd) {
 	target := m.currentTarget()
-	if target == "" {
+	if target == "" || m.service == nil {
 		return m, nil
 	}
 	if state, ok := m.diffs[target]; ok && len(state.lines) > 0 && !refresh {

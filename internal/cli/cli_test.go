@@ -227,8 +227,8 @@ func (f *fakeService) DiffOutput(target string) ([]byte, error) {
 	return []byte(f.diffOutput), nil
 }
 
-func (f *fakeService) Execute(actions []reconcile.Action) error {
-	f.executed = append(f.executed, actions...)
+func (f *fakeService) ExecuteOne(action reconcile.Action) error {
+	f.executed = append(f.executed, action)
 	return nil
 }
 

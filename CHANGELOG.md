@@ -2,6 +2,14 @@
 
 All notable changes to `cm` are documented here.
 
+## Unreleased
+
+### Fixed
+
+- `cm sync` now loads the selected file diff by default.
+- `cm sync` confirmed actions now run one target at a time and return to review mode when files remain.
+- `cm sync` now prints a distinct completion message when all files are resolved.
+
 ## v0.1.0 - 2026-06-19
 
 ### Added

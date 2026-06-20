@@ -22,20 +22,26 @@ const (
 )
 
 type syncTUIModel struct {
-	service    reconcile.ReviewService
-	entries    []chezmoi.StatusEntry
-	cursor     int
-	pending    map[string]reconcile.ActionKind
-	focus      syncFocus
-	mode       syncMode
-	diffs      map[string]diffState
-	diffScroll int
-	width      int
-	height     int
-	homeDir    string
-	help       help.Model
-	message    string
-	err        error
+	service        reconcile.ReviewService
+	entries        []chezmoi.StatusEntry
+	cursor         int
+	pending        map[string]reconcile.ActionKind
+	focus          syncFocus
+	mode           syncMode
+	diffs          map[string]diffState
+	diffScroll     int
+	width          int
+	height         int
+	homeDir        string
+	help           help.Model
+	message        string
+	err            error
+	executing      []reconcile.Action
+	executingIndex int
+	executedCount  int
+	skippedCount   int
+	completed      bool
+	stopped        bool
 }
 
 func newSyncTUIModel(service reconcile.ReviewService, entries []chezmoi.StatusEntry) syncTUIModel {
@@ -46,6 +52,9 @@ func newSyncTUIModel(service reconcile.ReviewService, entries []chezmoi.StatusEn
 		diffs:   make(map[string]diffState),
 		homeDir: homeDir(),
 		help:    help.New(),
+	}
+	if service != nil && len(m.entries) > 0 {
+		m.diffs[m.currentTarget()] = diffState{loading: true}
 	}
 	return m
 }
@@ -106,6 +115,25 @@ func (m syncTUIModel) clearPending() syncTUIModel {
 	target := m.currentTarget()
 	delete(m.pending, target)
 	m.message = "skipped " + m.displayPath(target)
+	return m
+}
+func (m syncTUIModel) removeEntry(target string) syncTUIModel {
+	delete(m.pending, target)
+	delete(m.diffs, target)
+	for i, entry := range m.entries {
+		if entry.Path != target {
+			continue
+		}
+		m.entries = append(m.entries[:i], m.entries[i+1:]...)
+		if m.cursor >= len(m.entries) {
+			m.cursor = len(m.entries) - 1
+		}
+		if m.cursor < 0 {
+			m.cursor = 0
+		}
+		m.diffScroll = 0
+		return m
+	}
 	return m
 }
 

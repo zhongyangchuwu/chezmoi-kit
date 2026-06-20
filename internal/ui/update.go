@@ -53,9 +53,7 @@ func (m syncTUIModel) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case key.Matches(msg, defaultSyncKeys.Execute):
 		actions := m.pendingActions()
-		m.mode = modeExecuting
-		m.message = "executing " + actionCount(len(actions))
-		return m, m.executeActions(actions)
+		return m.startExecution(actions)
 	default:
 		return m, nil
 	}
@@ -72,7 +70,7 @@ func (m syncTUIModel) handleUp() (tea.Model, tea.Cmd) {
 	var moved bool
 	m, moved = m.moveUp()
 	if moved {
-		return m, nil
+		return m.startDiffLoad(false)
 	}
 	return m, nil
 }
@@ -84,7 +82,7 @@ func (m syncTUIModel) handleDown() (tea.Model, tea.Cmd) {
 	var moved bool
 	m, moved = m.moveDown()
 	if moved {
-		return m, nil
+		return m.startDiffLoad(false)
 	}
 	return m, nil
 }

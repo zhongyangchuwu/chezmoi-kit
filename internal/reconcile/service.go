@@ -48,5 +48,5 @@ type Action struct {
 type ReviewService interface {
 	Status(targets []string) ([]chezmoi.StatusEntry, error)
 	DiffOutput(target string) ([]byte, error)
-	Execute(actions []Action) error
+	ExecuteOne(action Action) error
 }

@@ -67,41 +67,24 @@ func TestChezmoiServiceOpenSourceGitUsesRunnerIO(t *testing.T) {
 	}
 }
 
-func TestChezmoiServiceExecuteForcesConfirmedApply(t *testing.T) {
+func TestChezmoiServiceExecuteOneRunsSingleTarget(t *testing.T) {
 	runner := &recordingRunner{}
 	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
 
-	err := service.Execute([]reconcile.Action{{Target: "/home/me/.zshrc", Kind: reconcile.ActionApply}})
-	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+	if err := service.ExecuteOne(reconcile.Action{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd}); err != nil {
+		t.Fatalf("ExecuteOne add returned error: %v", err)
 	}
-	wantRuns := [][]string{{"chezmoi", "apply", "--force", "/home/me/.zshrc"}}
-	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
-		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	if err := service.ExecuteOne(reconcile.Action{Target: "/home/me/.gitconfig", Kind: reconcile.ActionApply}); err != nil {
+		t.Fatalf("ExecuteOne apply returned error: %v", err)
 	}
-}
-
-func TestChezmoiServiceExecuteBatchesAddAndApplyBeforeSequentialMerges(t *testing.T) {
-	runner := &recordingRunner{}
-	service := chezmoiService{client: chezmoi.Client{Runner: runner}}
-
-	err := service.Execute([]reconcile.Action{
-		{Target: "/home/me/.zshrc", Kind: reconcile.ActionAdd},
-		{Target: "/home/me/.gitconfig", Kind: reconcile.ActionApply},
-		{Target: "/home/me/.config/fish/config.fish", Kind: reconcile.ActionAdd},
-		{Target: "/home/me/.tmux.conf", Kind: reconcile.ActionMerge},
-		{Target: "/home/me/.inputrc", Kind: reconcile.ActionApply},
-		{Target: "/home/me/.config/nvim/init.lua", Kind: reconcile.ActionMerge},
-	})
-	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+	if err := service.ExecuteOne(reconcile.Action{Target: "/home/me/.tmux.conf", Kind: reconcile.ActionMerge}); err != nil {
+		t.Fatalf("ExecuteOne merge returned error: %v", err)
 	}
 
 	wantRuns := [][]string{
-		{"chezmoi", "add", "/home/me/.zshrc", "/home/me/.config/fish/config.fish"},
-		{"chezmoi", "apply", "--force", "/home/me/.gitconfig", "/home/me/.inputrc"},
+		{"chezmoi", "add", "/home/me/.zshrc"},
+		{"chezmoi", "apply", "--force", "/home/me/.gitconfig"},
 		{"chezmoi", "merge", "/home/me/.tmux.conf"},
-		{"chezmoi", "merge", "/home/me/.config/nvim/init.lua"},
 	}
 	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
 		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
