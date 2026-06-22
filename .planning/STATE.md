@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-06-21)
+See: `.planning/PROJECT.md` (updated 2026-06-22)
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** Ready for the next user-directed phase after the published `v0.1.0` release.
+**Current focus:** `v0.1.1` safe usability-polish planning; no implementation has started.
 
 ## Current Position
 
-- Phase: None
+- Phase: v0.1.1 planning
 - Plan: None
-- Status: ready
-- Active Artifact: None
-- Last activity: 2026-06-21 — archived completed `v0.1.0` release planning history.
-- Progress: `v0.1.0` is published; completed phases moved to `.planning/archive/releases/v0.1.0/phases/`.
+- Status: planning
+- Active Artifact: `.planning/ROADMAP.md`
+- Last activity: 2026-06-22 — added `v0.1.1` major goals and phase roadmap without starting execution.
+- Progress: `v0.1.1` scope is planned at roadmap level; phase-local plans are not written yet.
 
 ## Accumulated Context
 
@@ -25,11 +25,11 @@ See: `.planning/PROJECT.md` (updated 2026-06-21)
 - GoReleaser signing, notarization, package-manager publishing, and Docker images remain out of scope until a future phase adds them.
 - Semantic report documents, not Markdown strings, are the internal output model; Markdown remains an output renderer option.
 - Completed release history belongs in `.planning/archive/releases/v0.1.0/`; root planning docs now describe current and future work only.
+- Version policy: `v0.1.Z` is for safe additions/fixes that preserve defaults and mental model; `v0.Y.0` is for behavior, safety-model, status-model, output-contract, or command-semantics changes; `v1.0.0` remains deferred.
 
 ### Blockers/Concerns
 
-- None for current workflow state.
-- Future terminal QA can still add evidence for real-terminal `cm sync` Ctrl+C cleanup and `cm git` lazygit startup.
+- None for current planning state.
 
 ## Recent Evidence
 
@@ -41,11 +41,11 @@ See: `.planning/PROJECT.md` (updated 2026-06-21)
 
 ## Session Continuity
 
-- Last session: 2026-06-21
-- Stopped at: Published `v0.1.0` release archived; project ready for next phase.
-- Next Action: define the next user-directed phase, or keep repository in ready state.
+- Last session: 2026-06-22
+- Stopped at: `v0.1.1` roadmap-level planning added; execution intentionally not started.
+- Next Action: write Phase 1 Output Controls context/plan when ready to begin implementation.
 - Resume file: None
 
 ## Updated
 
-- 2026-06-21
+- 2026-06-22
