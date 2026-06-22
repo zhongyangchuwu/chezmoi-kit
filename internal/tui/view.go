@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"fmt"
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
+	"strings"
 )
 
 type rect struct {
@@ -215,13 +215,13 @@ func truncate(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	if len(s) <= width {
+	if lipgloss.Width(s) <= width {
 		return s
 	}
 	if width == 1 {
 		return "…"
 	}
-	return s[:width-1] + "…"
+	return ansi.Truncate(s, width, "…")
 }
 
 func padLines(content string, height int) string {

@@ -12,9 +12,9 @@
 
 ## Phases
 
-- [ ] Phase 1: Output Controls
-- [ ] Phase 2: Doctor Diagnostics
-- [ ] Phase 3: TUI Display Width Polish
+- [x] Phase 1: Output Controls
+- [x] Phase 2: Doctor Diagnostics
+- [x] Phase 3: TUI Display Width Polish
 
 ## Phase Details
 
@@ -28,7 +28,8 @@
   - Color policy can be selected explicitly without changing default TTY and `NO_COLOR` behavior.
   - Invalid output or color values fail with clear CLI errors.
   - README documents optional flags only after implementation is verified.
-- Plans: TBD
+- Plans: 1
+  - [x] phase-1-output-controls-plan — `.planning/phases/phase-1-output-controls/PLAN.md`
 
 ### Phase 2: Doctor Diagnostics
 
@@ -40,7 +41,8 @@
   - Optional tools such as `lazygit` are reported as warnings when absent, not as universal failure.
   - Diagnostic output distinguishes pass, warning, and failure in a script-friendly way.
   - Existing commands keep their current behavior and error paths unless explicitly invoked through `cm doctor`.
-- Plans: TBD
+- Plans: 1
+  - [x] phase-2-doctor-diagnostics-plan — `.planning/phases/phase-2-doctor-diagnostics/PLAN.md`
 
 ### Phase 3: TUI Display Width Polish
 
@@ -52,12 +54,13 @@
   - Wide-character paths and diff lines render without corrupting layout in normal and narrow terminal sizes.
   - Existing `cm sync` review, pending-action, confirmation, and preflight behavior remains unchanged.
   - Focused TUI tests cover Unicode and narrow-width cases.
-- Plans: TBD
+- Plans: 1
+  - [x] phase-3-tui-display-width-polish-plan — `.planning/phases/phase-3-tui-display-width-polish/PLAN.md`
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |---|---:|---|---|
-| Phase 1: Output Controls | 0 | planned | - |
-| Phase 2: Doctor Diagnostics | 0 | planned | - |
-| Phase 3: TUI Display Width Polish | 0 | planned | - |
+| Phase 1: Output Controls | 1 | complete | 2026-06-22 |
+| Phase 2: Doctor Diagnostics | 1 | complete | 2026-06-22 |
+| Phase 3: TUI Display Width Polish | 1 | complete | 2026-06-22 |

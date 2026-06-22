@@ -5,16 +5,16 @@
 See: `.planning/PROJECT.md` (updated 2026-06-22)
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** `v0.1.1` safe usability-polish planning; no implementation has started.
+**Current focus:** `v0.1.1` safe usability-polish implementation complete; ready for review, release-gate verification, or PR preparation.
 
 ## Current Position
 
-- Phase: v0.1.1 planning
+- Phase: None
 - Plan: None
-- Status: planning
-- Active Artifact: `.planning/ROADMAP.md`
-- Last activity: 2026-06-22 — added `v0.1.1` major goals and phase roadmap without starting execution.
-- Progress: `v0.1.1` scope is planned at roadmap level; phase-local plans are not written yet.
+- Status: ready-to-ship
+- Active Artifact: None
+- Last activity: 2026-06-22 — completed all `v0.1.1` planned phases with tests and verification evidence.
+- Progress: Phase 1, Phase 2, and Phase 3 complete.
 
 ## Accumulated Context
 
@@ -38,12 +38,15 @@ See: `.planning/PROJECT.md` (updated 2026-06-22)
 - GitHub Actions CI run `27878479411` passed for `main` at commit `f8e80afb408b`.
 - GitHub Actions Release run `27878480851` passed for tag `v0.1.0`.
 - Release-level evidence is recorded in `.planning/archive/releases/v0.1.0/VERIFICATION.md`.
+- Phase 1 Output Controls verification passed with `go test ./internal/cli ./internal/report`, `go test ./...`, Markdown output smoke, color flag smoke, and invalid output smoke.
+- Phase 2 Doctor Diagnostics verification passed with `go test ./internal/app ./internal/cli ./internal/report`, `go test ./...`, and doctor command smokes for Markdown, plain, and no-color output.
+- Phase 3 TUI Display Width Polish verification passed with `go test ./internal/tui` and `go test ./...`.
 
 ## Session Continuity
 
 - Last session: 2026-06-22
-- Stopped at: `v0.1.1` roadmap-level planning added; execution intentionally not started.
-- Next Action: write Phase 1 Output Controls context/plan when ready to begin implementation.
+- Stopped at: `v0.1.1` planned implementation complete.
+- Next Action: review changes, run any desired release gate, then prepare PR or release.
 - Resume file: None
 
 ## Updated

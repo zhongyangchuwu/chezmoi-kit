@@ -7,8 +7,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/zhongyangchuwu/cm/internal/app"
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
@@ -275,6 +277,56 @@ func TestFocusToggle(t *testing.T) {
 	model = model.toggleFocus()
 	if model.focus != focusFiles {
 		t.Fatalf("focus = %v, want files", model.focus)
+	}
+}
+
+func TestTruncatePreservesUTF8AndDisplayWidth(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		width int
+	}{
+		{name: "wide path", input: "配置文件路径", width: 7},
+		{name: "narrow width", input: "配置", width: 1},
+		{name: "ascii", input: "abcdef", width: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncate(tt.input, tt.width)
+			if !utf8.ValidString(got) {
+				t.Fatalf("truncate(%q, %d) = invalid UTF-8 %q", tt.input, tt.width, got)
+			}
+			if lipgloss.Width(got) > tt.width {
+				t.Fatalf("truncate(%q, %d) width = %d, want <= %d; output %q", tt.input, tt.width, lipgloss.Width(got), tt.width, got)
+			}
+		})
+	}
+}
+
+func TestRenderFilesPaneTruncatesWidePathsByDisplayWidth(t *testing.T) {
+	model := newSyncTUIModel(&fakeReviewService{}, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/配置文件路径"}}, nil)
+	got := model.renderFilesPane(rect{width: 12, height: 4})
+
+	for _, line := range strings.Split(got, "\n") {
+		if lipgloss.Width(line) > 12 {
+			t.Fatalf("rendered line width = %d, want <= 12; line %q in %q", lipgloss.Width(line), line, got)
+		}
+	}
+}
+
+func TestRenderDiffPaneTruncatesWideLinesByDisplayWidth(t *testing.T) {
+	model := newSyncTUIModel(&fakeReviewService{}, []chezmoi.StatusEntry{{Code: "MM", Path: "/home/me/.zshrc"}}, nil)
+	model.width = 24
+	model.height = 8
+	model.diffs["/home/me/.zshrc"] = diffState{lines: []string{"+配置文件路径很长"}}
+
+	got := model.renderDiffPane(rect{width: 12, height: 4})
+
+	for _, line := range strings.Split(got, "\n") {
+		if lipgloss.Width(line) > 12 {
+			t.Fatalf("rendered line width = %d, want <= 12; line %q in %q", lipgloss.Width(line), line, got)
+		}
 	}
 }
 

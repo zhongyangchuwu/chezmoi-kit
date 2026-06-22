@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -198,23 +199,93 @@ func TestServiceDirectTargetWrappersForwardTargets(t *testing.T) {
 	}
 }
 
+func TestServiceDoctorReportPassesWithOptionalWarning(t *testing.T) {
+	runner := &recordingRunner{
+		outputs: [][]byte{
+			[]byte("chezmoi version v2\n"),
+			[]byte("git version 2\n"),
+			[]byte("/home/me/src\n"),
+			[]byte(""),
+		},
+		outputErrors: []error{nil, nil, nil, nil, errors.New("lazygit not found in PATH")},
+	}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	doc, failed := service.DoctorReport()
+
+	if failed {
+		t.Fatalf("DoctorReport failed, want optional warning only")
+	}
+	got := string(report.Plain(doc))
+	for _, want := range []string{"doctor:", "pass chezmoi: available", "pass git: available", "pass source-path: /home/me/src", "pass source-git: repository readable", "warn lazygit: lazygit not found in PATH"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("DoctorReport() = %q, missing %q", got, want)
+		}
+	}
+	if len(runner.runCalls) != 0 {
+		t.Fatalf("runCalls = %#v, want none", runner.runCalls)
+	}
+}
+
+func TestServiceDoctorReportFailsForRequiredTool(t *testing.T) {
+	runner := &recordingRunner{
+		outputs:      [][]byte{[]byte("git version 2\n"), []byte("/home/me/src\n"), []byte(""), []byte("lazygit version\n")},
+		outputErrors: []error{errors.New("chezmoi not found in PATH")},
+	}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	doc, failed := service.DoctorReport()
+
+	if !failed {
+		t.Fatalf("DoctorReport failed = false, want true")
+	}
+	got := string(report.Plain(doc))
+	if !strings.Contains(got, "fail chezmoi: chezmoi not found in PATH") {
+		t.Fatalf("DoctorReport() = %q, want chezmoi failure", got)
+	}
+}
+
+func TestServiceDoctorReportFailsForSourceGit(t *testing.T) {
+	runner := &recordingRunner{
+		outputs:      [][]byte{[]byte("chezmoi version v2\n"), []byte("git version 2\n"), []byte("/home/me/src\n"), []byte("lazygit version\n")},
+		outputErrors: []error{nil, nil, nil, errors.New("not a git repository")},
+	}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	doc, failed := service.DoctorReport()
+
+	if !failed {
+		t.Fatalf("DoctorReport failed = false, want true")
+	}
+	got := string(report.Plain(doc))
+	if !strings.Contains(got, "fail source-git: git status /home/me/src: not a git repository") {
+		t.Fatalf("DoctorReport() = %q, want source git failure", got)
+	}
+}
+
 type recordingRunner struct {
-	outputs     [][]byte
-	outputCalls [][]string
-	runCalls    [][]string
-	outputIO    []process.IO
-	runIO       []process.IO
+	outputs      [][]byte
+	outputErrors []error
+	outputCalls  [][]string
+	runCalls     [][]string
+	outputIO     []process.IO
+	runIO        []process.IO
 }
 
 func (r *recordingRunner) Output(command string, args []string, io process.IO) ([]byte, error) {
 	r.outputCalls = append(r.outputCalls, append([]string{command}, args...))
 	r.outputIO = append(r.outputIO, io)
+	var err error
+	if len(r.outputErrors) > 0 {
+		err = r.outputErrors[0]
+		r.outputErrors = r.outputErrors[1:]
+	}
 	if len(r.outputs) == 0 {
-		return nil, nil
+		return nil, err
 	}
 	out := bytes.Clone(r.outputs[0])
 	r.outputs = r.outputs[1:]
-	return out, nil
+	return out, err
 }
 
 func (r *recordingRunner) Run(command string, args []string, io process.IO) error {

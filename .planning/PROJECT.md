@@ -26,12 +26,15 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - ✓ Package boundaries use CLI/TUI adapters, app services, infrastructure capability packages, and semantic report rendering.
 - ✓ Semantic report documents and palette renderers back status, diff, version, and shared diff classification.
 - ✓ `v0.1.0` is published as a non-draft, non-prerelease GitHub Release.
+- ✓ `cm`, `cm status`, `cm diff`, and `cm version` support optional `--output plain|ansi|markdown` and `--color auto|always|never` report controls.
+- ✓ `cm doctor` reports read-only prerequisite diagnostics for required and optional external tools.
+- ✓ `cm sync` TUI truncation uses display width for file names and diff lines, preserving valid UTF-8 for wide characters.
 
 ### Active
 
 - `v0.1.1` is planned as a safe usability-polish release.
 - Current scope must not change default command usage, the README mental model, existing command semantics, or mutation behavior.
-- Planned requirements: optional output/color controls, read-only `cm doctor`, and TUI display-width fixes.
+- Remaining planned requirement: None; `v0.1.1` planned implementation is complete.
 
 ### Out of Scope
 

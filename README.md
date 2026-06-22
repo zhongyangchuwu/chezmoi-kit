@@ -76,8 +76,22 @@ chezmoi git     = history for the source repository
 | `cm merge [target...]` | yes | Run `chezmoi merge` for manual conflict resolution. |
 | `cm edit <target>` | yes | Run `chezmoi edit` for a managed file. |
 | `cm git` | yes | Open `lazygit` in the chezmoi source repository. |
+| `cm doctor` | no | Check required and optional environment prerequisites. |
 | `cm version` | no | Print build information. |
 | `cm completion bash\|zsh\|fish\|powershell` | no | Generate shell completion. |
+
+Optional report controls for `cm`, `cm status`, `cm diff`, `cm doctor`, and `cm version`:
+
+```bash
+cm status --output plain       # plain text, default-compatible for scripts
+cm status --output ansi        # ANSI-capable text, color auto-detected by default
+cm status --output markdown    # Markdown report
+cm diff --color never          # disable ANSI color
+cm version --color always      # request ANSI color when NO_COLOR is unset
+```
+
+`--output` accepts `plain`, `ansi`, or `markdown`. `--color` accepts `auto`,
+`always`, or `never`; the default is `auto`, and `NO_COLOR` disables ANSI color unless `--color always` is set.
 
 ## Sync safety model
 

@@ -42,6 +42,11 @@ type EditService interface {
 	ManagedFiles() ([]string, error)
 }
 
+// DoctorService builds read-only environment diagnostics.
+type DoctorService interface {
+	DoctorReport() (report.Document, bool)
+}
+
 // ActionKind identifies a reconciliation action selected during review.
 type ActionKind int
 
@@ -107,6 +112,7 @@ type Services struct {
 	Target    TargetCommandService
 	SourceGit SourceGitService
 	Edit      EditService
+	Doctor    DoctorService
 }
 
 // NewServices creates the default application service graph backed by chezmoi.
@@ -119,6 +125,7 @@ func NewServices(client chezmoi.Client) Services {
 		Target:    s,
 		SourceGit: s,
 		Edit:      s,
+		Doctor:    s,
 	}
 }
 
@@ -194,6 +201,86 @@ func (s service) SourceStatus() ([]chezmoi.StatusEntry, error) {
 		return nil, fmt.Errorf("git status %s: %w%s", sourceDir, err, formatStderr(stderr.Bytes()))
 	}
 	return chezmoi.ParseGitStatus(out)
+}
+
+type doctorCheck struct {
+	Name     string
+	Status   string
+	Required bool
+	Message  string
+}
+
+func (s service) DoctorReport() (report.Document, bool) {
+	checks := []doctorCheck{
+		s.checkCommand("chezmoi", s.client.BinaryName(), []string{"--version"}, true),
+		s.checkCommand("git", "git", []string{"--version"}, true),
+	}
+
+	sourceDir, sourceOK := s.checkSourceDir()
+	checks = append(checks, sourceOK)
+	if sourceOK.Status == "pass" && sourceDir != "" {
+		checks = append(checks, s.checkGitRepository(sourceDir))
+	}
+	checks = append(checks, s.checkCommand("lazygit", "lazygit", []string{"--version"}, false))
+
+	failed := false
+	doc := report.Document{Blocks: []report.Block{report.Heading(1, report.Strong("doctor:"))}}
+	for _, check := range checks {
+		if check.Required && check.Status == "fail" {
+			failed = true
+		}
+		doc.Blocks = append(doc.Blocks, report.Paragraph(
+			doctorStatus(check.Status),
+			report.Text(" "),
+			report.Strong(check.Name+":"),
+			report.Text(" "),
+			report.Text(check.Message),
+		))
+	}
+	return doc, failed
+}
+
+func (s service) checkCommand(name, command string, args []string, required bool) doctorCheck {
+	_, err := s.runner().Output(command, args, process.IO{})
+	if err != nil {
+		status := "warn"
+		if required {
+			status = "fail"
+		}
+		return doctorCheck{Name: name, Status: status, Required: required, Message: err.Error()}
+	}
+	return doctorCheck{Name: name, Status: "pass", Required: required, Message: "available"}
+}
+
+func (s service) checkSourceDir() (string, doctorCheck) {
+	sourceDir, err := s.sourceDir()
+	if err != nil {
+		return "", doctorCheck{Name: "source-path", Status: "fail", Required: true, Message: err.Error()}
+	}
+	if sourceDir == "" {
+		return "", doctorCheck{Name: "source-path", Status: "fail", Required: true, Message: "empty chezmoi source path"}
+	}
+	return sourceDir, doctorCheck{Name: "source-path", Status: "pass", Required: true, Message: sourceDir}
+}
+
+func (s service) checkGitRepository(sourceDir string) doctorCheck {
+	var stderr bytes.Buffer
+	_, err := s.runner().Output("git", []string{"status", "--porcelain=v1"}, process.IO{Dir: sourceDir, Stderr: &stderr})
+	if err != nil {
+		return doctorCheck{Name: "source-git", Status: "fail", Required: true, Message: fmt.Sprintf("git status %s: %v%s", sourceDir, err, formatStderr(stderr.Bytes()))}
+	}
+	return doctorCheck{Name: "source-git", Status: "pass", Required: true, Message: "repository readable"}
+}
+
+func doctorStatus(status string) report.Inline {
+	switch status {
+	case "pass":
+		return report.Status("pass")
+	case "warn":
+		return report.Warning("warn")
+	default:
+		return report.Warning("fail")
+	}
 }
 
 func (s service) OpenSourceGit() error {

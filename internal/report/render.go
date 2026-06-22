@@ -72,16 +72,13 @@ func Markdown(doc Document) []byte {
 }
 
 func useColor(opts Options) bool {
-	if noColor(opts) {
-		return false
-	}
 	switch opts.Color {
 	case ColorAlways:
 		return true
 	case ColorNever:
 		return false
 	default:
-		return opts.IsTTY
+		return !noColor(opts) && opts.IsTTY
 	}
 }
 
