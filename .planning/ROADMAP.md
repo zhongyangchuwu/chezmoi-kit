@@ -2,7 +2,7 @@
 
 ## Overview
 
-`v0.1.1` is planned as a safe usability-polish release after the published `v0.1.0`. Its scope is limited to additions and fixes that do not change default command usage, the README mental model, existing command semantics, or mutation behavior.
+`v0.2.0` planning is currently in discussion. The next scope is not committed yet: the active question is how `cm sync` should support chezmoi template-backed targets by showing destination, rendered target, and source template state, and by explaining chezmoi `edit`/`merge` behavior before any implementation plan is written.
 
 ## Version Policy
 
@@ -12,55 +12,26 @@
 
 ## Phases
 
-- [x] Phase 1: Output Controls
-- [x] Phase 2: Doctor Diagnostics
-- [x] Phase 3: TUI Display Width Polish
+- [ ] Phase 1: Template Operation Model Discussion
 
 ## Phase Details
 
-### Phase 1: Output Controls
+### Phase 1: Template Operation Model Discussion
 
-- Goal: Expose existing semantic report renderers through explicit user flags while preserving current default rendering.
-- Depends on: `v0.1.0` semantic report documents and renderers.
-- Requirements: OUT-FLAGS-01, OUT-FLAGS-02.
+- Goal: Decide the TUI-first operation model for template-backed targets before implementation scope is committed.
+- Depends on: `v0.1.1` stable sync TUI, report rendering, and doctor diagnostics.
+- Requirements: TEMPLATE-DISCUSS-01, TEMPLATE-DISCUSS-02, TEMPLATE-DISCUSS-03.
 - Success Criteria:
-  - `cm status`, `cm diff`, and `cm version` support explicit output selection where their report model already supports it.
-  - Color policy can be selected explicitly without changing default TTY and `NO_COLOR` behavior.
-  - Invalid output or color values fail with clear CLI errors.
-  - README documents optional flags only after implementation is verified.
-- Plans: 1
-  - [x] phase-1-output-controls-plan — `.planning/phases/phase-1-output-controls/PLAN.md`
-
-### Phase 2: Doctor Diagnostics
-
-- Goal: Add a read-only `cm doctor` command that explains environment readiness for existing `cm` workflows.
-- Depends on: Phase 1 if doctor output uses the same user-facing output/color controls.
-- Requirements: DOCTOR-01.
-- Success Criteria:
-  - Required tools and state such as `chezmoi`, `git`, and chezmoi source path are checked without mutation.
-  - Optional tools such as `lazygit` are reported as warnings when absent, not as universal failure.
-  - Diagnostic output distinguishes pass, warning, and failure in a script-friendly way.
-  - Existing commands keep their current behavior and error paths unless explicitly invoked through `cm doctor`.
-- Plans: 1
-  - [x] phase-2-doctor-diagnostics-plan — `.planning/phases/phase-2-doctor-diagnostics/PLAN.md`
-
-### Phase 3: TUI Display Width Polish
-
-- Goal: Fix display-width truncation defects in the sync TUI without changing the sync workflow or action model.
-- Depends on: None; may run after Phase 1 and Phase 2 for release ordering.
-- Requirements: TUI-WIDTH-01.
-- Success Criteria:
-  - File list, status text, and diff panes avoid byte-based truncation that can split UTF-8 runes.
-  - Wide-character paths and diff lines render without corrupting layout in normal and narrow terminal sizes.
-  - Existing `cm sync` review, pending-action, confirmation, and preflight behavior remains unchanged.
-  - Focused TUI tests cover Unicode and narrow-width cases.
-- Plans: 1
-  - [x] phase-3-tui-display-width-polish-plan — `.planning/phases/phase-3-tui-display-width-polish/PLAN.md`
+  - The discussion distinguishes destination file, rendered target, source state, and source template content for template-backed targets.
+  - The discussion records how `chezmoi merge` works for templates: destination, source, and target participate, and target-state failure can fall back to two-way merge.
+  - The discussion decides whether template source should be displayed inline, in a detail/modal view, or through delegated external commands.
+  - The discussion decides whether direct template mutation is limited to delegated `chezmoi edit`, `chezmoi merge`, and optional `chezmoi add --template` paths.
+  - No implementation plan is written until unresolved TUI layout, keybinding, and CLI compatibility decisions are settled.
+- Plans: TBD
+  - [ ] pending-discussion-plan
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |---|---:|---|---|
-| Phase 1: Output Controls | 1 | complete | 2026-06-22 |
-| Phase 2: Doctor Diagnostics | 1 | complete | 2026-06-22 |
-| Phase 3: TUI Display Width Polish | 1 | complete | 2026-06-22 |
+| Phase 1: Template Operation Model Discussion | 0 | discussing | - |

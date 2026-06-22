@@ -5,12 +5,11 @@
 
 ## Current Requirements
 
-### v0.1.1 — Safe Usability Polish
+### v0.2.0 — Template Operation Model Discussion
 
-- [x] OUT-FLAGS-01 — Users can explicitly select plain, ANSI, or Markdown report output for existing non-interactive report-backed commands without changing default output behavior.
-- [x] OUT-FLAGS-02 — Users can explicitly select color policy (`auto`, `always`, `never`) while preserving current TTY auto-detection and `NO_COLOR` defaults.
-- [x] DOCTOR-01 — `cm doctor` provides a read-only prerequisite and environment diagnostic for required and optional external tools without mutating local files or chezmoi source state.
-- [x] TUI-WIDTH-01 — `cm sync` TUI truncates file names, status text, and diff lines by display width rather than byte length, preserving valid UTF-8 and improving wide-character rendering.
+- [ ] TEMPLATE-DISCUSS-01 — Decide how `cm sync` should show destination file content, rendered chezmoi target content, and source template content for template-backed targets before implementation scope is committed.
+- [ ] TEMPLATE-DISCUSS-02 — Decide how `cm sync` should explain and launch chezmoi-backed source template operations such as `edit`, `merge`, and optional `add --template` without directly writing templates.
+- [ ] TEMPLATE-DISCUSS-03 — Decide which CLI commands are compatibility/script surfaces for the TUI model, without making CLI the primary template workflow.
 
 ## Deferred
 
@@ -18,6 +17,7 @@
 - GoReleaser signing, notarization, Homebrew, Scoop, Winget, Docker, and package-manager publishing.
 - Issue templates, PR templates, and security policy files.
 - Richer status interpretation beyond the current simplified `! differs from chezmoi` model.
+- Greedy `chezmoi add --autotemplate` exposure until `cm` has an explicit generated-template review workflow.
 
 ## Out of Scope
 
@@ -32,13 +32,12 @@
 
 | Requirement | Phase | Status |
 |---|---|---|
-| OUT-FLAGS-01 | v0.1.1 Phase 1 — Output Controls | Complete |
-| OUT-FLAGS-02 | v0.1.1 Phase 1 — Output Controls | Complete |
-| DOCTOR-01 | v0.1.1 Phase 2 — Doctor Diagnostics | Complete |
-| TUI-WIDTH-01 | v0.1.1 Phase 3 — TUI Display Width Polish | Complete |
+| TEMPLATE-DISCUSS-01 | v0.2.0 Phase 1 — Template Operation Model Discussion | Discussing |
+| TEMPLATE-DISCUSS-02 | v0.2.0 Phase 1 — Template Operation Model Discussion | Discussing |
+| TEMPLATE-DISCUSS-03 | v0.2.0 Phase 1 — Template Operation Model Discussion | Discussing |
 
 ## Coverage Summary
 
-- Total current requirements: 4
-- Mapped count: 4
+- Total current requirements: 3
+- Mapped count: 3
 - Unmapped count: 0

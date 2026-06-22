@@ -2,6 +2,18 @@
 
 All notable changes to `cm` are documented here.
 
+## v0.1.1 - 2026-06-22
+
+### Added
+
+- Optional report controls for `cm`, `cm status`, `cm diff`, `cm doctor`, and `cm version`: `--output plain|ansi|markdown` and `--color auto|always|never`.
+- Read-only `cm doctor` diagnostics for required `chezmoi`/`git` prerequisites, chezmoi source path readability, source repository status, and optional `lazygit` availability.
+
+### Fixed
+
+- `cm sync` TUI truncation now uses display width instead of byte length for wide-character file paths and diff lines.
+
+
 ## v0.1.0 - 2026-06-20
 
 ### Added
