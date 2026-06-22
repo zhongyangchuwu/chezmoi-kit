@@ -67,6 +67,65 @@ func TestRunDiffWritesAppReportOutput(t *testing.T) {
 	}
 }
 
+func TestRunReportOutputFlagSelectsMarkdown(t *testing.T) {
+	service := &fakeService{diffOutput: "--- source\n+++ local\n-old\n+new\n"}
+	var out bytes.Buffer
+
+	code := run([]string{"diff", "--output", "markdown", ".zshrc"}, testServices(service), strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	want := "```diff\n--- source\n+++ local\n-old\n+new\n```\n"
+	if out.String() != want {
+		t.Fatalf("output = %q, want %q", out.String(), want)
+	}
+	if !reflect.DeepEqual(service.diffArgs, [][]string{{".zshrc"}}) {
+		t.Fatalf("diffArgs = %#v", service.diffArgs)
+	}
+}
+
+func TestRunReportColorFlagRequestsANSIOnNonTTY(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	service := &fakeService{}
+	var out bytes.Buffer
+	code := run([]string{"version", "--color", "always"}, testServices(service), strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	if !strings.Contains(out.String(), "\x1b[") {
+		t.Fatalf("output = %q, want ANSI escapes", out.String())
+	}
+}
+
+func TestRunReportFlagsRejectInvalidValues(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "output", args: []string{"status", "--output", "json"}, want: `unsupported output "json"`},
+		{name: "color", args: []string{"status", "--color", "sometimes"}, want: `unsupported color "sometimes"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &fakeService{}
+			var out bytes.Buffer
+
+			code := run(tt.args, testServices(service), strings.NewReader(""), &out, &out)
+
+			if code != 1 {
+				t.Fatalf("run exit code = %d, want 1", code)
+			}
+			if !strings.Contains(out.String(), tt.want) {
+				t.Fatalf("output = %q, want substring %q", out.String(), tt.want)
+			}
+		})
+	}
+}
+
 func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
 	service := &fakeService{
 		statusResults: [][]chezmoi.StatusEntry{
@@ -194,6 +253,34 @@ func TestRunVersionPrintsBuildInfo(t *testing.T) {
 	}
 }
 
+func TestRunDoctorWritesReportOutput(t *testing.T) {
+	service := &fakeService{}
+	var out bytes.Buffer
+
+	code := run([]string{"doctor", "--output", "markdown"}, testServices(service), strings.NewReader(""), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	if !strings.Contains(out.String(), "# **doctor:**") || !strings.Contains(out.String(), "pass") {
+		t.Fatalf("output = %q, want doctor markdown", out.String())
+	}
+}
+
+func TestRunDoctorFailsWhenRequiredCheckFails(t *testing.T) {
+	service := &fakeService{doctorFailed: true}
+	var out bytes.Buffer
+
+	code := run([]string{"doctor"}, testServices(service), strings.NewReader(""), &out, &out)
+
+	if code != 1 {
+		t.Fatalf("run exit code = %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "fail required") || !strings.Contains(out.String(), "doctor found failed checks") {
+		t.Fatalf("output = %q, want failed doctor report and error", out.String())
+	}
+}
+
 func TestRunCompletionPrintsShellScript(t *testing.T) {
 	service := &fakeService{}
 	var out bytes.Buffer
@@ -216,6 +303,7 @@ func testServices(service *fakeService) commandServices {
 		Target:    service,
 		SourceGit: service,
 		Edit:      service,
+		Doctor:    service,
 	}
 }
 
@@ -229,6 +317,7 @@ type fakeService struct {
 	diffArgs         [][]string
 	commands         [][]string
 	diffOutput       string
+	doctorFailed     bool
 	executed         []app.Action
 }
 
@@ -254,6 +343,19 @@ func (f *fakeService) StatusReport(targets []string) (report.Document, error) {
 func (f *fakeService) DiffReport(targets []string) (report.Document, error) {
 	f.diffArgs = append(f.diffArgs, append([]string(nil), targets...))
 	return report.Document{Blocks: []report.Block{report.DiffBlock(f.diffOutput)}}, nil
+}
+
+func (f *fakeService) DoctorReport() (report.Document, bool) {
+	status := report.Status("pass")
+	text := "optional"
+	if f.doctorFailed {
+		status = report.Warning("fail")
+		text = "required"
+	}
+	return report.Document{Blocks: []report.Block{
+		report.Heading(1, report.Strong("doctor:")),
+		report.Paragraph(status, report.Text(" "), report.Text(text)),
+	}}, f.doctorFailed
 }
 
 func (f *fakeService) DiffOutput(target string) ([]byte, error) {

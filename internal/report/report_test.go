@@ -30,15 +30,24 @@ func TestANSIUsesPaletteWhenTTY(t *testing.T) {
 	}
 }
 
-func TestNoColorDisablesANSI(t *testing.T) {
+func TestNoColorDisablesAutoANSI(t *testing.T) {
 	doc := Document{Blocks: []Block{Paragraph(Warning("!"), Text(" "), Path("/tmp/a"))}}
 
-	got := string(ANSI(doc, Options{Color: ColorAlways, IsTTY: true, Env: map[string]string{"NO_COLOR": "1"}}))
+	got := string(ANSI(doc, Options{Color: ColorAuto, IsTTY: true, Env: map[string]string{"NO_COLOR": "1"}}))
 	if strings.Contains(got, "\x1b[") {
 		t.Fatalf("ANSI() = %q, want no escape sequences", got)
 	}
 	if got != "! /tmp/a\n" {
 		t.Fatalf("ANSI() = %q, want plain text", got)
+	}
+}
+
+func TestColorAlwaysOverridesNoColor(t *testing.T) {
+	doc := Document{Blocks: []Block{Paragraph(Warning("!"), Text(" "), Path("/tmp/a"))}}
+
+	got := string(ANSI(doc, Options{Color: ColorAlways, IsTTY: false, Env: map[string]string{"NO_COLOR": "1"}}))
+	if !strings.Contains(got, "\x1b[") {
+		t.Fatalf("ANSI() = %q, want ANSI escapes", got)
 	}
 }
 

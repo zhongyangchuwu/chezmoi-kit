@@ -28,6 +28,7 @@ func run(args []string, services commandServices, stdin io.Reader, stdout, stder
 
 func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io.Writer, options *app.Options) *cobra.Command {
 	info := app.Current()
+	renderOpts := defaultRenderOptions()
 	root := &cobra.Command{
 		Use:           "cm",
 		Short:         "Chezmoi reconciliation manager",
@@ -36,20 +37,22 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderStatus(stdout, services.Status, args)
+			return renderStatus(stdout, services.Status, args, renderOpts)
 		},
 	}
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.PersistentFlags().BoolVar(&options.Debug, "debug", false, "write debug diagnostics to a temporary log file")
+	root.PersistentFlags().StringVar(&renderOpts.Output, "output", renderOpts.Output, "report output format: plain, ansi, or markdown")
+	root.PersistentFlags().StringVar(&renderOpts.Color, "color", renderOpts.Color, "ANSI color policy: auto, always, or never")
 
 	root.AddCommand(&cobra.Command{
 		Use:   "status [target...]",
 		Short: "Show chezmoi reconciliation status",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderStatus(stdout, services.Status, args)
+			return renderStatus(stdout, services.Status, args, renderOpts)
 		},
 	})
 	root.AddCommand(&cobra.Command{
@@ -57,7 +60,7 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		Short: "Show internal sync diff",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderDiff(stdout, services.Diff, args)
+			return renderDiff(stdout, services.Diff, args, renderOpts)
 		},
 	})
 	syncCmd := &cobra.Command{
@@ -117,11 +120,19 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		},
 	})
 	root.AddCommand(&cobra.Command{
+		Use:   "doctor",
+		Short: "Check cm environment prerequisites",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return renderDoctor(stdout, services.Doctor, renderOpts)
+		},
+	})
+	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print build version information",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return renderReport(stdout, info.Report("cm"))
+			return renderReport(stdout, info.Report("cm"), renderOpts)
 		},
 	})
 	root.AddCommand(newCompletionCommand(root, stdout))
