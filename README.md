@@ -103,10 +103,11 @@ cm version --color always      # request ANSI color when NO_COLOR is unset
 4. Re-check selected targets before executing.
 5. Execute only targets that are still dirty.
 
-Confirmed `apply` actions run `chezmoi apply --force` because the TUI has already
-shown the diff and collected confirmation. Once execution starts, `cm` waits for
-chezmoi commands to finish; it does not advertise cancellation for already-started
-mutating subprocesses.
+Confirmed `a` actions run `chezmoi re-add`, which preserves `encrypted_` source
+attributes for managed files. Confirmed `apply` actions run `chezmoi apply --force`
+because the TUI has already shown the diff and collected confirmation. Once execution
+starts, `cm` waits for chezmoi commands to finish; it does not advertise cancellation
+for already-started mutating subprocesses.
 
 ## Non-goals
 

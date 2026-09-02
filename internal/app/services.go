@@ -345,7 +345,7 @@ func (s service) DiffOutput(target string) ([]byte, error) {
 func (s service) ExecuteNonInteractive(action Action) error {
 	switch action.Kind {
 	case ActionAdd:
-		return s.runBuffered("add", action.Target)
+		return s.runBuffered("re-add", action.Target)
 	case ActionApply:
 		return s.runBuffered("apply", "--force", action.Target)
 	case ActionMerge:

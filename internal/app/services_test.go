@@ -114,19 +114,19 @@ func TestServiceDiffExpandsDirtyTargets(t *testing.T) {
 	}
 }
 
-func TestServiceExecuteNonInteractiveBuffersAddApply(t *testing.T) {
+func TestServiceExecuteNonInteractiveBuffersReAddApply(t *testing.T) {
 	runner := &recordingRunner{}
 	service := service{client: chezmoi.Client{Runner: runner}}
 
 	if err := service.ExecuteNonInteractive(Action{Target: "/home/me/.zshrc", Kind: ActionAdd}); err != nil {
-		t.Fatalf("ExecuteNonInteractive add returned error: %v", err)
+		t.Fatalf("ExecuteNonInteractive re-add returned error: %v", err)
 	}
 	if err := service.ExecuteNonInteractive(Action{Target: "/home/me/.gitconfig", Kind: ActionApply}); err != nil {
 		t.Fatalf("ExecuteNonInteractive apply returned error: %v", err)
 	}
 
 	wantRuns := [][]string{
-		{"chezmoi", "add", "/home/me/.zshrc"},
+		{"chezmoi", "re-add", "/home/me/.zshrc"},
 		{"chezmoi", "apply", "--force", "/home/me/.gitconfig"},
 	}
 	if !reflect.DeepEqual(runner.runCalls, wantRuns) {

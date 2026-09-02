@@ -124,13 +124,14 @@ Selecting the same action twice clears it. Selecting a different action for the
 same target replaces the previous pending action.
 
 Before executing each action, `cm sync` re-checks that target and drops it if it
-is already clean. Confirmed `p` actions run `chezmoi apply --force` because the
-TUI has already shown the diff and collected confirmation. Actions execute one
-target at a time, so completed files leave the list and remaining files can be
-handled in later confirm batches.
-Confirmed add/apply commands run as non-interactive subprocesses with captured
-output so the TUI can keep rendering progress. Confirmed merge keeps terminal
-control because merge tools can be interactive.
+is already clean. Confirmed `a` actions run `chezmoi re-add`, preserving
+`encrypted_` source attributes for managed files. Confirmed `p` actions run
+`chezmoi apply --force` because the TUI has already shown the diff and collected
+confirmation. Actions execute one target at a time, so completed files leave the
+list and remaining files can be handled in later confirm batches. Confirmed `a` and
+`p` actions run as non-interactive subprocesses with captured output so the TUI can
+keep rendering progress. Confirmed merge keeps terminal control because merge tools
+can be interactive.
 
 Once execution starts, `cm` waits for the current chezmoi command to finish. It
 does not advertise `q` as cancellation for already-started mutating subprocesses.
