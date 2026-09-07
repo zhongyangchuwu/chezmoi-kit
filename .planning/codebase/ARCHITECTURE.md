@@ -1,93 +1,130 @@
-# Architecture Map
+# Architecture
 
-## High-level design
+**Mapped:** 2026-09-07
 
-- The application is a Go command-line wrapper around `chezmoi` with extra reconciliation views and commands.
-- `cmd/cm/main.go` is a process bootstrapper only; it passes process args and standard streams to `internal/cli.Main`.
-- `internal/cli/root.go` constructs the Cobra command tree, creates a `chezmoi.Client`, wraps it with `app.NewServices`, and returns an exit code.
-- `internal/cli/service.go` aliases the app service graph for command wiring only.
-- `internal/app/services.go` owns the service graph, status/diff/sync/source-git/edit/direct-wrapper use cases, and sync action contract.
-- `internal/app` also owns process-wide options and runtime version metadata.
-- The core external dependency is the `chezmoi` executable, wrapped by `internal/chezmoi/client.go`.
-- Process execution is abstracted by `internal/process/runner.go`, which allows tests to record commands without invoking real binaries.
-- The interactive workflow is isolated in `internal/tui/` and consumes `app.SyncService` plus `app.Action` values.
-- Internal diffs are computed in `internal/diff/diff.go` from abstract file content rather than by shelling out to a diff command.
+## System Boundary
 
-## Module and package boundaries
+`cm` is a review/orchestration layer around the `chezmoi` executable. It does not own source naming, target calculation, templates, encryption, ignore rules, diff mechanics, or mutations.
 
-- `internal/cli` owns command surface, user-visible command routing, stream plumbing, and exit behavior.
-- `internal/app` owns process-wide runtime options, `cm version` metadata, app service composition, app use cases, and sync action/domain contracts.
-- `internal/chezmoi` owns the protocol for calling `chezmoi`, including `status`, `source-path`, `cat`, `managed`, and direct mutating invocations.
-- `internal/process` owns the lowest-level `exec.Command` integration and default stdin/stdout/stderr behavior.
-- `internal/tui` owns stateful terminal interaction: selected file, focused pane, pending actions, confirmation mode, diff cache, and execution messages.
-- `internal/diff` owns comparison rules: max file size, binary detection, local missing-file behavior, and unified diff output.
-- The package graph points inward from CLI/TUI adapters to app services and infrastructure capabilities; there is no dependency from `internal/chezmoi` back into `internal/cli`, `internal/app`, or `internal/tui`.
-- The data contract crossing most package boundaries is `chezmoi.StatusEntry` from `internal/chezmoi/status.go`.
-- The sync action contract crossing the TUI/service boundary is `app.Action` from `internal/app/services.go`.
+```text
+Cobra CLI / Bubble Tea TUI
+            |
+            v
+      internal/app
+      /     |      \
+chezmoi   report   process
+adapter   model    runner
+            |
+            v
+         output
+```
 
-## Dependency direction
+## Dependency Direction
 
-- `cmd/cm/main.go` depends on `internal/cli` and nothing else in the application.
-- `internal/cli/root.go` depends on Cobra plus internal packages for app version info, app service construction, chezmoi access, and TUI startup.
-- `internal/app/services.go` depends on `internal/chezmoi`, `internal/process`, and `internal/diff` to implement command use cases.
-- `internal/tui` depends on Bubble Tea libraries, `internal/app` contracts, and `internal/chezmoi` status entries.
-- `internal/diff` depends on a content interface and the `rogpeppe/go-internal/diff` formatter, not on CLI packages.
-- `internal/chezmoi` depends on `internal/process` but does not depend on TUI or Cobra.
-- `internal/process` sits at the bottom of the application dependency graph.
+- `cmd/cm` depends on `internal/cli`.
+- `internal/cli` depends on app contracts, report renderers, and TUI startup.
+- `internal/tui` depends only on app-owned sync/domain values plus Bubble Tea presentation libraries.
+- `internal/app` depends on chezmoi, process, and report capabilities.
+- `internal/chezmoi` depends on `internal/process`.
+- `internal/report` and `internal/process` are leaf capabilities.
 
-## Interface boundaries
+No runtime package depends on planning or docs.
 
-- `app.StatusService` exposes semantic status reports for read-only command output.
-- `app.DiffService` exposes semantic diff reports for command output.
-- `app.TargetCommandService` exposes explicit mutating wrappers for add, apply, and merge.
-- `app.SourceGitService` isolates the `cm git` behavior behind `OpenSourceGit`.
-- `app.EditService` groups edit execution and completion source lookup.
-- `app.SyncService` is intentionally broader than read-only status because the TUI must status, diff, and execute confirmed actions.
-- `report.Document` is the semantic output contract for status, diff, version, Markdown, and ANSI/plain CLI rendering.
-- `diff.ContentSource` in `internal/diff/diff.go` is byte-oriented so diffing does not know whether content came from chezmoi, disk, or a fake source.
-- `process.Runner` in `internal/process/runner.go` has separate `Output` and `Run` methods to distinguish captured-output calls from streaming command execution.
+## App Domain
 
-## Data flow: status command
+`internal/app/reconcile.go` and `internal/app/workspace.go` own the values
+crossing the TUI boundary:
 
-- `cmd/cm/main.go` calls `cli.Main`.
-- `cli.Main` creates `chezmoi.Client{Stdin, Stdout, Stderr}` and passes it to `app.NewServices`.
-- The root command or `status` subcommand calls `renderStatus` in `internal/cli/status.go`.
-- `renderStatus` renders `app.StatusService.StatusReport(targets)` with `internal/report` plain/ANSI rendering.
-- The app service delegates local status to `chezmoi.Client.Status`.
-- `chezmoi.Client.Status` runs `chezmoi status --path-style=absolute` and parses output with `chezmoi.ParseStatus`.
-- The app service also includes source repository git changes.
-- `app.service.SourceStatus` runs `chezmoi source-path`, then runs `git status --porcelain=v1` in that directory through `process.Runner`.
-- Status output prints `clean` when both local status and source git status are empty.
+- `SyncStatus` separates ordinary destination/target entries from scripts.
+- `ReconcileEntry` carries raw status code and absolute target path.
+- `Review` carries target type, template state, authoritative diff, dirty state, and SHA-256 fingerprint.
+- `Action` binds target/action kind to the reviewed fingerprint.
+- `ActionResult` preserves successful buffered stdout/stderr.
+- `WorkspaceSnapshot` holds a sorted absolute-path inventory and explicit discovery scopes.
+- `WorkspaceEntry` carries state, target type, source mapping, template/encryption flags, and status code.
+- `WorkspacePreview` separates bounded content, notices, withheld state, and an inspected review.
 
-## Data flow: diff command
+This keeps `chezmoi.StatusEntry` inside infrastructure/app composition instead of leaking it into the TUI.
 
-- `cm diff [target...]` routes through `renderDiff` in `internal/cli/diff_cmd.go`.
-- `renderDiff` renders `app.DiffService.DiffReport(targets)` with `internal/report` plain/ANSI rendering.
-- If no targets are provided, the app diff service calls `Status(nil)` and uses each `StatusEntry.Path` as a diff target.
-- For each target, the app diff service constructs `diff.Differ{Source: chezmoi.ContentLoader{Client: s.client}}`.
-- `diff.Differ.Diff` reads target content from `chezmoi cat <target>` through `ContentLoader.TargetContent`.
-- `ContentLoader.LocalContent` in `internal/chezmoi/content.go` reads the local target path directly with a byte limit.
-- `diff.DiffBytes` rejects oversized files, reports binary differences, returns `no diff` for identical content, or emits a unified diff.
-- `report.ClassifyDiffLine` classifies unified diff lines once for CLI report rendering and TUI diff styling.
+## Status Flow
 
-## Data flow: interactive sync
+1. App calls `chezmoi status --include=all --exclude=none --path-style=absolute`.
+2. Chezmoi adapter strictly parses `XY path` lines.
+3. App interprets the second status column:
+   - space: destination already matches target; no reconciliation entry;
+   - `R`: pending script in `SyncStatus.Scripts`;
+   - other effect: ordinary `SyncStatus.Entries` item.
+4. Status report independently loads source repository git status.
+5. Semantic report renderers produce plain, ANSI, or Markdown output.
 
-- `cm sync [target...]` routes from `internal/cli/root.go` to `tui.RunSyncTUI` in `internal/tui/tui.go`.
-- `RunSyncTUI` first calls `app.SyncService.Status(targets)` and exits early with `clean` when there are no entries.
-- `newSyncTUIModel` in `internal/tui/model.go` stores the service, status entries, diff cache, help model, and home directory.
-- `internal/tui/update.go` maps navigation keys, pending action keys, diff refresh, confirmation, and quit behavior.
-- `internal/tui/diff_state.go` loads a selected target diff by calling `app.SyncService.DiffOutput(target)` asynchronously through a Bubble Tea command.
-- `internal/tui/diff_view.go` styles loaded diff lines for display.
-- `internal/tui/confirm.go` rechecks fresh status for selected targets before execution to avoid applying actions to targets that became clean.
-- Confirmed actions are sent to `app.SyncService.ExecuteNonInteractive` or `app.SyncService.TerminalCommand` and represented as `executeMsg` values.
-- The TUI view in `internal/tui/view.go` renders file, diff, confirm, footer, and message panes from model state.
+## Review Flow
 
-## Design patterns and testing seams
+1. TUI selects an absolute target from `SyncStatus.Entries`.
+2. App rechecks exact target status.
+3. App captures bounded authoritative diff from:
 
-- Dependency injection is done with app-owned interfaces in `internal/app/services.go` and command-level fakes in adapter tests.
-- `app.Services` groups those interfaces so `newRootCommand` can be tested with fakes instead of real `chezmoi`, `git`, or `lazygit` processes.
-- `app.SyncService` is the package-level boundary that keeps the TUI independent from concrete service implementation.
-- `diff.ContentSource` decouples diffing logic from the chezmoi client and local filesystem details.
-- `process.Runner` decouples command execution from command construction and gives tests a recording seam.
-- `report.Options` controls ANSI color: auto color requires TTY output, `NO_COLOR` disables ANSI when non-empty, and explicit always/never modes are available internally for tests and future CLI flags.
-- Most functions accept `io.Reader` and `io.Writer` values, visible in `cmd/cm/main.go`, `internal/cli/root.go`, and `internal/tui/tui.go`, which keeps CLI behavior testable without global standard streams.
+   ```text
+   chezmoi --color=false --no-pager --use-builtin-diff \
+     diff --include=all --exclude=none --reverse --script-contents=true <target>
+   ```
+
+4. A second-column delete effect becomes `TargetRemove` without requiring a dump entry.
+5. Other targets load bounded single-entry metadata through `chezmoi dump`.
+6. File/symlink targets query `managed --include=templates` for template membership.
+7. App fingerprints path, status code, target type, template flag, and diff.
+8. TUI caches the review and advertises only allowed actions.
+
+## Action Matrix
+
+- regular file: add, apply, merge;
+- template file: apply, merge;
+- symlink: apply;
+- directory: apply;
+- remove: apply;
+- script/unknown: no ordinary sync action.
+
+The matrix is conservative because `re-add` ignores non-files and refuses to overwrite templates.
+
+## Execution Flow
+
+1. User selects actions; each stores the current review fingerprint.
+2. Confirmation starts sequential execution.
+3. App recomputes review immediately before mutation.
+4. Clean target: skip and remove.
+5. Fingerprint/type mismatch: defer without mutation and cache refreshed review.
+6. Non-interactive add/apply captures output; merge receives terminal control.
+7. After successful command, app recomputes target status/review.
+8. Clean target: remove.
+9. Still dirty: retain, clear pending action, show output/reason, and return to review.
+10. Completion occurs only when ordinary entries are empty; pending script count remains explicit.
+
+## Workspace Flow
+
+1. CLI calls `WorkspaceService.Inventory` from `cm ui [path...]`.
+2. App loads the destination root, normalized scopes, managed path mappings, secret-skipping status, typed managed membership, and source-ignored entries from chezmoi.
+3. Explicit scopes trigger bounded recursive candidate discovery: filesystem enumeration only provides child paths; chezmoi `unmanaged` remains the membership authority.
+4. TUI projects the sorted inventory into tree/flat/filter/search views, retaining selected absolute path where visible.
+5. Selected previews load lazily as authoritative diff, destination, rendered target, or source views.
+6. Template/encrypted rendered targets, encrypted source, and secret-skipped diffs remain withheld until per-target explicit reveal.
+7. Workspace mode has no mutation path; its `q` exit changes neither source nor destination.
+
+## Edit Flow
+
+- Completion comes from NUL-delimited `chezmoi managed` output.
+- Absolute targets pass through.
+- Relative targets join to `chezmoi target-path`, not OS home.
+- Chezmoi owns editor, decryption/re-encryption, template syntax checking, and source replacement.
+
+## Output Architecture
+
+App services construct semantic `report.Document` values. Roles remain separate from presentation. CLI selects plain/ANSI/Markdown. TUI reuses shared unified-diff classification.
+
+## Process Architecture
+
+`process.Runner` has captured `Output` and streaming/buffered `Run` paths. It normalizes missing executables. Sync add/apply use nil stdin and captured stdout/stderr; merge is terminal-bound.
+
+## Verification Architecture
+
+- Unit/service/TUI/CLI tests use handwritten fakes.
+- `services_integration_test.go` uses a real chezmoi executable behind an isolated wrapper with temporary source, destination, cache, config, and persistent state.
+- CI and release workflows download pinned chezmoi v2.72.1 before GoReleaser/test execution.

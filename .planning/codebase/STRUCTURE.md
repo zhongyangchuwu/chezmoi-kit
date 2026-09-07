@@ -1,63 +1,79 @@
 # Codebase Structure
 
-## Repository shape
+**Mapped:** 2026-09-07
 
-- `go.mod` declares module `github.com/zhongyangchuwu/cm` and Go `1.26`.
-- `cmd/cm/main.go` is the only executable entry point currently present under `cmd/`.
-- `cmd/cm/main.go` delegates immediately to `internal/cli.Main` and exits with its return code.
-- `internal/` contains all application packages; there are no exported library packages outside `internal/`.
-- `internal/app/` owns process options, version metadata, service graph, app use cases, and sync action contracts.
-- `internal/cli/` owns command construction, stream plumbing, shell completion, and exit behavior.
-- `internal/chezmoi/` wraps the `chezmoi` executable and parses chezmoi-oriented output formats.
-- `internal/diff/` computes local-vs-chezmoi file diffs using byte content sources.
-- `internal/tui/` owns the interactive sync TUI, its model, key bindings, views, diff loading, and confirmation flow.
-- `internal/process/` provides the process execution abstraction used by the chezmoi client and app services.
-- `docs/` contains human-facing repository documentation such as `docs/usage.md`, `docs/development.md`, and `docs/design.md`, but runtime code does not import from it.
-- Tests live beside implementation files, for example `internal/app/services_test.go`, `internal/cli/cli_test.go`, `internal/tui/sync_test.go`, and `internal/diff/diff_test.go`.
+## Top Level
 
-## Directory layout
+- `cmd/cm/` — thin process entrypoint.
+- `internal/` — private runtime packages.
+- `docs/` — usage, design, and development documentation.
+- `.planning/` — active workflow state, codebase maps, phase artifacts, and release archives.
+- `.github/workflows/` — CI and tagged release automation.
+- `go.mod`, `go.sum` — Go module and reproducible dependencies.
+- `.goreleaser.yaml`, `justfile` — release and local build/install helpers.
 
-- `cmd/cm/main.go` is the binary package for the `cm` executable.
-- `internal/app/options.go`, `internal/app/version.go`, and `internal/app/services.go` form the app support and use-case package.
-- `internal/chezmoi/client.go`, `internal/chezmoi/status.go`, and `internal/chezmoi/content.go` form the chezmoi integration package.
-- `internal/cli/root.go`, `internal/cli/status.go`, `internal/cli/diff_cmd.go`, and `internal/cli/service.go` form the command adapter package.
-- `internal/process/runner.go` is the process execution package and has no CLI-specific command knowledge.
-- `internal/diff/diff.go` is the diff engine package.
-- `internal/tui/model.go`, `internal/tui/tui.go`, `internal/tui/update.go`, `internal/tui/view.go`, `internal/tui/diff_state.go`, `internal/tui/diff_view.go`, `internal/tui/confirm.go`, `internal/tui/keys.go`, and `internal/tui/path.go` form the sync TUI package.
-- `internal/*/*_test.go` files stay co-located with the package they verify.
-- `docs/` and `README.md` are documentation surfaces, not runtime packages.
+## Runtime Packages
 
-## Entry points and command surface
+### `cmd/cm`
 
-- `cmd/cm/main.go` imports `github.com/zhongyangchuwu/cm/internal/cli` and passes `os.Args[1:]`, `os.Stdin`, `os.Stdout`, and `os.Stderr` into `cli.Main`.
-- `internal/cli/root.go` defines `Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int` as the testable application entry point.
-- `internal/cli/root.go` builds a Cobra root command with `Use: "cm"`, short description `Chezmoi reconciliation manager`, and version from `internal/app`.
-- Running `cm` with no subcommand executes the same read-only status rendering path as `cm status`.
-- `cm status [target...]` routes through `internal/cli/status.go` and app status services.
-- `cm diff [target...]` routes through `internal/cli/diff_cmd.go` and app diff services.
-- `cm sync [target...]` launches `tui.RunSyncTUI` from `internal/tui/tui.go` with `app.SyncService`.
-- `cm add [target...]`, `cm apply [target...]`, and `cm merge [target...]` forward to app target command services.
-- `cm edit <target>` forwards to app edit services and offers managed-file shell completion through `ManagedFiles`.
-- `cm git` forwards to app source-git services and opens `lazygit` in the chezmoi source repository.
-- `cm version` prints detailed build metadata from `internal/app/version.go`.
-- `cm completion [bash|zsh|fish|powershell]` emits Cobra-generated shell completion scripts.
+- `main.go` passes process arguments and streams to `cli.Main` and exits with its status.
 
-## Runtime entry and support entry points
+### `internal/cli`
 
-- Runtime process entry is `main()` in `cmd/cm/main.go`.
-- Testable CLI entry is `Main` in `internal/cli/root.go`.
-- Cobra command construction entry is `newRootCommand` in `internal/cli/root.go`.
-- Concrete service graph entry is `app.NewServices` in `internal/app/services.go`.
-- Interactive TUI entry is `RunSyncTUI` in `internal/tui/tui.go`.
-- Diff engine entry is `Differ.Diff` in `internal/diff/diff.go`.
-- Chezmoi process wrapper entries are `Client.Status`, `Client.Output`, `Client.OutputLimit`, `Client.Run`, and `Client.ManagedFiles` in `internal/chezmoi/client.go`.
-- Build metadata entry is `Current` in `internal/app/version.go`.
+- `root.go` builds the Cobra command tree and wires app services/TUI startup.
+- `render.go` selects plain, ANSI, or Markdown semantic report renderers.
+- `status.go`, `diff_cmd.go`, `doctor.go` are stream adapters.
+- `service.go` aliases the app service graph for command wiring.
+- `cli_test.go` covers command behavior and exit contracts.
 
-## Boundary notes
+### `internal/app`
 
-- `cmd/cm/main.go` is intentionally thin; all CLI behavior is inside `internal/cli`.
-- `internal/cli` depends on `internal/app`, `internal/chezmoi`, and `internal/tui`; concrete command use cases are app-owned.
-- `internal/tui` owns terminal state and uses `app.SyncService` rather than knowing concrete process commands.
-- `internal/diff` depends on a content-source interface rather than directly on `chezmoi.Client`.
-- `internal/chezmoi` depends on `internal/process` so external command execution can be replaced in tests.
-- Release preparation should treat CLI commands and generated completion behavior as the compatibility surface rather than Go package APIs.
+- `services.go` builds services and owns status, diff, doctor, source git, edit, direct target commands, sync execution, and workspace composition.
+- `reconcile.go` defines `SyncStatus`, `ReconcileEntry`, `Review`, `TargetType`, `Action`, fingerprints, action gating, and `ActionResult`.
+- `workspace.go` defines workspace entries, snapshots, previews, and the app boundary.
+- `workspace_service.go` merges bounded managed/ignored/scoped-unmanaged inventory and builds lazily loaded previews.
+- `options.go` owns process-wide CLI options.
+- `version.go` owns build/runtime metadata and semantic version reports.
+- `services_integration_test.go` and `workspace_integration_test.go` exercise isolated real chezmoi behavior.
+
+### `internal/chezmoi`
+
+- `client.go` owns generic command execution, bounded output, buffered execution, status, and managed completion.
+- `workspace.go` owns strict managed path mappings, typed membership, ignored/unmanaged lists, target/source content adapters.
+- `status.go` strictly parses status lines and NUL-delimited paths.
+- `target.go` owns forced builtin reverse diff, bounded target metadata, template membership, and destination lookup.
+- Tests live beside each parser/client surface.
+
+### `internal/process`
+
+- `runner.go` is the only runtime `os/exec` abstraction.
+
+### `internal/report`
+
+- `report.go` defines semantic documents and inline roles.
+- `render.go` renders plain, ANSI, and Markdown output.
+- `diff.go` classifies unified diff lines for CLI and TUI styling.
+
+### `internal/tui`
+
+- `tui.go` starts Bubble Tea sync/workspace programs and routes messages.
+- `model.go` owns shared entries, sync pending actions, focus/mode state, and workspace preview state.
+- `workspace_list.go` projects workspace tree/flat/filter/search views with selection preservation.
+- `diff_state.go` lazily loads and caches sync reviews/workspace previews with scrolling and stale-result isolation.
+- `confirm.go` owns sync-only preflight, sequential execution, terminal handoff, postflight, and completion transitions.
+- `view.go`, `diff_view.go`, `keys.go`, `update.go`, `path.go`, `timing.go` own rendering, input, path display, and bounded diagnostics.
+- `sync_test.go` and `workspace_test.go` cover target-aware sync safety and workspace interaction behavior.
+
+## Removed Boundaries
+
+- `internal/diff` — removed; authoritative diff now comes from forced chezmoi builtin output.
+- `internal/chezmoi/content.go` — removed; cm no longer reconstructs target state from destination byte reads.
+
+## Entrypoints
+
+- Process: `cmd/cm/main.go`
+- CLI: `internal/cli.Main`
+- Services: `internal/app.NewServices`
+- Sync UI: `internal/tui.RunSyncTUI`
+- Workspace UI: `internal/tui.RunWorkspaceTUI`
+- Reports: `internal/report.Plain`, `ANSI`, `Markdown`
