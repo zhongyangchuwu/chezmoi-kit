@@ -141,6 +141,30 @@ func TestSuccessfulExecutionRetainsStillDirtyTarget(t *testing.T) {
 	}
 }
 
+func TestExecutionNoticesPrefixEveryOutputLine(t *testing.T) {
+	target := "/home/me/.zshrc"
+	model := newSyncTUIModel(&fakeReviewService{}, syncStatus(target))
+	model.executing = []app.Action{{Target: target, Kind: app.ActionApply}}
+	model.mode = modeExecuting
+
+	updated, _ := model.applyExecuteMsg(executeMsg{
+		target:   target,
+		executed: true,
+		resolved: true,
+		result: app.ActionResult{
+			Stdout: "updated\nsecond update\n",
+			Stderr: "warning\nsecond warning\n",
+		},
+	})
+
+	prefix := updated.displayPath(target) + ": "
+	for _, line := range []string{"updated", "second update", "warning", "second warning"} {
+		if !strings.Contains(updated.message, prefix+line) {
+			t.Fatalf("message does not attribute output line %q: %q", line, updated.message)
+		}
+	}
+}
+
 func TestExecutionQuitsOnlyAfterPostflightIsClean(t *testing.T) {
 	target := "/home/me/.zshrc"
 	before := dirtyReview(target, app.TargetFile, false, "reviewed", "diff")

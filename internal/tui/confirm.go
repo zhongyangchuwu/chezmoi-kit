@@ -136,7 +136,7 @@ func (m workspaceModel) applyExecuteMsg(msg executeMsg) (workspaceModel, tea.Cmd
 		m.skippedCount++
 	}
 	if notice := msg.result.Notice(); notice != "" {
-		m.notices = append(m.notices, m.displayPath(msg.target)+": "+notice)
+		m.notices = append(m.notices, prefixNoticeLines(m.displayPath(msg.target), notice))
 	}
 	if msg.resolved {
 		m = m.removeEntry(msg.target)
@@ -182,6 +182,14 @@ func (m workspaceModel) finishExecution() (workspaceModel, tea.Cmd) {
 	m.notices = nil
 	m.executionStart = time.Time{}
 	return m.startDiffLoad(false)
+}
+
+func prefixNoticeLines(target, notice string) string {
+	lines := strings.Split(notice, "\n")
+	for i, line := range lines {
+		lines[i] = target + ": " + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func appendNotices(message string, notices []string) string {
