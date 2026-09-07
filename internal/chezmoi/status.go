@@ -33,13 +33,13 @@ func parseStatusLines(out []byte, source string) ([]StatusEntry, error) {
 	return entries, nil
 }
 
-func ParseManagedFiles(out []byte) []string {
-	lines := bytes.Split(out, []byte{'\n'})
-	files := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if len(line) > 0 {
-			files = append(files, string(line))
+func ParseNULPaths(out []byte) []string {
+	paths := bytes.Split(out, []byte{0})
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if len(path) > 0 {
+			result = append(result, string(path))
 		}
 	}
-	return files
+	return result
 }

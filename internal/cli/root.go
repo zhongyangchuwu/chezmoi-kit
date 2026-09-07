@@ -57,7 +57,7 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 	})
 	root.AddCommand(&cobra.Command{
 		Use:   "diff [target...]",
-		Short: "Show internal sync diff",
+		Short: "Show authoritative chezmoi sync diff",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return renderDiff(stdout, services.Diff, args, renderOpts)
@@ -72,6 +72,14 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		},
 	}
 	root.AddCommand(syncCmd)
+	root.AddCommand(&cobra.Command{
+		Use:   "ui [path...]",
+		Short: "Browse chezmoi files in the persistent workspace",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return tui.RunWorkspaceTUI(services.Workspace, args, stdin, stdout, options)
+		},
+	})
 	root.AddCommand(&cobra.Command{
 		Use:   "add [target...]",
 		Short: "Accept local files into chezmoi source state",

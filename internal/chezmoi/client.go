@@ -18,8 +18,19 @@ type Client struct {
 }
 
 func (c Client) Status(targets []string) ([]StatusEntry, error) {
-	args := make([]string, 0, 2+len(targets))
-	args = append(args, "status", "--path-style=absolute")
+	return c.status(targets, false)
+}
+
+func (c Client) StatusForInventory(targets []string) ([]StatusEntry, error) {
+	return c.status(targets, true)
+}
+
+func (c Client) status(targets []string, skipSecrets bool) ([]StatusEntry, error) {
+	args := make([]string, 0, 5+len(targets))
+	if skipSecrets {
+		args = append(args, "--skip-secrets")
+	}
+	args = append(args, "status", "--include=all", "--exclude=none", "--path-style=absolute")
 	args = append(args, targets...)
 
 	out, err := c.Output(args...)
@@ -70,11 +81,11 @@ func (c Client) RunBuffered(args ...string) ([]byte, []byte, error) {
 }
 
 func (c Client) ManagedFiles() ([]string, error) {
-	out, err := c.Output("managed")
+	out, err := c.Output("managed", "--nul-path-separator")
 	if err != nil {
 		return nil, err
 	}
-	return ParseManagedFiles(out), nil
+	return ParseNULPaths(out), nil
 }
 
 func (c Client) BinaryName() string {

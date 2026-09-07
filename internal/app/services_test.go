@@ -30,6 +30,24 @@ func TestServiceStatusReportUsesSemanticTokens(t *testing.T) {
 	}
 }
 
+func TestServiceStatusReportSeparatesPendingScripts(t *testing.T) {
+	runner := &recordingRunner{
+		outputs: [][]byte{[]byte("MM /home/me/.zshrc\n R /home/me/install.sh\n"), []byte("/home/me/src\n"), nil},
+	}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	doc, err := service.StatusReport(nil)
+	if err != nil {
+		t.Fatalf("StatusReport returned error: %v", err)
+	}
+	got := string(report.Plain(doc))
+	for _, want := range []string{"local:", "automation:", "R /home/me/install.sh  apply would run this script", "cm sync does not execute scripts"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("status report %q missing %q", got, want)
+		}
+	}
+}
+
 func TestServiceSourceStatusUsesRunnerInSourceDir(t *testing.T) {
 	runner := &recordingRunner{
 		outputs: [][]byte{[]byte("/home/me/.local/share/chezmoi\n"), []byte(" M dot_zshrc\n")},
@@ -104,11 +122,14 @@ func TestServiceDiffExpandsDirtyTargets(t *testing.T) {
 			t.Fatalf("diff output %q does not contain %q", got, want)
 		}
 	}
-	wantOutputCalls := [][]string{{"chezmoi", "status", "--path-style=absolute"}}
+	wantOutputCalls := [][]string{{"chezmoi", "status", "--include=all", "--exclude=none", "--path-style=absolute"}}
 	if !reflect.DeepEqual(runner.outputCalls, wantOutputCalls) {
 		t.Fatalf("outputCalls = %#v, want %#v", runner.outputCalls, wantOutputCalls)
 	}
-	wantRunCalls := [][]string{{"chezmoi", "cat", "/home/me/.zshrc"}, {"chezmoi", "cat", "/home/me/.gitconfig"}}
+	wantRunCalls := [][]string{
+		{"chezmoi", "--color=false", "--no-pager", "--use-builtin-diff", "diff", "--include=all", "--exclude=none", "--reverse", "--script-contents=true", "/home/me/.zshrc"},
+		{"chezmoi", "--color=false", "--no-pager", "--use-builtin-diff", "diff", "--include=all", "--exclude=none", "--reverse", "--script-contents=true", "/home/me/.gitconfig"},
+	}
 	if !reflect.DeepEqual(runner.runCalls, wantRunCalls) {
 		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRunCalls)
 	}
@@ -118,10 +139,10 @@ func TestServiceExecuteNonInteractiveBuffersReAddApply(t *testing.T) {
 	runner := &recordingRunner{}
 	service := service{client: chezmoi.Client{Runner: runner}}
 
-	if err := service.ExecuteNonInteractive(Action{Target: "/home/me/.zshrc", Kind: ActionAdd}); err != nil {
+	if _, err := service.ExecuteNonInteractive(Action{Target: "/home/me/.zshrc", Kind: ActionAdd}); err != nil {
 		t.Fatalf("ExecuteNonInteractive re-add returned error: %v", err)
 	}
-	if err := service.ExecuteNonInteractive(Action{Target: "/home/me/.gitconfig", Kind: ActionApply}); err != nil {
+	if _, err := service.ExecuteNonInteractive(Action{Target: "/home/me/.gitconfig", Kind: ActionApply}); err != nil {
 		t.Fatalf("ExecuteNonInteractive apply returned error: %v", err)
 	}
 
@@ -136,6 +157,19 @@ func TestServiceExecuteNonInteractiveBuffersReAddApply(t *testing.T) {
 		if gotIO.Stdin != nil || gotIO.Stdout == nil || gotIO.Stderr == nil {
 			t.Fatalf("runIO[%d] = %#v, want nil stdin and buffered stdout/stderr", i, gotIO)
 		}
+	}
+}
+
+func TestServiceExecuteNonInteractiveReturnsSuccessfulOutput(t *testing.T) {
+	runner := &recordingRunner{runStdouts: [][]byte{[]byte("updated\n")}, runStderrs: [][]byte{[]byte("warning\n")}}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	result, err := service.ExecuteNonInteractive(Action{Target: "/home/me/.zshrc", Kind: ActionAdd})
+	if err != nil {
+		t.Fatalf("ExecuteNonInteractive returned error: %v", err)
+	}
+	if result.Stdout != "updated\n" || result.Stderr != "warning\n" {
+		t.Fatalf("result = %#v", result)
 	}
 }
 
@@ -160,16 +194,35 @@ func TestServiceTerminalCommandBuildsMergeCommand(t *testing.T) {
 	}
 }
 
-func TestServiceEditTargetRunsEditWithAbsolutePath(t *testing.T) {
-	t.Setenv("HOME", "/home/testuser")
-	runner := &recordingRunner{}
+func TestServiceEditTargetUsesConfiguredDestination(t *testing.T) {
+	runner := &recordingRunner{outputs: [][]byte{[]byte("/srv/dotfiles-home\n")}}
 	service := service{client: chezmoi.Client{Runner: runner}}
 
 	if err := service.EditTarget(".zshrc"); err != nil {
 		t.Fatalf("EditTarget returned error: %v", err)
 	}
 
-	wantRuns := [][]string{{"chezmoi", "edit", "/home/testuser/.zshrc"}}
+	wantOutputs := [][]string{{"chezmoi", "target-path"}}
+	if !reflect.DeepEqual(runner.outputCalls, wantOutputs) {
+		t.Fatalf("outputCalls = %#v, want %#v", runner.outputCalls, wantOutputs)
+	}
+	wantRuns := [][]string{{"chezmoi", "edit", "/srv/dotfiles-home/.zshrc"}}
+	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	}
+}
+
+func TestServiceEditTargetPreservesAbsolutePath(t *testing.T) {
+	runner := &recordingRunner{}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	if err := service.EditTarget("/srv/dotfiles-home/.zshrc"); err != nil {
+		t.Fatalf("EditTarget returned error: %v", err)
+	}
+	if len(runner.outputCalls) != 0 {
+		t.Fatalf("outputCalls = %#v, want none", runner.outputCalls)
+	}
+	wantRuns := [][]string{{"chezmoi", "edit", "/srv/dotfiles-home/.zshrc"}}
 	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
 		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
 	}
@@ -266,6 +319,9 @@ func TestServiceDoctorReportFailsForSourceGit(t *testing.T) {
 type recordingRunner struct {
 	outputs      [][]byte
 	outputErrors []error
+	runStdouts   [][]byte
+	runStderrs   [][]byte
+	runErrors    []error
 	outputCalls  [][]string
 	runCalls     [][]string
 	outputIO     []process.IO
@@ -291,8 +347,25 @@ func (r *recordingRunner) Output(command string, args []string, io process.IO) (
 func (r *recordingRunner) Run(command string, args []string, io process.IO) error {
 	r.runCalls = append(r.runCalls, append([]string{command}, args...))
 	r.runIO = append(r.runIO, io)
-	if io.Stdout != nil {
-		_, _ = io.Stdout.Write(nil)
+	var stdout, stderr []byte
+	if len(r.runStdouts) > 0 {
+		stdout = r.runStdouts[0]
+		r.runStdouts = r.runStdouts[1:]
 	}
-	return nil
+	if len(r.runStderrs) > 0 {
+		stderr = r.runStderrs[0]
+		r.runStderrs = r.runStderrs[1:]
+	}
+	if io.Stdout != nil {
+		_, _ = io.Stdout.Write(stdout)
+	}
+	if io.Stderr != nil {
+		_, _ = io.Stderr.Write(stderr)
+	}
+	if len(r.runErrors) == 0 {
+		return nil
+	}
+	err := r.runErrors[0]
+	r.runErrors = r.runErrors[1:]
+	return err
 }

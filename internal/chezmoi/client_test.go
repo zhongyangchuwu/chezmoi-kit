@@ -18,12 +18,25 @@ func TestClientStatusRequestsAbsolutePathsAndParsesOutput(t *testing.T) {
 		t.Fatalf("Status returned error: %v", err)
 	}
 
-	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "status", "--path-style=absolute", ".zshrc"}}) {
+	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "status", "--include=all", "--exclude=none", "--path-style=absolute", ".zshrc"}}) {
 		t.Fatalf("outputCalls = %#v", runner.outputCalls)
 	}
 	want := []StatusEntry{{Code: "M ", Path: "/home/me/.zshrc"}}
 	if !reflect.DeepEqual(entries, want) {
 		t.Fatalf("entries = %#v, want %#v", entries, want)
+	}
+}
+
+func TestClientStatusForInventorySkipsSecretTemplates(t *testing.T) {
+	runner := &fakeRunner{}
+	client := Client{Binary: "chezmoi", Runner: runner}
+
+	if _, err := client.StatusForInventory(nil); err != nil {
+		t.Fatalf("StatusForInventory returned error: %v", err)
+	}
+	want := [][]string{{"chezmoi", "--skip-secrets", "status", "--include=all", "--exclude=none", "--path-style=absolute"}}
+	if !reflect.DeepEqual(runner.outputCalls, want) {
+		t.Fatalf("outputCalls = %#v, want %#v", runner.outputCalls, want)
 	}
 }
 
@@ -95,8 +108,8 @@ func TestClientStatusWrapsRunnerError(t *testing.T) {
 	}
 }
 
-func TestClientManagedFilesReturnsParsedOutput(t *testing.T) {
-	runner := &fakeRunner{output: []byte(".zshrc\n.gitconfig\n")}
+func TestClientManagedFilesReturnsNULDelimitedOutput(t *testing.T) {
+	runner := &fakeRunner{output: []byte(".zshrc\x00.gitconfig\x00")}
 	client := Client{Binary: "chezmoi", Runner: runner}
 
 	files, err := client.ManagedFiles()
@@ -104,7 +117,7 @@ func TestClientManagedFilesReturnsParsedOutput(t *testing.T) {
 		t.Fatalf("ManagedFiles returned error: %v", err)
 	}
 
-	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "managed"}}) {
+	if !reflect.DeepEqual(runner.outputCalls, [][]string{{"chezmoi", "managed", "--nul-path-separator"}}) {
 		t.Fatalf("outputCalls = %#v", runner.outputCalls)
 	}
 	want := []string{".zshrc", ".gitconfig"}
@@ -115,6 +128,7 @@ func TestClientManagedFilesReturnsParsedOutput(t *testing.T) {
 
 type fakeRunner struct {
 	output      []byte
+	outputs     [][]byte
 	err         error
 	outputCalls [][]string
 	runCalls    [][]string
@@ -124,6 +138,11 @@ type fakeRunner struct {
 func (f *fakeRunner) Output(command string, args []string, _ process.IO) ([]byte, error) {
 	call := append([]string{command}, args...)
 	f.outputCalls = append(f.outputCalls, call)
+	if len(f.outputs) > 0 {
+		out := bytes.Clone(f.outputs[0])
+		f.outputs = f.outputs[1:]
+		return out, f.err
+	}
 	return bytes.Clone(f.output), f.err
 }
 
@@ -131,8 +150,13 @@ func (f *fakeRunner) Run(command string, args []string, io process.IO) error {
 	call := append([]string{command}, args...)
 	f.runCalls = append(f.runCalls, call)
 	f.runIO = append(f.runIO, io)
+	out := f.output
+	if len(f.outputs) > 0 {
+		out = f.outputs[0]
+		f.outputs = f.outputs[1:]
+	}
 	if io.Stdout != nil {
-		_, err := io.Stdout.Write(f.output)
+		_, err := io.Stdout.Write(out)
 		if err != nil {
 			return err
 		}
