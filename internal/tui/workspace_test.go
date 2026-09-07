@@ -7,12 +7,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/zhongyangchuwu/cm/internal/app"
 )
 
 func TestWorkspaceRetainsCleanEntriesAndLoadsInitialPreview(t *testing.T) {
-	clean := workspaceEntry(".config/clean.toml", app.FileClean, app.TargetFile)
+	clean := workspaceEntry("clean.toml", app.FileClean, app.TargetFile)
 	service := &fakeWorkspaceService{}
 	model := newWorkspaceModel(service, workspaceSnapshot(clean))
 
@@ -43,70 +44,135 @@ func TestWorkspaceRetainsCleanEntriesAndLoadsInitialPreview(t *testing.T) {
 	}
 }
 
-func TestWorkspaceTreeCollapseHidesDescendantsAndRetainsDirectory(t *testing.T) {
-	directory := workspaceEntry(".config", app.FileClean, app.TargetDirectory)
+func TestWorkspaceDirectoryBrowserBuildsVirtualAncestorsAndRestoresSelection(t *testing.T) {
 	child := workspaceEntry(".config/app/config.toml", app.FileDirty, app.TargetFile)
-	otherChild := workspaceEntry(".config/app/theme.toml", app.FileClean, app.TargetFile)
+	otherChild := workspaceEntry(".config/theme.toml", app.FileClean, app.TargetFile)
 	outside := workspaceEntry(".zshrc", app.FileClean, app.TargetFile)
-	model := newWorkspaceModel(nil, workspaceSnapshot(directory, child, otherChild, outside))
+	model := newWorkspaceModel(nil, workspaceSnapshot(child, otherChild, outside))
 
-	model.toggleCurrentDirectory()
 	if got := strings.Join(workspacePaths(model.entries), ","); got != ".config,.zshrc" {
-		t.Fatalf("collapsed entries = %q, want directory and sibling", got)
+		t.Fatalf("root entries = %q, want virtual directory and sibling", got)
 	}
-	if model.currentTarget() != directory.Path {
-		t.Fatalf("collapsed selection = %q, want %q", model.currentTarget(), directory.Path)
+	if entry := model.current(); entry.Type != app.TargetDirectory || entry.State != app.FileDirty {
+		t.Fatalf("virtual directory = %#v, want dirty directory", entry)
 	}
-
-	model.toggleCurrentDirectory()
-	if got := strings.Join(workspacePaths(model.entries), ","); got != ".config,.config/app/config.toml,.config/app/theme.toml,.zshrc" {
-		t.Fatalf("expanded entries = %q", got)
+	model = workspaceKeyUpdate(t, model, 'l')
+	if model.currentDir != ".config" {
+		t.Fatalf("enter config = directory:%q entries:%#v", model.currentDir, workspacePaths(model.entries))
 	}
-	if model.currentTarget() != directory.Path {
-		t.Fatalf("expanded selection = %q, want %q", model.currentTarget(), directory.Path)
+	if got := strings.Join(workspacePaths(model.entries), ","); got != ".config/app,.config/theme.toml" {
+		t.Fatalf("config entries = %q", got)
+	}
+	model = workspaceKeyUpdate(t, model, 'l')
+	if model.currentDir != ".config/app" {
+		t.Fatalf("enter app = directory:%q", model.currentDir)
+	}
+	if got := strings.Join(workspacePaths(model.entries), ","); got != ".config/app/config.toml" {
+		t.Fatalf("app entries = %q", got)
+	}
+	model = workspaceKeyUpdate(t, model, 'h')
+	if model.currentDir != ".config" || model.currentTarget() != "/home/me/.config/app" {
+		t.Fatalf("leave app = directory:%q target:%q", model.currentDir, model.currentTarget())
+	}
+	model = workspaceKeyUpdate(t, model, 'h')
+	if model.currentDir != "" || model.currentTarget() != "/home/me/.config" {
+		t.Fatalf("leave config = directory:%q target:%q", model.currentDir, model.currentTarget())
 	}
 }
 
-func TestWorkspaceProjectionsRetainSelectionOrUseDeterministicFallback(t *testing.T) {
-	clean := workspaceEntry(".clean", app.FileClean, app.TargetFile)
-	directory := workspaceEntry(".config", app.FileClean, app.TargetDirectory)
-	dirty := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
-	ignored := workspaceEntry(".ignored", app.FileIgnored, app.TargetFile)
-	unmanagedOne := workspaceEntry(".unmanaged-one", app.FileUnmanaged, app.TargetFile)
-	unmanagedTwo := workspaceEntry(".unmanaged-two", app.FileUnmanaged, app.TargetFile)
-	model := newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(clean, directory, dirty, ignored, unmanagedOne, unmanagedTwo))
-	model.cursor = 2
+func TestWorkspaceAncestorEntryBecomesAggregateDirectory(t *testing.T) {
+	ancestor := workspaceEntry(".config", app.FileClean, app.TargetUnknown)
+	child := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
+	model := newWorkspaceModel(nil, workspaceSnapshot(ancestor, child))
 
-	model.toggleTreeMode()
-	if !model.flat || model.currentTarget() != dirty.Path {
-		t.Fatalf("flat projection = flat:%t target:%q, want dirty selection", model.flat, model.currentTarget())
+	entry := model.current()
+	if entry.Type != app.TargetDirectory || entry.State != app.FileDirty {
+		t.Fatalf("ancestor entry = %#v, want dirty navigable directory", entry)
 	}
-	model.toggleTreeMode()
-	if model.flat || model.currentTarget() != dirty.Path {
-		t.Fatalf("tree projection = flat:%t target:%q, want dirty selection", model.flat, model.currentTarget())
+	model.currentDir = ".config"
+	model.filter = filterIgnored
+	model.rebuildEntries("")
+	parents := model.parentEntries()
+	if len(parents) != 1 || parents[0].RelativePath != ".config" {
+		t.Fatalf("filtered parent context = %#v, want current directory retained", parents)
 	}
+}
+
+func TestWorkspaceStartsAtSingleDirectoryScope(t *testing.T) {
+	entry := workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)
+	snapshot := workspaceSnapshot(entry)
+	snapshot.Scopes = []string{"/home/me/.config"}
+	model := newWorkspaceModel(nil, snapshot)
+
+	if model.currentDir != ".config" || model.currentTarget() != entry.Path {
+		t.Fatalf("scoped start = directory:%q target:%q", model.currentDir, model.currentTarget())
+	}
+}
+
+func TestWorkspaceStartsAtCommonDirectoryForMultipleScopes(t *testing.T) {
+	nvim := workspaceEntry(".config/nvim/init.lua", app.FileClean, app.TargetFile)
+	git := workspaceEntry(".config/git/config", app.FileClean, app.TargetFile)
+	snapshot := workspaceSnapshot(nvim, git)
+	snapshot.Scopes = []string{"/home/me/.config/nvim", "/home/me/.config/git"}
+	model := newWorkspaceModel(nil, snapshot)
+
+	if model.currentDir != ".config" || strings.Join(workspacePaths(model.entries), ",") != ".config/git,.config/nvim" {
+		t.Fatalf("multi-scope start = directory:%q entries:%q", model.currentDir, strings.Join(workspacePaths(model.entries), ","))
+	}
+}
+
+func TestWorkspaceDirectoryFilterAndGlobalSearchKeepResultsReachable(t *testing.T) {
+	dirty := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
+	clean := workspaceEntry(".config/clean.toml", app.FileClean, app.TargetFile)
+	ignored := workspaceEntry(".ignored", app.FileIgnored, app.TargetFile)
+	service := &fakeWorkspaceService{}
+	model := newWorkspaceModel(service, workspaceSnapshot(dirty, clean, ignored))
 
 	model.filter = filterDirty
-	model.rebuildEntries(dirty.Path)
-	model.cycleFilter()
-	if model.filter != filterUnmanaged || model.currentTarget() != unmanagedOne.Path {
-		t.Fatalf("unmanaged fallback = filter:%v target:%q, want first eligible entry %q", model.filter, model.currentTarget(), unmanagedOne.Path)
+	model.rebuildEntries("")
+	if got := strings.Join(workspacePaths(model.entries), ","); got != ".config" {
+		t.Fatalf("dirty root entries = %q, want matching ancestor", got)
+	}
+	model.enterCurrentDirectory()
+	if got := strings.Join(workspacePaths(model.entries), ","); got != ".config/app.toml" {
+		t.Fatalf("dirty directory entries = %q", got)
 	}
 
 	model.filter = filterAll
-	model.fileQuery = ""
-	model.rebuildEntries(dirty.Path)
+	model.currentDir = ""
+	model.rebuildEntries("")
 	model = model.beginSearch()
 	model = typeWorkspaceSearch(t, model, "app")
-	if model.search != searchFiles || model.currentTarget() != dirty.Path {
-		t.Fatalf("matching search = search:%v target:%q, want retained dirty selection", model.search, model.currentTarget())
+	if !model.searchResults || model.currentTarget() != dirty.Path {
+		t.Fatalf("search result = results:%t target:%q", model.searchResults, model.currentTarget())
 	}
-	updated, _ := model.updateSearch(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	updated, load := model.updateSearch(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	model = updated.(workspaceModel)
+	if load == nil {
+		t.Fatal("accepted search did not load the located file preview")
+	}
+	model, _ = model.applyWorkspacePreview(load().(workspacePreviewMsg))
+	if model.searchResults || model.currentDir != ".config" || model.currentTarget() != dirty.Path || len(service.previewCalls) != 1 {
+		t.Fatalf("accepted search = results:%t directory:%q target:%q calls:%d", model.searchResults, model.currentDir, model.currentTarget(), len(service.previewCalls))
+	}
+
+	model.currentDir = ""
+	model.rebuildEntries("")
 	model = model.beginSearch()
-	model = typeWorkspaceSearch(t, model, "unmanaged")
-	if model.currentTarget() != unmanagedTwo.Path {
-		t.Fatalf("search fallback = %q, want nearest eligible entry %q", model.currentTarget(), unmanagedTwo.Path)
+	model = typeWorkspaceSearch(t, model, "app")
+	updated, _ = model.updateSearch(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	model = updated.(workspaceModel)
+	if model.searchResults || model.currentDir != "" || model.currentTarget() != "/home/me/.config" {
+		t.Fatalf("escaped search = results:%t directory:%q target:%q", model.searchResults, model.currentDir, model.currentTarget())
+	}
+	model.currentDir = ".config"
+	model.rebuildEntries(dirty.Path)
+	model = model.beginSearch()
+	model = typeWorkspaceSearch(t, model, "missing")
+	updated, _ = model.updateSearch(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = updated.(workspaceModel)
+	if model.searchResults || model.currentDir != ".config" || model.currentTarget() != dirty.Path || model.message != "no path matches" {
+		t.Fatalf("empty search = results:%t directory:%q target:%q message:%q", model.searchResults, model.currentDir, model.currentTarget(), model.message)
 	}
 }
 
@@ -124,8 +190,69 @@ func TestWorkspaceRejectsReconciliationActions(t *testing.T) {
 	}
 }
 
+func TestWorkspaceDirectoryPreviewIsLocalSummary(t *testing.T) {
+	child := workspaceEntry("./.config/app.toml/", app.FileDirty, app.TargetFile)
+	service := &fakeWorkspaceService{}
+	model := newWorkspaceModel(service, workspaceSnapshot(child))
+
+	command := model.Init()
+	if command == nil {
+		t.Fatal("directory summary command is nil")
+	}
+	message, ok := command().(workspacePreviewMsg)
+	if !ok {
+		t.Fatalf("directory summary message = %T", message)
+	}
+	model, _ = model.applyWorkspacePreview(message)
+	lines := strings.Join(model.currentDiffState().lines, "\n")
+	if len(service.previewCalls) != 0 || !strings.Contains(lines, "view: directory summary") || !strings.Contains(lines, "direct entries: 1") || !strings.Contains(lines, "matching descendants: 1") {
+		t.Fatalf("directory preview called service or omitted summary: calls=%#v lines=%#v", service.previewCalls, model.currentDiffState().lines)
+	}
+
+	model.filter = filterIgnored
+	model.rebuildEntries(model.currentTarget())
+	model.filter = filterDirty
+	model.rebuildEntries(model.currentTarget())
+	model, command = model.startWorkspacePreviewLoad(false)
+	if command == nil {
+		t.Fatal("filtered directory summary reused stale cache")
+	}
+	model, _ = model.applyWorkspacePreview(command().(workspacePreviewMsg))
+	if !strings.Contains(strings.Join(model.currentDiffState().lines, "\n"), "direct entries: 1") {
+		t.Fatalf("filtered directory summary = %#v", model.currentDiffState().lines)
+	}
+}
+
+func TestWorkspaceDirectoryRowsAlignAndResponsivePanes(t *testing.T) {
+	directory := workspaceEntry(".config", app.FileClean, app.TargetDirectory)
+	file := workspaceEntry(".zshrc", app.FileClean, app.TargetFile)
+	model := newWorkspaceModel(nil, workspaceSnapshot(directory, file))
+
+	labelDirectory := ansi.Strip(model.entryLabel(directory))
+	labelFile := ansi.Strip(model.entryLabel(file))
+	if !strings.HasSuffix(labelDirectory, ".config/") || strings.Contains(labelDirectory, "▾") || strings.Contains(labelDirectory, "▸") {
+		t.Fatalf("directory label = %q", labelDirectory)
+	}
+	if strings.Index("> "+labelDirectory, "C:") != strings.Index("  "+labelFile, "C:") {
+		t.Fatalf("state columns are misaligned: directory=%q file=%q", labelDirectory, labelFile)
+	}
+
+	model.width, model.height = 120, 24
+	wide := ansi.Strip(model.viewString())
+	for _, pane := range []string{"Parent", "Current", "Preview"} {
+		if !strings.Contains(wide, pane) {
+			t.Fatalf("wide browser omits %q: %q", pane, wide)
+		}
+	}
+	model.width = 80
+	medium := ansi.Strip(model.viewString())
+	if strings.Contains(medium, "Parent") || !strings.Contains(medium, "Current") || !strings.Contains(medium, "Preview") {
+		t.Fatalf("medium browser panes = %q", medium)
+	}
+}
+
 func TestWorkspacePreviewKindSwitchLoadsSelectedEntry(t *testing.T) {
-	entry := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
+	entry := workspaceEntry("app.toml", app.FileDirty, app.TargetFile)
 	entry.SourcePath = "/home/me/.local/share/chezmoi/dot_config/app.toml"
 	service := &fakeWorkspaceService{}
 	model := newWorkspaceModel(service, workspaceSnapshot(entry))
@@ -226,7 +353,7 @@ func TestWorkspaceWithheldPreviewRequiresExplicitReveal(t *testing.T) {
 }
 
 func TestWorkspacePreviewNavigationReachesLineTailsHunksAndMatches(t *testing.T) {
-	entry := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
+	entry := workspaceEntry("app.toml", app.FileDirty, app.TargetFile)
 	model := newWorkspaceModel(nil, workspaceSnapshot(entry))
 	longLine := strings.Repeat("x", 20) + "THE-TAIL"
 	model.diffs[model.previewStateKey()] = diffState{lines: []string{
@@ -243,7 +370,7 @@ func TestWorkspacePreviewNavigationReachesLineTailsHunksAndMatches(t *testing.T)
 	if want := lipgloss.Width(longLine) - 8; model.previewX != want {
 		t.Fatalf("horizontal scroll = %d, want tail offset %d", model.previewX, want)
 	}
-	if rendered := model.renderDiffPane(rect{width: 10, height: 8}); !strings.Contains(rendered, "THE-TAIL") {
+	if rendered := model.renderDiffPane(rect{width: 10, height: 9}); !strings.Contains(rendered, "THE-TAIL") {
 		t.Fatalf("tail is not visible after horizontal scroll: %q", rendered)
 	}
 
@@ -276,6 +403,77 @@ func TestWorkspacePreviewNavigationReachesLineTailsHunksAndMatches(t *testing.T)
 		t.Fatalf("previous preview match scroll = %d, want 2", model.diffScroll)
 	}
 }
+func TestWorkspaceHelpShowsGuidanceAndBlocksWorkspaceActions(t *testing.T) {
+	first := workspaceEntry(".config/first.toml", app.FileClean, app.TargetFile)
+	second := workspaceEntry(".config/second.toml", app.FileDirty, app.TargetFile)
+	model := newWorkspaceModel(nil, workspaceSnapshot(first, second))
+	model.width = 100
+	model.height = 30
+
+	model = workspaceKeyUpdate(t, model, '?')
+	if !model.helpVisible {
+		t.Fatal("help is not visible after ?")
+	}
+	for _, text := range []string{"Quick help", "Start here", "C clean", "[E] encrypted", "Esc, ?, or q closes help"} {
+		if !strings.Contains(ansi.Strip(model.viewString()), text) {
+			t.Fatalf("help does not contain %q", text)
+		}
+	}
+	cursor, filter := model.cursor, model.filter
+	model = workspaceKeyUpdate(t, model, 'j')
+	model = workspaceKeyUpdate(t, model, 'f')
+	if model.cursor != cursor || model.filter != filter {
+		t.Fatalf("help allowed workspace mutation: cursor=%d filter=%v", model.cursor, model.filter)
+	}
+
+	model = workspaceKeyUpdate(t, model, '?')
+	if model.helpVisible {
+		t.Fatal("help remains visible after ?")
+	}
+	model = workspaceKeyUpdate(t, model, '?')
+	model = workspaceKeyUpdate(t, model, 'q')
+	if model.helpVisible || model.stopped {
+		t.Fatal("q did not close help without quitting workspace")
+	}
+}
+
+func TestWorkspaceSemanticLegendSurvivesNoColorMode(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	model := newWorkspaceModel(nil, workspaceSnapshot(workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)))
+	legend := ansi.Strip(model.workspaceLegend())
+	for _, text := range []string{"C clean", "D dirty", "U unmanaged", "I ignored", "R script", "? uninspected", "[T] template", "[E] encrypted"} {
+		if !strings.Contains(legend, text) {
+			t.Fatalf("no-color legend does not contain %q: %q", text, legend)
+		}
+	}
+}
+
+func TestWorkspacePaletteDistinguishesFileStates(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	styles := newTUIStyles()
+	rendered := map[app.FileState]string{}
+	for _, state := range []app.FileState{app.FileClean, app.FileDirty, app.FileUnmanaged, app.FileIgnored, app.FileScript, app.FileUninspected} {
+		rendered[state] = styles.stateStyle(state).Render("x")
+	}
+	for state, value := range rendered {
+		for otherState, otherValue := range rendered {
+			if state != otherState && value == otherValue {
+				t.Fatalf("states %q and %q have identical visual markers", state, otherState)
+			}
+		}
+	}
+}
+
+func TestWorkspaceFooterRetainsHelpAndQuitAtEverySupportedWidth(t *testing.T) {
+	model := newWorkspaceModel(nil, workspaceSnapshot(workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)))
+	for _, width := range []int{24, 60, 80, 120} {
+		model.width = width
+		footer := ansi.Strip(model.workspaceFooter())
+		if !strings.Contains(footer, "?") || !strings.Contains(footer, "q") || lipgloss.Width(footer) > width {
+			t.Fatalf("footer at width %d = %q width=%d", width, footer, lipgloss.Width(footer))
+		}
+	}
+}
 
 func TestWorkspaceFullPreviewOmitsFilesAndFitsNarrowWidth(t *testing.T) {
 	entry := workspaceEntry("workspace-file.txt", app.FileClean, app.TargetFile)
@@ -284,14 +482,14 @@ func TestWorkspaceFullPreviewOmitsFilesAndFitsNarrowWidth(t *testing.T) {
 	model.height = 14
 	model.diffs[model.previewStateKey()] = diffState{lines: []string{"preview payload"}}
 
-	if rendered := model.viewString(); !strings.Contains(rendered, "C:f workspace-file.txt") {
+	if rendered := ansi.Strip(model.viewString()); !strings.Contains(rendered, "C:f workspace-file.txt") {
 		t.Fatalf("normal workspace view omits file pane entry: %q", rendered)
 	}
 	model.previewFull = true
 	if !model.previewFull {
 		t.Fatal("full preview flag is false")
 	}
-	if rendered := model.viewString(); strings.Contains(rendered, "C:f workspace-file.txt") {
+	if rendered := ansi.Strip(model.viewString()); strings.Contains(rendered, "C:f workspace-file.txt") {
 		t.Fatalf("full preview still renders file pane entry: %q", rendered)
 	}
 

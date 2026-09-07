@@ -149,6 +149,9 @@ func (m workspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.isWorkspace() && m.helpVisible {
+			return m.updateWorkspaceHelp(msg)
+		}
 		if m.search != searchNone {
 			return m.updateSearch(msg)
 		}

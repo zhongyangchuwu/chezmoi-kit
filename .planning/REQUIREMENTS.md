@@ -27,9 +27,17 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 
 - [x] WORKSPACE-01 — An explicit `cm ui [path...]` opens a persistent management workspace without changing bare `cm` status or focused `cm sync` contracts.
 - [x] WORKSPACE-02 — Users can browse managed-clean, managed-dirty, scoped unmanaged candidates, and ignored entries using chezmoi's own classification.
-- [x] WORKSPACE-03 — Tree/flat views, path search, and category filters preserve a surviving selected target and use a predictable fallback when it disappears.
+- [x] WORKSPACE-03 — A direct-child directory browser with global path search and category filters preserves a selected target where visible, retains matching ancestors, and uses a predictable fallback when it disappears.
 - [x] WORKSPACE-04 — Users can inspect complete bounded previews through full-screen mode, horizontal/vertical navigation, search, and hunk jumps; metadata and symlink changes remain visible.
 - [x] TEMPLATE-01 — Users can explicitly switch between rendered target diff, destination content, and source-template detail without exposing template data or decrypted content automatically.
+
+### Phase 2.1 — Workspace Usability
+
+- [x] UX-01 — `cm ui` distinguishes file state/type/attributes with semantic color and retained textual markers, provides responsive contextual guidance, and offers keyboard-isolated in-TUI help with a complete legend.
+
+### Phase 2.2 — Directory Browser
+
+- [x] UX-02 — `cm ui` provides aligned Parent/Current/Preview directory browsing with virtual ancestors, focus-sensitive `h`/`l` navigation, responsive pane reduction, and local directory summaries while preserving authoritative file previews and read-only behavior.
 
 ### Step 2 / Phase 3 — Mature Tool Handoffs
 
@@ -89,6 +97,8 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 | WORKSPACE-03 | Phase 2 — Unified File Workspace | Complete |
 | WORKSPACE-04 | Phase 2 — Unified File Workspace | Complete |
 | TEMPLATE-01 | Phase 2 — Unified File Workspace | Complete |
+| UX-01 | Phase 2.1 — Workspace Usability | Complete |
+| UX-02 | Phase 2.2 — Directory Browser | Complete |
 | TEMPLATE-02 | Phase 3 — Mature Tool Handoffs | Planned |
 | TEMPLATE-03 | Phase 3 — Mature Tool Handoffs | Planned |
 | TOOLS-01 | Phase 3 — Mature Tool Handoffs | Planned |
@@ -103,8 +113,8 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 
 ## Coverage Summary
 
-- Completed baseline and workspace requirements: 15
+- Completed baseline, workspace, usability, and directory-browser requirements: 17
 - Planned next-step requirements: 11 (6 tool handoff, 5 management/diagnostics)
-- Total mapped requirements: 26
+- Total mapped requirements: 28
 - Unmapped requirements: 0
-- Phase 2 implementation satisfies all five workspace requirements; the remaining 11 requirements are planned.
+- Phase 2.2 implementation satisfies UX-02; the remaining 11 requirements are planned.

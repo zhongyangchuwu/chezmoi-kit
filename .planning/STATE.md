@@ -5,17 +5,17 @@
 See `.planning/PROJECT.md` (updated 2026-09-07).
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** Phase 2 is complete; prepare the separate Phase 3 tool-handoff execution plan when its product direction is approved.
+**Current focus:** Directory browsing is complete; prepare the separate Phase 3 tool-handoff execution plan when its product direction is approved.
 
 ## Current Position
 
-- Phase: Phase 2 — Unified File Workspace
-- Plan: `phase-2-unified-workspace-01`
+- Phase: Phase 2.2 — Directory Browser
+- Plan: `phase-2.2-directory-browser-01`
 - Status: complete
-- Active Artifact: `.planning/phases/phase-2-unified-workspace/VERIFICATION.md`
-- Branch: `feat/unified-workspace`
-- Last activity: 2026-09-07 — completed implementation, isolated real-tool/PTY verification, full Go quality gates, release snapshot, docs, and phase capture.
-- Progress: Phases 1 and 2 are complete; Phases 3/4 remain planned.
+- Active Artifact: `.planning/phases/phase-2.2-directory-browser/VERIFICATION.md`
+- Branch: `feat/tui-usability`
+- Last activity: 2026-09-07 — replaced recursive tree/flat browsing with responsive Parent/Current/Preview navigation, local directory summaries, coverage, PTY smoke, and local quality gates.
+- Progress: Phases 1, 2, 2.1, and 2.2 are complete; Phases 3/4 remain planned.
 
 ## Accumulated Context
 
@@ -26,8 +26,9 @@ See `.planning/PROJECT.md` (updated 2026-09-07).
 - One TUI model/rendering path serves both modes; mode-specific mutation and clean-entry behavior remain explicit.
 - Inventory delegates to chezmoi managed/unmanaged/ignored/status and type filters. No ignore or source-name parser.
 - Unmanaged discovery requires explicit scopes and recursively queries chezmoi for returned directories.
-- Diff is default. Destination, target, and source views are labeled and bounded; known sensitive content needs explicit reveal.
-- Tree/flat/filter/search/collapse are projections over one absolute-path identity set.
+- File previews remain authoritative and bounded; virtual directory ancestors exist only for local navigation and summary previews.
+- Workspace uses a direct-child Parent/Current/Preview browser. Current focus uses `h`/`l` for parent/child navigation; Preview focus retains horizontal `h`/`l` scrolling.
+- Workspace color augments retained status/type/attribute text; `?` opens a keyboard-isolated help overlay and `NO_COLOR=1` preserves textual navigation.
 
 ### Blockers/Concerns
 

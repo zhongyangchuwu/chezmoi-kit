@@ -57,11 +57,27 @@ status, typed managed, and ignored queries. Scoped unmanaged discovery delegates
 each candidate directory back to chezmoi; without explicit paths it does not
 traverse the destination directory.
 
-The workspace's tree, flat, search, and category-filter views project a single
-absolute-path inventory. Preview content loads only for the selected entry and
-is bounded. Diff, destination, rendered target, and source are distinct views.
+The workspace derives a Yazi-inspired directory browser from one absolute-path
+inventory. Its Current pane contains direct children only; missing ancestors are
+virtual navigation directories synthesized from inventory paths. Directories use
+a trailing `/`, not a disclosure glyph. Wide terminals show Parent, Current, and
+Preview panes; medium terminals omit Parent; narrow terminals switch Current and
+Preview by focus. In Current focus, `h`/left leaves a directory and
+`l`/right/enter enters one. Preview focus retains horizontal `h`/`l` scrolling.
+Global path search temporarily lists matching inventory nodes and locates the
+selected result on Enter; filters retain ancestors with matching descendants.
+
+File previews load only for selected files and are bounded. A virtual or actual
+directory preview is a local child summary, never a chezmoi content call. Diff,
+destination, rendered target, and source remain distinct file views.
 Template/encrypted rendered targets, encrypted source, and uninspected diffs
 require explicit reveal. The workspace has no add, apply, or merge actions.
+
+Workspace presentation uses a semantic palette for state, target type, template,
+encryption, selection, loading, error, and withheld feedback. Letters and badges
+remain the authoritative visual meaning so no-color terminals remain usable. `?`
+opens a keyboard-isolated help view containing quick start, contextual key groups,
+and the complete state/type legend; `Esc`, `?`, or `q` returns to the workspace.
 
 
 ### Reviews bind confirmation to exact state
@@ -199,11 +215,11 @@ interactive.
 ### TUI boundary
 
 `internal/tui` owns shared presentation state for the focused sync review and
-the read-only workspace. Workspace mode keeps clean entries, projects one
-inventory into tree/flat/filter/search views, caches bounded previews by target,
-view, and reveal state, and ignores stale asynchronous preview completions for
-the active UI state. Sync-only confirmation, execution, and completion behavior
-remain isolated behind explicit mode branches.
+the read-only workspace. Workspace mode keeps clean entries, derives direct-child
+directory projections and virtual ancestors from one inventory, caches bounded
+previews by target/view/reveal state, and ignores stale asynchronous preview
+completions for the active UI state. Sync-only confirmation, execution, and
+completion behavior remain isolated behind explicit mode branches.
 
 ### Report boundary
 

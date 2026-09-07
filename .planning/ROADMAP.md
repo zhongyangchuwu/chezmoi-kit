@@ -14,6 +14,10 @@ The verified `v0.2.0` reconciliation baseline and Phase 2 unified workspace are 
 
 - [x] Phase 1: Authoritative Reconciliation
 - [x] Phase 2: Unified File Workspace
+- [x] Phase 2.1: Workspace Usability
+
+- [x] Phase 2.2: Directory Browser
+
 - [ ] Phase 3: Mature Tool Handoffs — next step 2
 - [ ] Phase 4: Management and Diagnostics — next step 3
 
@@ -55,6 +59,26 @@ The verified `v0.2.0` reconciliation baseline and Phase 2 unified workspace are 
 - Not Doing: Builtin editor/merge/Git implementation, automatic filesystem watching, source filename or ignore-rule reimplementation, and inline editable hunks.
 - Plans: 1
   - [x] phase-2-unified-workspace-01
+
+### Phase 2.1: Workspace Usability
+
+- Goal: Make the completed read-only workspace easy to scan and operate without external documentation.
+- Depends on: Phase 2 workspace inventory, preview, and explicit mode boundaries.
+- Requirements: UX-01.
+- Scope: Semantic state/type/attribute palette, selection/focus hierarchy, compact legend, responsive footer, preview feedback, and a keyboard-isolated `?` help overlay.
+- Not Doing: Themes, persistent preferences, icon fonts, mouse controls, localization, or workspace mutations.
+- Plans: 1
+  - [x] phase-2.1-workspace-usability-01
+
+### Phase 2.2: Directory Browser
+
+- Goal: Replace recursive disclosure rows with direct-child browsing that gives directory context without alignment ambiguity.
+- Depends on: Phase 2 inventory/preview safety and Phase 2.1 semantic presentation.
+- Requirements: UX-02; supersedes Phase 2's tree/flat/collapse interaction details.
+- Scope: Virtual ancestor directories, Parent/Current/Preview responsive panes, local directory summaries, focus-sensitive `h`/`l` navigation, global path locating, and ancestor-preserving filters.
+- Not Doing: File operations, selection mode, tabs, mouse controls, themes, custom layouts, or additional filesystem inventory.
+- Plans: 1
+  - [x] phase-2.2-directory-browser-01
 
 ### Phase 3: Mature Tool Handoffs
 
@@ -116,5 +140,7 @@ The verified `v0.2.0` reconciliation baseline and Phase 2 unified workspace are 
 |---|---:|---|---|
 | Phase 1: Authoritative Reconciliation | 1/1 | complete | 2026-09-05 |
 | Phase 2: Unified File Workspace | 1/1 | complete | 2026-09-07 |
+| Phase 2.1: Workspace Usability | 1/1 | complete | 2026-09-07 |
+| Phase 2.2: Directory Browser | 1/1 | complete | 2026-09-07 |
 | Phase 3: Mature Tool Handoffs | 0/TBD | planned | - |
 | Phase 4: Management and Diagnostics | 0/TBD | planned | - |

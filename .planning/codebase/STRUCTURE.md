@@ -57,11 +57,12 @@
 ### `internal/tui`
 
 - `tui.go` starts Bubble Tea sync/workspace programs and routes messages.
-- `model.go` owns shared entries, sync pending actions, focus/mode state, and workspace preview state.
-- `workspace_list.go` projects workspace tree/flat/filter/search views with selection preservation.
-- `diff_state.go` lazily loads and caches sync reviews/workspace previews with scrolling and stale-result isolation.
+- `model.go` owns shared entries, sync pending actions, focus/mode state, directory browser cursors/search origin, workspace preview state, and workspace help visibility.
+- `workspace_list.go` derives direct-child directory views, virtual ancestors, aggregate directory states, matching-ancestor filters, and search results.
+- `workspace_help.go` renders responsive quick-start, key, and legend guidance; `styles.go` centralizes semantic color and no-color visual policy.
+- `diff_state.go` lazily loads and caches sync/file previews and creates local directory summaries with scrolling and stale-result isolation.
 - `confirm.go` owns sync-only preflight, sequential execution, terminal handoff, postflight, and completion transitions.
-- `view.go`, `diff_view.go`, `keys.go`, `update.go`, `path.go`, `timing.go` own rendering, input, path display, and bounded diagnostics.
+- `view.go`, `diff_view.go`, `keys.go`, `update.go`, `path.go`, `timing.go` own responsive pane rendering, focus-sensitive input, path display, and bounded diagnostics.
 - `sync_test.go` and `workspace_test.go` cover target-aware sync safety and workspace interaction behavior.
 
 ## Removed Boundaries

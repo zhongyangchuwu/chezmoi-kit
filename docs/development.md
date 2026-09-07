@@ -129,10 +129,12 @@ For `cm sync`, verify:
 - Execution mode does not advertise `q` as cancellation.
 - Errors from chezmoi commands are returned to the CLI.
 
-For `cm ui`, verify both unscoped and explicit-scope inventory, tree/flat
-projection, filters, path and preview search, hunk and horizontal navigation,
-full-screen/narrow rendering, template/encrypted reveal, and quit-without-
-mutation behavior.
+For `cm ui`, verify both unscoped and explicit-scope inventory, parent/current/
+preview responsive layouts, `h`/`l` directory navigation and cursor restoration,
+global path/preview search, filters that retain matching ancestors, directory
+summaries, hunk and horizontal navigation, full-screen/narrow rendering,
+template/encrypted reveal, semantic state markers, the `?` help overlay,
+`NO_COLOR=1` text fallback, and quit-without-mutation behavior.
 
 
 To collect sync phase timings during manual smoke:
@@ -198,14 +200,14 @@ internal/chezmoi/
   status.go                     strict status and NUL-path parsing
 internal/tui/
   tui.go                        terminal sync and workspace program entry/update
-  model.go                      shared typed entries and mode-specific state
-  workspace_list.go             workspace tree/flat/filter/search projections
-  view.go                       two-pane and full-screen workspace rendering
-  diff_state.go                 review/preview cache, scrolling, and splitting
+  model.go                      shared typed entries and directory browser state
+  workspace_list.go             direct-child and virtual-directory projections
+  view.go                       responsive parent/current/preview rendering
+  diff_state.go                 review/preview cache, scrolling, and directory summaries
   diff_view.go                  diff line styling
   confirm.go                    sync-only preflight, execution, and postflight
   keys.go                       key bindings and styles
-  update.go                     key handling
+  update.go                     focus-aware navigation and key handling
   workspace_test.go             workspace presentation behavior
 internal/process/
   runner.go                     external process execution abstraction

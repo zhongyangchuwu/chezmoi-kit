@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -36,15 +37,53 @@ func (m workspaceModel) startDiffLoad(refresh bool) (workspaceModel, tea.Cmd) {
 
 func (m workspaceModel) startWorkspacePreviewLoad(refresh bool) (workspaceModel, tea.Cmd) {
 	entry := m.current()
-	if entry.Path == "" || m.workspace == nil {
+	if entry.Path == "" {
 		return m, nil
 	}
 	key := m.previewStateKey()
+	if entry.Type == app.TargetDirectory {
+		m.diffs[key] = diffState{loading: true}
+		direct := len(m.directoryEntries(entry.RelativePath))
+		return m, loadDirectoryPreviewCmd(entry, direct, m.allEntries, m.filter, m.previewKind)
+	}
 	if state, ok := m.diffs[key]; ok && !state.loading && state.err == nil && !refresh {
 		return m, nil
 	}
 	m.diffs[key] = diffState{loading: true}
+	if m.workspace == nil {
+		return m, nil
+	}
 	return m, loadWorkspacePreviewCmd(m.workspace, entry, m.previewKind, m.currentPreviewRevealed(), m.timing)
+}
+
+func loadDirectoryPreviewCmd(entry app.WorkspaceEntry, direct int, allEntries []app.WorkspaceEntry, filter workspaceFilter, kind app.PreviewKind) tea.Cmd {
+	directory := cleanWorkspaceRelative(entry.RelativePath)
+	descendants := 0
+	counts := map[app.FileState]int{}
+	for _, candidate := range allEntries {
+		candidateRelative := cleanWorkspaceRelative(candidate.RelativePath)
+		if !strings.HasPrefix(candidateRelative, directory+"/") || !workspaceEntryMatchesFilter(candidate, filter) {
+			continue
+		}
+		descendants++
+		counts[candidate.State]++
+	}
+	lines := []string{
+		fmt.Sprintf("direct entries: %d", direct),
+		fmt.Sprintf("matching descendants: %d", descendants),
+	}
+	for _, state := range []app.FileState{app.FileDirty, app.FileUninspected, app.FileUnmanaged, app.FileIgnored, app.FileScript, app.FileClean} {
+		if counts[state] > 0 {
+			lines = append(lines, fmt.Sprintf("%s: %d", stateMarker(state), counts[state]))
+		}
+	}
+	message := workspacePreviewMsg{
+		key:     workspacePreviewKey(entry.Path, kind, false),
+		preview: app.WorkspacePreview{Entry: entry, Kind: kind, Content: strings.Join(lines, "\n")},
+	}
+	return func() tea.Msg {
+		return message
+	}
 }
 
 func loadReviewCmd(service interface {
@@ -134,6 +173,9 @@ func workspacePreviewLines(preview app.WorkspacePreview) []string {
 		attributes = append(attributes, "encrypted")
 	}
 	label := "view: " + string(preview.Kind) + " • state: " + string(entry.State) + " • type: " + string(entry.Type)
+	if entry.Type == app.TargetDirectory {
+		label = "view: directory summary • state: " + string(entry.State) + " • type: " + string(entry.Type)
+	}
 	if len(attributes) > 0 {
 		label += " • " + strings.Join(attributes, ",")
 	}

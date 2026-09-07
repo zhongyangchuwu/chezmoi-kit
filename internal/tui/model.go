@@ -60,6 +60,8 @@ type workspaceModel struct {
 	scriptCount      int
 	searchOriginal   string
 	searchTarget     string
+	searchOriginDir  string
+	searchResults    bool
 	cursor           int
 	pending          map[string]app.Action
 	focus            syncFocus
@@ -73,14 +75,18 @@ type workspaceModel struct {
 	previewMatches   []int
 	previewMatch     int
 	filter           workspaceFilter
-	flat             bool
-	collapsed        map[string]bool
+	currentDir       string
+	directoryCursors map[string]int
+	workspaceNodes   map[string]app.WorkspaceEntry
+	matchingNodes    map[string]bool
 	fileQuery        string
 	search           searchKind
 	searchInput      string
+	helpVisible      bool
 	width            int
 	height           int
 	homeDir          string
+	styles           tuiStyles
 	help             help.Model
 	message          string
 	err              error
@@ -128,6 +134,7 @@ func newWorkspaceModel(service app.WorkspaceService, snapshot app.WorkspaceSnaps
 			m.scriptCount++
 		}
 	}
+	m.currentDir = initialWorkspaceDirectory(snapshot)
 	m.rebuildEntries("")
 	m.markCurrentLoading()
 	return m
@@ -140,9 +147,12 @@ func newBaseModel(service app.SyncService, timing ...*syncTimingLogger) workspac
 		diffs:            make(map[string]diffState),
 		previewKind:      app.PreviewDiff,
 		filter:           filterAll,
-		collapsed:        make(map[string]bool),
+		directoryCursors: make(map[string]int),
+		workspaceNodes:   make(map[string]app.WorkspaceEntry),
+		matchingNodes:    make(map[string]bool),
 		revealedPreviews: make(map[string]bool),
 		homeDir:          homeDir(),
+		styles:           newTUIStyles(),
 		help:             help.New(),
 	}
 	if len(timing) > 0 {
@@ -176,6 +186,7 @@ func (m *workspaceModel) markCurrentLoading() {
 func (m workspaceModel) moveUp() (workspaceModel, bool) {
 	if m.cursor > 0 {
 		m.cursor--
+		m.rememberCursor()
 		m.resetPreviewPosition()
 		return m, true
 	}
@@ -185,6 +196,7 @@ func (m workspaceModel) moveUp() (workspaceModel, bool) {
 func (m workspaceModel) moveDown() (workspaceModel, bool) {
 	if m.cursor < len(m.entries)-1 {
 		m.cursor++
+		m.rememberCursor()
 		m.resetPreviewPosition()
 		return m, true
 	}
