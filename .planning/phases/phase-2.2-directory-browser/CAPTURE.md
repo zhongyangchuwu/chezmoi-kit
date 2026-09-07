@@ -21,8 +21,10 @@
 - Virtual directories represent inventory-path context only. They never reconstruct chezmoi authority or request sensitive file content.
 - Contextual keyboard behavior is explicit: Current `h/l` means parent/child traversal; Preview `h/l` means horizontal scroll.
 
-## Ship Input
+## Ship Result
 
-- Branch: `feat/tui-usability`
-- Local verification: passed.
-- Before merge: review staged diff, commit, push, PR, and remote CI.
+- Pull request: https://github.com/zhongyangchuwu/chezmoi-kit/pull/5
+- Squash commit: `6fed2ca feat(tui): improve workspace navigation and guidance`
+- Copilot's canonical-path finding was fixed in `b1dd072` before merge; re-review was unavailable because the reviewer quota was exhausted.
+- PR CI and merged-main CI passed: https://github.com/zhongyangchuwu/chezmoi-kit/actions/runs/34134102852
+- Feature branch deleted after merge.

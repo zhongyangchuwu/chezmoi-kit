@@ -28,6 +28,12 @@
 - 50-column PTY: only Current rendered, no Parent or Preview appeared, and Tab remained the preview route.
 - Source/destination hash after all exits matched the known baseline: `f4c92711ff0f5bf1e2e50969f52bd5d083854777d24697d841ec8a91f81bb804`.
 
+## Remote Evidence
+
+- PR #5 was squash-merged: https://github.com/zhongyangchuwu/chezmoi-kit/pull/5
+- Merged commit: `6fed2ca feat(tui): improve workspace navigation and guidance`
+- Merged-main CI passed: https://github.com/zhongyangchuwu/chezmoi-kit/actions/runs/34134102852
+
 ## Result
 
 passed

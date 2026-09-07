@@ -13,9 +13,9 @@ See `.planning/PROJECT.md` (updated 2026-09-07).
 - Plan: `phase-2.2-directory-browser-01`
 - Status: complete
 - Active Artifact: `.planning/phases/phase-2.2-directory-browser/VERIFICATION.md`
-- Branch: `feat/tui-usability`
-- Last activity: 2026-09-07 — replaced recursive tree/flat browsing with responsive Parent/Current/Preview navigation, local directory summaries, coverage, PTY smoke, and local quality gates.
-- Progress: Phases 1, 2, 2.1, and 2.2 are complete; Phases 3/4 remain planned.
+- Branch: `main`
+- Last activity: 2026-09-07 — squash-merged workspace usability and directory browsing through PR #5 as `6fed2ca`; merged-main CI passed.
+- Progress: Phases 1, 2, 2.1, and 2.2 are complete and merged; Phases 3/4 remain planned.
 
 ## Accumulated Context
 
@@ -40,12 +40,12 @@ See `.planning/PROJECT.md` (updated 2026-09-07).
 ## Verification Contract
 
 - Real fixture passed: clean, dirty, template, encrypted, symlink, directory, script, ignored, nested unmanaged, and secret-backed template reveal.
-- Actual PTY passed: normal/narrow layouts, clean persistence, projections, full preview navigation, content views, reveal, and no-mutation exit.
-- Full Go, race, vet, module, vulnerability, GoReleaser check/snapshot, LSP/YAML, and whitespace gates passed.
+- Actual PTY passed: Parent/Current/Preview navigation, search-to-preview loading, directory summaries, normal/narrow/no-color layouts, full preview navigation, reveal, and no-mutation exit.
+- Full Go, race, vet, module, LSP, and whitespace gates passed locally; PR and merged-main GitHub CI passed.
 
 ## Session Continuity
 
 - Last session: 2026-09-07
-- Completed: Phase 2 verified and captured.
+- Completed: Phases 2.1/2.2 reviewed, squash-merged through PR #5, and verified on merged `main` at `6fed2ca`.
 - Next Action: create the Phase 3 editor/merge/lazygit handoff execution plan before implementation.
 - Resume file: `.planning/ROADMAP.md`

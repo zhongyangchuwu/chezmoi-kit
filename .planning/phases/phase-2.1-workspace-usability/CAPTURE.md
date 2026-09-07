@@ -24,8 +24,9 @@
 - A modal help route must intercept keys before normal workspace dispatch or it can accidentally mutate transient view state.
 - A short responsive footer plus a complete help overlay is clearer than a permanently exhaustive key list.
 
-## Ship Inputs
+## Ship Result
 
-- Branch: `feat/tui-usability`
-- Phase verification: passed locally.
-- Required before merge: review diff, commit, push, PR, and remote CI.
+- Pull request: https://github.com/zhongyangchuwu/chezmoi-kit/pull/5
+- Squash commit: `6fed2ca feat(tui): improve workspace navigation and guidance`
+- Merged-main CI: https://github.com/zhongyangchuwu/chezmoi-kit/actions/runs/34134102852
+- Feature branch deleted after merge.
