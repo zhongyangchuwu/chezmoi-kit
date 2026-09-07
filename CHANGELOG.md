@@ -2,6 +2,29 @@
 
 All notable changes to `cm` are documented here.
 
+## Unreleased
+
+### Added
+
+- `cm ui [path...]` provides a persistent, read-only workspace for managed clean/dirty files, source-ignored entries, and explicitly scoped unmanaged candidates.
+- Workspace tree/flat projections, category filters, path/preview search, full-screen preview, horizontal scrolling, diff hunk navigation, and labeled destination/target/source views.
+- Explicit per-view reveal for uninspected diffs, rendered template/encrypted targets, and encrypted source content; no-scope workspace inventory never scans unmanaged `$HOME` paths.
+
+### Changed
+
+- `cm diff` and `cm sync` now force chezmoi's builtin diff with reverse direction and no pager, preserving target-to-destination review semantics while correctly representing permissions, symlinks, directories, templates, and other target types.
+- `cm status` reports pending chezmoi scripts in a separate `automation:` block; targetless `cm diff` and `cm sync` no longer treat scripts as ordinary file reconciliation.
+- Reconciliation entries now follow chezmoi's second status column, so first-column-only history drift is not shown as destination/target work.
+- Sync actions are gated by reviewed target type and template state, and pending actions carry a fingerprint of the exact review.
+- Sync execution rechecks the review before mutation and verifies target status afterward; stale or unresolved targets return to review instead of producing false completion.
+- Successful buffered chezmoi output and warnings remain visible in sync results.
+- CI and release workflows install pinned chezmoi v2.72.1 and run isolated real-tool coverage for content, metadata, symlink, directory, remove, script, template, encrypted re-add, and custom destination behavior.
+
+### Fixed
+
+- `cm edit` now resolves relative targets against chezmoi's configured destination directory and preserves absolute targets instead of assuming `$HOME`.
+- Confirmed sync add continues to use `chezmoi re-add`, preserving encrypted source attributes.
+
 ## v0.1.1 - 2026-06-22
 
 ### Added

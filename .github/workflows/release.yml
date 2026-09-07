@@ -24,6 +24,15 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install chezmoi integration dependency
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v2.72.1 --repo twpayne/chezmoi --pattern chezmoi-linux-amd64 --dir "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/chezmoi-linux-amd64"
+          mv "$RUNNER_TEMP/chezmoi-linux-amd64" "$RUNNER_TEMP/chezmoi"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:

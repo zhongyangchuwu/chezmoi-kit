@@ -1,20 +1,23 @@
 # Codebase Map
 
-**Mapped:** 2026-06-20
+**Mapped:** 2026-09-07
 
 ## Documents
 
-| Document | Lines | Summary |
-|---|---:|---|
-| STRUCTURE.md | 87 | `cmd/cm` is a thin entrypoint; app, CLI, TUI, chezmoi, diff, and process packages have explicit boundaries. |
-| ARCHITECTURE.md | 111 | CLI composition, app support, chezmoi adapter, process runner, diff engine, and TUI are separated. |
-| CONVENTIONS.md | 116 | Standard Go tests with handwritten fakes, app-owned service contracts, injected readers/writers, and narrow interfaces. |
-| CONCERNS.md | 38 | Remaining risks center on ship-time terminal/CI gates, small report model growth, and byte-width TUI truncation. |
+| Document | Summary |
+|---|---|
+| STRUCTURE.md | Current package/file layout after authoritative reconciliation cutover. |
+| ARCHITECTURE.md | CLI, app domain, chezmoi adapter, report, process, and TUI data flows. |
+| CONVENTIONS.md | Go, error, parser, testing, integration, output, and workflow conventions. |
+| STACK.md | Toolchain, direct dependencies, external commands, and release integration. |
+| CONCERNS.md | Remaining safety, terminal, secrecy, subprocess, compatibility, and distribution risks. |
 
 ## Key Takeaways
 
-- Phase 5 package naming is now the expected architecture language: `internal/cli`, `internal/tui`, `internal/app`, `internal/chezmoi`, `internal/diff`, and `internal/process`.
-- The previous build, reconcile, syncdiff, and shared test helper package boundaries are intentionally retired.
-- `cm sync` remains the highest-risk behavior because terminal signal handling and execution-state semantics directly affect user files and terminal state.
-- Phase 6 moved broad application service ownership and sync contracts into `internal/app`.
-- Phase 7 moved user-facing status, diff, and version output into semantic report documents and renderers.
+- `cm` owns reconciliation review and read-only workspace browsing; chezmoi owns target-state and mutation semantics.
+- Runtime packages are `internal/cli`, `internal/app`, `internal/chezmoi`, `internal/process`, `internal/report`, and `internal/tui`.
+- `cm ui [path...]` is a persistent read-only workbench; no scope avoids unmanaged destination traversal, while explicit scopes receive recursively discovered chezmoi unmanaged candidates.
+- `internal/app` owns reconciliation entries/reviews plus workspace snapshots, previews, bounded inventory merging, and explicit sensitive reveal policy.
+- `internal/chezmoi` forces builtin reverse diffs and supplies strict managed path mappings, typed membership, source-ignored paths, scoped unmanaged lists, and content adapters.
+- `internal/tui` shares one model/rendering path for sync and workspace, with explicit mode behavior, stable projections, cached previews, and stale-completion isolation.
+- Real chezmoi integration tests run against isolated temporary state and a pinned CI/release binary.

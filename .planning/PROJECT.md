@@ -2,9 +2,9 @@
 
 ## What This Is
 
-`cm` is a small Go CLI for safer personal reconciliation of chezmoi-managed configuration files. It keeps chezmoi as the authority while adding a simpler status model, internal diffs, direct wrappers, and an interactive review TUI for sync decisions.
+`cm` is a Go CLI/TUI whose product goal is a complete chezmoi management entrypoint. It owns file discovery, browsing, review, confirmation, and state refresh while reusing chezmoi for state/mutation, lazygit for Git, and configured editors/merge tools for specialized work.
 
-The current project state is post-`v0.1.1`: the safe usability-polish release is published and completed release planning history is archived under `.planning/archive/releases/v0.1.1/`.
+The implemented baseline includes authoritative reconciliation and the verified Phase 2 unified file workspace. The remaining steps integrate mature-tool round trips, then add contextual management/diagnostics; they are planned and have no assigned release numbers.
 
 ## Core Value
 
@@ -15,69 +15,70 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 ### Validated
 
 - ✓ `cm` and `cm status [target...]` render local chezmoi mismatch and source repository git status.
-- ✓ `cm diff [target...]` renders internal target-vs-local diffs without shelling out to external diff.
+- ✓ `cm diff [target...]` renders target-vs-local diffs without invoking a user-configured external diff tool.
 - ✓ `cm sync [target...]` provides a two-pane Bubble Tea review workflow with pending actions and confirmation.
+- ✓ Confirmed sync add uses `chezmoi re-add`, preserving encrypted source attributes.
 - ✓ Direct wrappers exist for `cm add`, `cm apply`, `cm merge`, `cm edit`, and `cm git`.
 - ✓ Shell completion generation exists for bash, zsh, fish, and PowerShell.
-- ✓ Build/version information is available through `cm version`.
-- ✓ TUI signal handling, executing-mode semantics, source git parser strictness, `cm edit` command wiring tests, and module tidy state are release-ready.
-- ✓ Public release metadata and documentation are clean for v0.1.0.
-- ✓ GitHub CI and GoReleaser release automation are configured and have passed for `v0.1.0`.
-- ✓ Package boundaries use CLI/TUI adapters, app services, infrastructure capability packages, and semantic report rendering.
-- ✓ Semantic report documents and palette renderers back status, diff, version, and shared diff classification.
-- ✓ `v0.1.0` is published as a non-draft, non-prerelease GitHub Release.
-- ✓ `cm`, `cm status`, `cm diff`, and `cm version` support optional `--output plain|ansi|markdown` and `--color auto|always|never` report controls.
-- ✓ `cm doctor` reports read-only prerequisite diagnostics for required and optional external tools.
-- ✓ `cm sync` TUI truncation uses display width for file names and diff lines, preserving valid UTF-8 for wide characters.
-- ✓ `v0.1.1` is published as a non-draft, non-prerelease GitHub Release.
+- ✓ Build/version information, semantic report rendering, doctor diagnostics, and display-width-safe TUI truncation are available.
+- ✓ `v0.1.0` and `v0.1.1` were published with passing CI and GoReleaser workflows.
+- ✓ `v0.2.0` authoritative reconciliation implementation is complete and verified on `feat/authoritative-reconciliation`: forced chezmoi builtin diff, second-column status routing, typed reviews/action gating, script separation, reviewed fingerprints, postflight verification, visible action output, custom destination edit, and real-tool integration coverage.
+- ✓ `cm ui [path...]` is a persistent, read-only workspace for managed clean/dirty, source-ignored, and explicitly scoped unmanaged entries; its bounded previews require explicit reveal for sensitive content.
 
 ### Active
 
-- Current discussion: how `cm sync` should support chezmoi template-backed targets while keeping the TUI as the primary workflow and CLI commands as compatibility/script surfaces.
-- Open design questions remain for TUI layout, template/source display, merge explanation, edit/apply flow, and command/key naming.
-- Active artifact: `.planning/phases/phase-1-template-operation-model-discussion/CONTEXT.md`.
+- Phase 2 unified workspace is complete and verified; it preserves bare `cm` status and focused `cm sync` contracts.
+- Next step 2 / Phase 3: Mature Tool Handoffs — configured editor, chezmoi merge, and lazygit with terminal restoration and refreshed state.
+- Next step 3 / Phase 4: Management and Diagnostics — contextual operations, target lifecycle/attributes, and actionable diagnostics.
+- `.planning/ROADMAP.md` defines remaining scope, exclusions, dependencies, and acceptance scenarios. `.planning/REQUIREMENTS.md` retains template requirements across the remaining steps.
 
 ### Out of Scope
 
-- Replacing chezmoi — `cm` remains a wrapper and review layer.
-- Automatic git commit, push, pull, or source repository automation.
+- Replacing chezmoi — `cm` remains a review and orchestration layer.
+- Automatic git commit, push, pull, or source repository automation. Explicit user-driven Git operations belong in lazygit launched from cm.
 - Daemon/watch mode or background synchronization.
-- Persistent state database beyond chezmoi's own state.
-- Full cancellation of already-started mutating subprocesses until the runner/client/app contracts explicitly support it.
-- GoReleaser signing, notarization, Homebrew, Scoop, Winget, Docker, and package-manager publishing.
-- Reimplementing chezmoi template rendering, source-state naming, data loading, ignore rules, encryption behavior, or merge semantics inside `cm`.
+- Persistent state beyond chezmoi's own state.
+- Full cancellation of already-started mutating subprocesses until runner/client/app contracts explicitly support it.
+- GoReleaser signing, notarization, package-manager publishing, and Docker images.
+- Reimplementing chezmoi template rendering, source naming, data loading, ignore rules, encryption, diff, or merge semantics.
+- Reimplementing a Git client, text editor, or merge tool solely to keep all UI code inside cm.
+- Embedded PTY subpanes, destroy/purge UI, script-execution workflows, generic config transformations, backup/undo storage, and application validators in the next three steps.
 
 ## Context
 
-- Brownfield codebase map lives in `.planning/codebase/MAP.md`.
-- Completed `v0.1.0` planning history lives in `.planning/archive/releases/v0.1.0/`.
-- Completed `v0.1.1` planning history lives in `.planning/archive/releases/v0.1.1/`.
-- GitHub Releases `v0.1.0` and `v0.1.1` are published.
-- GitHub Actions CI and Release workflows passed for both published releases.
-- Chezmoi template operation planning should preserve chezmoi as the authority for template evaluation, source naming, data loading, ignore rules, encrypted editing, and merge behavior.
+- Brownfield codebase maps live under `.planning/codebase/`.
+- Completed release history lives under `.planning/archive/releases/`.
+- Pre-phase isolated checks against chezmoi v2.72.1 reproduced metadata-only `no diff`, symlink dereference, directory failure, script/file semantic mismatch, and custom destination edit failure in the former implementation.
+- The verified implementation now delegates forced builtin diff semantics, uses bounded target metadata and template filters, and protects execution with reviewed fingerprints and postflight status.
+- CI and release workflows download the official pinned chezmoi v2.72.1 Linux asset for isolated integration coverage.
+- Product discussion selected integration over novelty: proven frontend features are valuable when they make cm the daily entrypoint, but mature Git/editor/merge workflows should be reused rather than recreated.
+- Existing `OpenSourceGit`, `EditTarget`, and terminal merge delegation provide starting points. The missing work is full inventory, in-TUI entrypoints, context-preserving round trips, and consistent refresh—not new Git or editor engines.
 
 ## Constraints
 
-- Preserve a clean cutover: no compatibility shims for stale pre-release behavior.
-- Prefer small, direct Go changes over broad abstractions.
-- Keep tests behavior-focused at command/service/model boundaries.
-- Do not expand scope into large new features without a new phase.
-- Release docs must match observed code, not historical plans.
-- User-facing non-interactive output should be modeled semantically in app and rendered by explicit plain/ANSI/Markdown/TUI renderers.
+- Preserve a clean cutover; remove obsolete custom diff paths rather than retaining parallel implementations.
+- Prefer small direct Go types and methods over a generic reconciliation framework.
+- Keep tests behavior-focused at CLI, app service, TUI state-machine, parser, and real-tool integration boundaries.
+- Never execute scripts through the ordinary file reconciliation action model.
+- Never log rendered target contents, template contents, or action subprocess output to the timing log.
+- User-facing non-interactive output remains semantic app data rendered through explicit plain/ANSI/Markdown adapters.
 - CI must run the same checks expected before tagging.
-- Template-aware features must delegate rendering/evaluation/edit/merge mechanics to chezmoi; `cm` may orchestrate, preview, and explain states but must not duplicate chezmoi's internals.
+- A unified entrypoint does not require a single implementation: use suspend/run/restore for mature terminal tools and restore the workspace on normal exit, cancellation, and failure.
+- External tools may change source files and membership; refresh managed/local/Git state and revalidate pending reviews after returning.
+- Preserve bare `cm` as read-only status and focused `cm sync` behavior; add the general workbench explicitly instead of changing defaults silently.
+- Browse/filter/preview features do not authorize mutation. New lifecycle and attribute actions require explicit scope and confirmation.
 
 ## Key Decisions
 
 | Date | Decision | Rationale | Outcome |
 |---|---|---|---|
-| 2026-06-19 | Use MIT license for v0.1.0. | User approved MIT; it is simple and suitable for a small public CLI. | Added `LICENSE`. |
-| 2026-06-19 | Use GoReleaser for v0.1.0 release artifacts. | User explicitly preferred GoReleaser over hand-written artifact upload. | Added `.goreleaser.yaml` and GoReleaser workflows. |
-| 2026-06-20 | Use semantic report documents rather than Markdown as the internal output model. | Markdown is useful output, but it loses app semantics needed by ANSI, TUI, and future formats. | Added semantic reports plus plain/ANSI/Markdown renderers. |
-| 2026-06-20 | Publish `v0.1.0` from repository `zhongyangchuwu/chezmoi-kit`. | GoReleaser must target the actual remote repository. | GitHub Release `v0.1.0` published successfully. |
-| 2026-06-22 | Use `v0.1.Z` for safe additions/fixes and reserve `v0.Y.0` for behavior or mental-model changes before `v1.0.0`. | `cm` values low-surprise behavior; version numbers should signal whether users need to relearn defaults or safety semantics. | Planned `v0.1.1` as safe usability polish: output controls, doctor diagnostics, and TUI width fixes. |
-| 2026-06-22 | Publish `v0.1.1` as safe usability polish. | Output controls, doctor diagnostics, and TUI width fixes preserved defaults and fit patch-release policy. | GitHub Release `v0.1.1` published successfully; release archive created under `.planning/archive/releases/v0.1.1/`. |
-| 2026-06-22 | Discuss template support before committing implementation scope. | Template-backed targets introduce source template, rendered target, destination file, edit, and merge semantics that need product decisions. | Created template operation model discussion artifacts without committing implementation details. |
-| 2026-06-21 | Archive completed `v0.1.0` planning history. | Root planning docs should describe only current and future work after release. | Release archive created under `.planning/archive/releases/v0.1.0/`. |
+| 2026-06-19 | Use MIT license and GoReleaser release artifacts. | Small public CLI with conventional release automation. | License and release workflows shipped. |
+| 2026-06-20 | Use semantic report documents rather than Markdown strings internally. | ANSI, Markdown, TUI, and future formats need retained semantics. | `internal/report` owns semantic documents and renderers. |
+| 2026-06-22 | Reserve minor releases for safety-model, status-model, output-contract, and command-semantics changes. | Users should consciously absorb low-surprise contract changes. | Authoritative reconciliation is scoped as `v0.2.0`. |
+| 2026-06-22 | Delegate template evaluation, editing, and merge mechanics to chezmoi. | Duplicating source naming, data, encryption, and template behavior would be unsafe. | Template research favors chezmoi-backed operations. |
+| 2026-09-05 | Prioritize authoritative target semantics before template-specific UI. | Regular-file assumptions misrepresented metadata, symlinks, directories, and scripts. | `v0.2.0` implementation and verification completed; template workspace remains future scope. |
+| 2026-09-05 | Bind confirmed actions to a reviewed fingerprint and verify postconditions. | A dirty-only preflight can execute against unreviewed content, and command success does not prove reconciliation. | Stale actions defer without mutation; only verified-clean targets leave the TUI. |
+| 2026-09-06 | Make cm the complete management entrypoint by integrating proven workflows. | Users benefit from one place to find, inspect, edit, reconcile, and manage source history; originality is not a prerequisite for value. | Three planned steps cover workspace, tool handoffs, and management/diagnostics. |
+| 2026-09-06 | Delegate Git to lazygit and editing/merging to configured tools. | Rebuilding mature specialized interfaces adds maintenance without improving the daily workflow. | cm owns launch context, terminal lifecycle, state restoration, and review invalidation. |
 
-_Last updated: 2026-06-22_
+_Last updated: 2026-09-07_

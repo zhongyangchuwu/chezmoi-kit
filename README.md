@@ -2,9 +2,9 @@
 
 A small chezmoi reconciliation helper for personal config management.
 
-`cm` does not replace chezmoi. It adds a simpler status view, internal diffs,
-and an explicit review TUI before applying changes between local files and the
-chezmoi source state.
+`cm` does not replace chezmoi. It adds a simpler status view, forces chezmoi's
+builtin diff for authoritative previews, and provides an explicit review TUI
+before applying changes between destination and source state.
 
 ## Requirements
 
@@ -46,21 +46,24 @@ compinit
 ## Quick start
 
 ```bash
-cm          # same as cm status
-cm sync     # interactively review and reconcile dirty managed files
+cm                  # same as cm status
+cm ui ~/.config     # browse managed state and scoped unmanaged candidates
+cm sync             # interactively review and reconcile dirty managed files
 ```
 
 ## Mental model
 
 ```text
-local config    = working files in $HOME
-chezmoi source  = rendered desired config state
-chezmoi git     = history for the source repository
+chezmoi destination = working configuration files (usually $HOME)
+chezmoi target      = rendered desired state
+chezmoi source      = source files, templates, and encrypted state
+chezmoi git         = history for the source repository
 ```
 
-`cm status` shows two independent facts:
+`cm status` shows three independent facts when present:
 
-- `local:` managed files whose current local content differs from the rendered chezmoi target.
+- `local:` non-script targets whose destination state differs from the rendered target.
+- `automation:` chezmoi scripts that apply would execute; `cm sync` does not execute them.
 - `chezmoi:` git working-tree changes inside `chezmoi source-path`.
 
 ## Commands
@@ -69,12 +72,13 @@ chezmoi git     = history for the source repository
 |---|---|---|
 | `cm` | no | Same as `cm status`. |
 | `cm status [target...]` | no | Show local mismatch and chezmoi source git status. |
-| `cm diff [target...]` | no | Show internal sync diff from rendered target to local file. |
-| `cm sync [target...]` | yes, after confirm | TUI review, pending action selection, preflight re-check, confirmed reconciliation. |
-| `cm add [target...]` | yes | Run `chezmoi add`; local file content becomes source state. |
-| `cm apply [target...]` | yes | Run `chezmoi apply`; source state is applied locally. |
+| `cm diff [target...]` | no | Show bounded chezmoi builtin diff from rendered target to destination. |
+| `cm sync [target...]` | yes, after confirm | Review typed targets, bind actions to reviewed state, confirm, and verify reconciliation. |
+| `cm ui [path...]` | no | Persistent workspace for managed, ignored, and explicitly scoped unmanaged files. |
+| `cm add [target...]` | yes | Run `chezmoi add`; local destination content becomes source state. |
+| `cm apply [target...]` | yes | Run `chezmoi apply`; may also run chezmoi scripts. |
 | `cm merge [target...]` | yes | Run `chezmoi merge` for manual conflict resolution. |
-| `cm edit <target>` | yes | Run `chezmoi edit` for a managed file. |
+| `cm edit <target>` | yes | Run `chezmoi edit`; relative paths resolve from chezmoi's configured destination. |
 | `cm git` | yes | Open `lazygit` in the chezmoi source repository. |
 | `cm doctor` | no | Check required and optional environment prerequisites. |
 | `cm version` | no | Print build information. |
@@ -97,17 +101,23 @@ cm version --color always      # request ANSI color when NO_COLOR is unset
 
 `cm sync` is explicit:
 
-1. Load dirty managed files.
-2. Let the user review diffs and mark pending `add`, `apply`, or `merge` actions.
-3. Show a confirmation view.
-4. Re-check selected targets before executing.
-5. Execute only targets that are still dirty.
+1. Load dirty targets and report scripts separately.
+2. Load the selected target's type, template state, and forced chezmoi builtin diff.
+3. Offer only actions valid for that review: regular files may add/apply/merge,
+   templates may apply/merge, and symlinks/directories/removes may apply.
+4. Bind each pending action to the reviewed fingerprint and show confirmation.
+5. Recompute the review immediately before execution; changed reviews are deferred.
+6. Execute one target at a time and re-check it afterward.
+7. Remove only targets that are verified clean; unresolved targets return to review.
 
-Confirmed `a` actions run `chezmoi re-add`, which preserves `encrypted_` source
-attributes for managed files. Confirmed `apply` actions run `chezmoi apply --force`
-because the TUI has already shown the diff and collected confirmation. Once execution
-starts, `cm` waits for chezmoi commands to finish; it does not advertise cancellation
-for already-started mutating subprocesses.
+Confirmed `a` actions run `chezmoi re-add`, preserving `encrypted_` source
+attributes. Confirmed `p` actions run `chezmoi apply --force` because the exact
+reviewed state was confirmed. Successful subprocess warnings remain visible.
+Once execution starts, `cm` waits for the current chezmoi command to finish; it
+does not advertise cancellation for already-started mutating subprocesses.
+
+Chezmoi scripts are deliberately outside this file-reconciliation flow. Use
+`chezmoi diff` and `chezmoi apply` when you intend to inspect and execute them.
 
 ## Non-goals
 

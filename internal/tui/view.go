@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"fmt"
+	"path"
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"fmt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"strings"
+	"github.com/zhongyangchuwu/cm/internal/app"
 )
 
 type rect struct {
@@ -14,12 +16,12 @@ type rect struct {
 	height int
 }
 
-func (m syncTUIModel) View() tea.View {
+func (m workspaceModel) View() tea.View {
 	return tea.NewView(m.viewString())
 }
 
-func (m syncTUIModel) viewString() string {
-	if len(m.entries) == 0 {
+func (m workspaceModel) viewString() string {
+	if !m.isWorkspace() && len(m.entries) == 0 {
 		if m.completed && m.message != "" {
 			return m.message + "\n"
 		}
@@ -35,39 +37,86 @@ func (m syncTUIModel) viewString() string {
 		height = 30
 	}
 
-	header := titleStyle.Render("cm sync")
+	header := titleStyle.Render(truncate(m.title(), width))
 	footer := m.footer()
+	status := m.statusLine()
 	messageHeight := 0
-	if m.message != "" {
-		messageHeight = 1
+	if status != "" {
+		messageHeight = lipgloss.Height(status)
 	}
 	bodyHeight := height - lipgloss.Height(header) - lipgloss.Height(footer) - messageHeight - 2
 	if bodyHeight < 6 {
 		bodyHeight = 6
 	}
 
-	leftWidth := clamp(width/3, 28, 48)
-	if leftWidth > width-24 {
-		leftWidth = width / 2
+	var body string
+	switch {
+	case m.isWorkspace() && m.previewFull:
+		body = m.renderMainPane(rect{width: width, height: bodyHeight})
+	case m.isWorkspace() && width < 60:
+		if m.focus == focusFiles {
+			body = m.renderFilesPane(rect{width: width, height: bodyHeight})
+		} else {
+			body = m.renderMainPane(rect{width: width, height: bodyHeight})
+		}
+	default:
+		leftWidth := clamp(width/3, 28, 48)
+		if leftWidth > width-24 {
+			leftWidth = width / 2
+		}
+		rightWidth := width - leftWidth - 1
+		if rightWidth < 20 {
+			rightWidth = 20
+		}
+		files := m.renderFilesPane(rect{width: leftWidth, height: bodyHeight})
+		main := m.renderMainPane(rect{width: rightWidth, height: bodyHeight})
+		body = lipgloss.JoinHorizontal(lipgloss.Top, files, main)
 	}
-	rightWidth := width - leftWidth - 1
-	if rightWidth < 20 {
-		rightWidth = 20
-	}
-
-	files := m.renderFilesPane(rect{width: leftWidth, height: bodyHeight})
-	main := m.renderMainPane(rect{width: rightWidth, height: bodyHeight})
-	body := lipgloss.JoinHorizontal(lipgloss.Top, files, main)
 
 	parts := []string{header, body}
-	if m.message != "" {
-		parts = append(parts, m.message)
+	if status != "" {
+		parts = append(parts, status)
 	}
 	parts = append(parts, footer)
 	return strings.Join(parts, "\n") + "\n"
 }
 
-func (m syncTUIModel) renderFilesPane(size rect) string {
+func (m workspaceModel) title() string {
+	if !m.isWorkspace() {
+		return "cm sync"
+	}
+	view := "tree"
+	if m.flat {
+		view = "flat"
+	}
+	return fmt.Sprintf("cm ui • %d/%d • %s • %s", len(m.entries), len(m.allEntries), m.filterLabel(), view)
+}
+
+func (m workspaceModel) statusLine() string {
+	if m.search != searchNone {
+		kind := "files"
+		if m.search == searchPreview {
+			kind = "preview"
+		}
+		return fmt.Sprintf("search %s: %s_", kind, m.searchInput)
+	}
+	if m.message != "" {
+		return m.message
+	}
+	if m.isWorkspace() {
+		parts := make([]string, 0, 2)
+		if m.snapshot.Notice != "" {
+			parts = append(parts, m.snapshot.Notice)
+		}
+		if m.fileQuery != "" {
+			parts = append(parts, "path filter: "+m.fileQuery)
+		}
+		return strings.Join(parts, " • ")
+	}
+	return ""
+}
+
+func (m workspaceModel) renderFilesPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
 	lines := make([]string, 0, innerHeight)
@@ -76,8 +125,11 @@ func (m syncTUIModel) renderFilesPane(size rect) string {
 		if entry.index == m.cursor {
 			cursor = "> "
 		}
-		line := cursor + m.pendingLabel(entry.path) + " " + m.displayPath(entry.path)
+		line := cursor + m.entryLabel(entry.entry)
 		lines = append(lines, truncate(line, innerWidth))
+	}
+	if len(lines) == 0 {
+		lines = append(lines, "no entries")
 	}
 	for len(lines) < innerHeight {
 		lines = append(lines, "")
@@ -87,28 +139,103 @@ func (m syncTUIModel) renderFilesPane(size rect) string {
 	if m.focus == focusFiles && m.mode == modeReview {
 		style = activePaneStyle
 	}
-	return style.Width(size.width - 2).Height(size.height - 2).Render(strings.Join(lines, "\n"))
+	return style.Width(size.width).Height(size.height).Render(strings.Join(lines, "\n"))
 }
 
-func (m syncTUIModel) renderMainPane(size rect) string {
+func (m workspaceModel) entryLabel(entry app.WorkspaceEntry) string {
+	pathLabel := entry.RelativePath
+	if pathLabel == "" || !m.isWorkspace() {
+		pathLabel = m.displayPath(entry.Path)
+	}
+	if !m.isWorkspace() {
+		return m.pendingLabel(entry.Path) + " " + pathLabel
+	}
+	indent := ""
+	treeMarker := ""
+	if !m.flat {
+		indent = strings.Repeat("  ", treeDepth(entry.RelativePath))
+		if entry.Type == app.TargetDirectory {
+			treeMarker = "▾ "
+			if m.collapsed[entry.RelativePath] {
+				treeMarker = "▸ "
+			}
+		}
+	}
+	displayName := pathLabel
+	if !m.flat {
+		displayName = path.Base(pathLabel)
+	}
+	return fmt.Sprintf("%s%s%s:%s %s%s", indent, treeMarker, stateMarker(entry.State), typeMarker(entry), displayName, attributeMarker(entry))
+}
+
+func stateMarker(state app.FileState) string {
+	switch state {
+	case app.FileDirty:
+		return "D"
+	case app.FileUnmanaged:
+		return "U"
+	case app.FileIgnored:
+		return "I"
+	case app.FileScript:
+		return "R"
+	case app.FileUninspected:
+		return "?"
+	default:
+		return "C"
+	}
+}
+
+func typeMarker(entry app.WorkspaceEntry) string {
+	switch entry.Type {
+	case app.TargetDirectory:
+		return "d"
+	case app.TargetSymlink:
+		return "l"
+	case app.TargetScript:
+		return "s"
+	case app.TargetRemove:
+		return "x"
+	case app.TargetExternal:
+		return "e"
+	case app.TargetFile:
+		return "f"
+	default:
+		return "?"
+	}
+}
+
+func attributeMarker(entry app.WorkspaceEntry) string {
+	var marker strings.Builder
+	if entry.Template {
+		marker.WriteString(" [T]")
+	}
+	if entry.Encrypted {
+		marker.WriteString(" [E]")
+	}
+	return marker.String()
+}
+
+func (m workspaceModel) renderMainPane(size rect) string {
 	if m.mode == modeConfirm || m.mode == modeExecuting {
 		return m.renderConfirmPane(size)
 	}
 	return m.renderDiffPane(size)
 }
 
-func (m syncTUIModel) renderDiffPane(size rect) string {
+func (m workspaceModel) renderDiffPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
 	state := m.currentDiffState()
 	var content string
 	switch {
+	case len(m.entries) == 0:
+		content = "no entries match the current view"
 	case state.loading:
-		content = "loading diff..."
+		content = "loading preview..."
 	case state.err != nil:
 		content = state.err.Error()
 	case len(state.lines) == 0:
-		content = "no diff"
+		content = "no preview"
 	default:
 		lines := state.lines
 		if m.diffScroll > len(lines) {
@@ -121,7 +248,7 @@ func (m syncTUIModel) renderDiffPane(size rect) string {
 		}
 		visible := make([]string, len(lines))
 		for i, line := range lines {
-			visible[i] = truncate(line, innerWidth)
+			visible[i] = cropLine(line, m.previewX, innerWidth)
 		}
 		content = renderDiffLines(visible)
 	}
@@ -131,10 +258,10 @@ func (m syncTUIModel) renderDiffPane(size rect) string {
 	if m.focus == focusDiff && m.mode == modeReview {
 		style = activePaneStyle
 	}
-	return style.Width(size.width - 2).Height(size.height - 2).Render(content)
+	return style.Width(size.width).Height(size.height).Render(content)
 }
 
-func (m syncTUIModel) renderConfirmPane(size rect) string {
+func (m workspaceModel) renderConfirmPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
 	title := "Confirm actions"
@@ -147,7 +274,7 @@ func (m syncTUIModel) renderConfirmPane(size rect) string {
 			action := m.executing[m.executingIndex]
 			lines = append(lines, truncate(fmt.Sprintf("%d/%d %s %s", m.executingIndex+1, len(m.executing), action.Kind.String(), m.displayPath(action.Target)), innerWidth))
 		}
-		lines = append(lines, "", fmt.Sprintf("executed: %d", m.executedCount), fmt.Sprintf("skipped: %d", m.skippedCount))
+		lines = append(lines, "", fmt.Sprintf("executed: %d", m.executedCount), fmt.Sprintf("skipped: %d", m.skippedCount), fmt.Sprintf("deferred: %d", m.deferredCount))
 	} else {
 		for _, action := range m.pendingActions() {
 			lines = append(lines, truncate(fmt.Sprintf("%s %s", action.Kind.String(), m.displayPath(action.Target)), innerWidth))
@@ -158,29 +285,55 @@ func (m syncTUIModel) renderConfirmPane(size rect) string {
 	}
 	content := strings.Join(lines, "\n")
 	content = padLines(content, innerHeight)
-	return activePaneStyle.Width(size.width - 2).Height(size.height - 2).Render(content)
+	return activePaneStyle.Width(size.width).Height(size.height).Render(content)
 }
 
-func (m syncTUIModel) footer() string {
+func (m workspaceModel) footer() string {
+	if m.isWorkspace() {
+		content := "files • tab preview • j/k move • t view • f filter • / search"
+		if m.focus == focusDiff {
+			content = fmt.Sprintf("preview • tab files • j/k scroll • h/l x=%d • 1-4 view • z full • / search", m.previewX)
+			if m.previewKind == app.PreviewDiff {
+				content += " • [/] hunks"
+			}
+			if m.previewQuery != "" {
+				content += " • n/N matches"
+			}
+			if m.currentDiffState().preview.Withheld {
+				content += " • R reveal"
+			}
+		}
+		content += " • q quit"
+		width := m.width
+		if width <= 0 {
+			width = 100
+		}
+		return helpStyle.Render(truncate(content, width))
+	}
+	var content string
 	if m.mode == modeExecuting {
-		return helpStyle.Render("executing...")
+		content = "executing..."
+	} else if m.mode == modeConfirm {
+		content = m.help.ShortHelpView(defaultSyncKeys.confirmHelp())
+	} else {
+		focus := "files"
+		if m.focus == focusDiff {
+			focus = "diff"
+		}
+		content = focus + " • " + m.help.ShortHelpView(defaultSyncKeys.reviewHelp(m.focus, m.currentDiffState().review))
 	}
-	if m.mode == modeConfirm {
-		return helpStyle.Render(m.help.ShortHelpView(defaultSyncKeys.confirmHelp()))
+	if m.scriptCount > 0 {
+		content += " • " + scriptCount(m.scriptCount) + " outside cm sync"
 	}
-	focus := "files"
-	if m.focus == focusDiff {
-		focus = "diff"
-	}
-	return helpStyle.Render(focus + " • " + m.help.ShortHelpView(defaultSyncKeys.reviewHelp(m.focus)))
+	return helpStyle.Render(content)
 }
 
 type visibleEntry struct {
 	index int
-	path  string
+	entry app.WorkspaceEntry
 }
 
-func visibleEntries(entries []chezmoi.StatusEntry, cursor int, height int) []visibleEntry {
+func visibleEntries(entries []app.WorkspaceEntry, cursor int, height int) []visibleEntry {
 	if height <= 0 || len(entries) == 0 {
 		return nil
 	}
@@ -196,17 +349,17 @@ func visibleEntries(entries []chezmoi.StatusEntry, cursor int, height int) []vis
 	}
 	visible := make([]visibleEntry, 0, height)
 	for i := start; i < start+height; i++ {
-		visible = append(visible, visibleEntry{index: i, path: entries[i].Path})
+		visible = append(visible, visibleEntry{index: i, entry: entries[i]})
 	}
 	return visible
 }
 
-func clamp(value, min, max int) int {
-	if value < min {
-		return min
+func clamp(value, minValue, maxValue int) int {
+	if value < minValue {
+		return minValue
 	}
-	if value > max {
-		return max
+	if value > maxValue {
+		return maxValue
 	}
 	return value
 }
@@ -222,6 +375,16 @@ func truncate(s string, width int) string {
 		return "…"
 	}
 	return ansi.Truncate(s, width, "…")
+}
+
+func cropLine(s string, offset int, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if offset > 0 {
+		s = ansi.TruncateLeft(s, offset, "")
+	}
+	return ansi.Truncate(s, width, "")
 }
 
 func padLines(content string, height int) string {

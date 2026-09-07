@@ -2,187 +2,250 @@
 
 ## Purpose
 
-`cm` is a thin CLI around chezmoi for personal config reconciliation.
+`cm` is a thin CLI around chezmoi for personal configuration reconciliation.
+It owns review and decision UX; chezmoi remains authoritative for target-state
+calculation, templates, encryption, source naming, diff semantics, and mutation.
 
-It keeps chezmoi as the authority and adds:
+`cm` adds:
 
 - a simplified read-only status view;
-- internal rendered-target vs local-file diffs;
+- bounded, forced chezmoi builtin diffs;
 - explicit direct wrappers for known actions;
-- an interactive review TUI for choosing reconciliation actions.
+- a target-aware review TUI with stale-state and postflight checks.
 
 ## Design principles
 
 ### Default read-only
 
 `cm`, `cm status`, `cm diff`, `cm version`, and `cm completion` do not mutate
-managed files. Mutations happen only through `cm sync` after confirmation or
-through direct explicit wrappers: `add`, `apply`, `merge`, `edit`, and `git`.
+managed state. Mutations happen only through confirmed `cm sync` actions or the
+explicit direct wrappers `add`, `apply`, `merge`, `edit`, and `git`.
 
-### One local mismatch state
+### Chezmoi owns target semantics
 
-Chezmoi exposes a richer three-point comparison. `cm` intentionally shows a
-smaller user model: a managed local file either differs from the rendered
-chezmoi target or it does not.
+`cm` must not reconstruct target state by reading destination bytes. A chezmoi
+target can be a regular file, template, symlink, directory, remove entry, or
+script, and changes can include content, permissions, type, or execution.
 
-The raw chezmoi status code, such as `MM`, is parsed for internal routing but is
-not shown to users. The status view displays `!` for any local mismatch.
+Preview output is generated with:
 
-### Explicit reconciliation
+```text
+chezmoi --color=false --no-pager --use-builtin-diff diff --include=all --exclude=none --reverse <target>
+```
 
-`cm sync` opens a review TUI. The user marks per-entry actions, reviews the
-pending set, and confirms a batch. Confirmed actions execute one target at a
-time; each completed or newly clean target leaves the list. If files remain, the
-TUI returns to review mode so the user can handle the next batch. If none remain,
-it exits with a completion message.
+The forced builtin diff prevents configured external diff programs or pagers
+from taking over the TUI. `--reverse` preserves cm's public direction: rendered
+target is the old side and destination is the new side. Output is bounded before
+it enters reports or TUI state.
 
-Before executing each action, `cm` re-checks that target and drops it if it is
-already clean. Confirmed execution then runs to completion for the current target
-or returns an error; `cm` does not advertise quit as cancellation for
-already-started mutating subprocesses.
-Add/apply execution is treated as non-interactive and captures subprocess
-stdout/stderr instead of sharing the active TUI terminal. Merge remains a
-terminal-owning action because the configured merge tool can be interactive.
+### Scripts are not file reconciliation
 
-Available actions:
+The second `chezmoi status` column uses `R` when apply would execute a script.
+Scripts may be stateful, non-idempotent, or always pending, so they do not fit a
+clean-after-file-reconciliation invariant.
 
-- add local content to chezmoi source;
-- apply chezmoi target content locally;
-- merge with the configured chezmoi merge tool;
-- skip by leaving the entry unmarked.
+`cm status` reports scripts in a separate `automation:` block. Targetless
+`cm diff` and `cm sync` exclude them and direct users to `chezmoi diff` and
+`chezmoi apply`. Direct `cm apply` remains a thin wrapper and therefore retains
+chezmoi's script behavior.
 
-There is no automatic recommendation. The user reviews diffs first.
+### Read-only workspace inventory
 
-### Chezmoi source is separate from git history
+`cm ui [path...]` is a persistent inspection surface, separate from focused
+`cm sync` reconciliation. Its entries are constructed from chezmoi managed,
+status, typed managed, and ignored queries. Scoped unmanaged discovery delegates
+each candidate directory back to chezmoi; without explicit paths it does not
+traverse the destination directory.
 
-`cm status` shows two independent facts:
+The workspace's tree, flat, search, and category-filter views project a single
+absolute-path inventory. Preview content loads only for the selected entry and
+is bounded. Diff, destination, rendered target, and source are distinct views.
+Template/encrypted rendered targets, encrypted source, and uninspected diffs
+require explicit reveal. The workspace has no add, apply, or merge actions.
 
-1. `local:` — local managed files that differ from rendered chezmoi source.
-2. `chezmoi:` — git status inside the chezmoi source repository.
 
-`cm git` opens `lazygit` in the chezmoi source directory, but `cm` never commits,
-pulls, or pushes automatically.
+### Reviews bind confirmation to exact state
 
-### Chezmoi remains the authority
+The app builds a `Review` from:
 
-`cm` delegates `add`, `apply`, `merge`, `edit`, `source-path`, `status`,
-`managed`, and `cat` behavior to the chezmoi executable.
+- target path and raw status code;
+- chezmoi target type;
+- template membership;
+- authoritative diff text.
 
-Diffs are generated internally from rendered chezmoi target content to the
-current local file. `cm` does not manipulate chezmoi source files directly.
+A SHA-256 fingerprint covers those fields. A pending `Action` contains the
+fingerprint from the review that the user selected.
+
+Immediately before execution, cm recomputes the review. If the target is now
+clean, the action is skipped. If the fingerprint changed or the action is no
+longer valid for the target type, the action is deferred without mutation and
+the refreshed review replaces the stale one.
+
+### Command success is not reconciliation success
+
+After a successful add, apply, or merge command, cm recomputes the target review.
+Only a verified-clean target leaves the TUI. A target that still differs remains
+visible and requires another explicit decision. This prevents false completion
+for template re-add refusals, no-op operations, races, and other successful
+commands that do not establish the requested state.
+
+Successful non-interactive stdout and stderr are preserved as action notices.
+Rendered contents and action output are never written to the timing log.
+
+### Conservative action matrix
+
+| Reviewed target | Add | Apply | Merge |
+|---|---:|---:|---:|
+| regular file | yes | yes | yes |
+| template file | no | yes | yes |
+| symlink | no | yes | no |
+| directory | no | yes | no |
+| remove entry | no | yes | no |
+| script | no | no | no |
+| unknown type | no | no | no |
+
+`re-add` preserves encrypted attributes but ignores non-files and refuses to
+overwrite templates. Unsupported operations stay unavailable until real chezmoi
+behavior justifies broadening the matrix.
+
+### Chezmoi source and git history remain separate
+
+`cm status` can show three independent blocks:
+
+1. `local:` — non-script destination/target mismatch.
+2. `automation:` — scripts that chezmoi apply would run.
+3. `chezmoi:` — git status inside the source repository.
+
+`cm git` opens lazygit in the source directory. `cm` does not automatically
+commit, pull, push, or combine source git changes with reconciliation actions.
 
 ## Package architecture
 
 ```text
 cmd/cm                  process entrypoint
 internal/cli            Cobra command tree, stream plumbing, exit behavior
-internal/app            service graph, reports, use cases, sync actions, options, version metadata
-internal/chezmoi        chezmoi executable wrapper and output parsers
+internal/app            use cases, semantic reports, reconciliation domain and services
+internal/chezmoi        chezmoi executable adapter and strict output parsers
 internal/process        external process runner abstraction
-internal/diff           internal diff generation from content sources
-internal/tui            Bubble Tea sync review TUI
+internal/report         semantic report model and renderers
+internal/tui            Bubble Tea sync and read-only workspace TUI
 ```
 
-### Entry point
+### Entry point and CLI
 
-`cmd/cm/main.go` passes process arguments and standard streams into
-`internal/cli.Main`. It owns no command behavior.
+`cmd/cm/main.go` passes arguments and standard streams to `internal/cli.Main`.
+`internal/cli` constructs Cobra commands, validates flags, selects report
+renderers, and maps command errors to process exit status. It does not calculate
+chezmoi state or own sync execution.
 
-### CLI composition
+### App services and reconciliation domain
 
-`internal/cli` builds the Cobra command tree, wires process streams, maps command
-arguments to app services, and handles command exit behavior. It does not own
-chezmoi, git, lazygit, or diff orchestration.
-
-### App services
-
-`internal/app` owns process-wide options, version metadata, the app service
-graph, and application use cases for status, diff, sync execution, direct target
-wrappers, source git, edit, and managed-file completion. `app.NewServices`
-constructs the default graph from a `chezmoi.Client`. Release builds override
-`app.Version` through ldflags.
-
-Status, diff, and version output are built as `internal/report.Document` values.
-CLI renderers convert those semantic documents to plain or ANSI text. ANSI color
-is automatic only for TTY output and is disabled when `NO_COLOR` is non-empty.
-Markdown rendering exists as an output renderer; Markdown is not the internal
-model.
-
-The sync action contract is app-owned:
+`internal/app` owns application use cases and the values consumed by the TUI:
 
 ```go
+type SyncStatus struct {
+    Entries []ReconcileEntry
+    Scripts []ReconcileEntry
+}
+
+type Review struct {
+    Entry       ReconcileEntry
+    Type        TargetType
+    Template    bool
+    Diff        string
+    Fingerprint string
+    Dirty       bool
+}
+
+type Action struct {
+    Target      string
+    Kind        ActionKind
+    Fingerprint string
+}
+
 type SyncService interface {
-    Status(targets []string) ([]chezmoi.StatusEntry, error)
-    DiffOutput(target string) ([]byte, error)
-    ExecuteNonInteractive(action Action) error
+    Status(targets []string) (SyncStatus, error)
+    Review(target string) (Review, error)
+    ExecuteNonInteractive(action Action) (ActionResult, error)
     TerminalCommand(action Action) (TerminalCommand, error)
 }
 ```
 
+The TUI consumes app-owned reconciliation and workspace values; it never
+consumes infrastructure-owned `chezmoi.StatusEntry` values directly.
+
+### Chezmoi adapter
+
+`internal/chezmoi.Client` is the only app-facing chezmoi command adapter. It
+provides:
+
+- absolute-path status parsing and `--skip-secrets` inventory status;
+- bounded authoritative diff and selected target/source preview output;
+- typed managed inventory, NUL-delimited ignored/unmanaged lists, and source mappings;
+- configured destination lookup through `target-path`;
+- buffered and terminal-bound execution paths.
+
+Target metadata is loaded only for the selected target. It is never written to
+debug logs.
+
 ### External process boundary
 
-`internal/process.Runner` is the only package-level abstraction over
-`os/exec`. `internal/chezmoi.Client` uses that runner for chezmoi commands, and
-`internal/app` services use it for source git status, lazygit, and terminal merge
-command construction.
+`internal/process.Runner` is the package-level abstraction over `os/exec`.
+Chezmoi, source git status, and lazygit all use it. Add and apply capture output
+without inheriting the active TUI terminal. Merge receives terminal control
+through Bubble Tea's command handoff because the configured merge tool can be
+interactive.
 
-### Sync TUI boundary
+### TUI boundary
 
-`internal/tui` consumes `app.SyncService` and `app.Action` values. The TUI owns
-presentation state, key handling, diff display, confirmation flow, and terminal
-handoff. App services own command execution.
-
-### Diff boundary
-
-`internal/diff.Differ` depends on a `ContentSource` interface. The chezmoi
-content loader implements that interface by reading rendered target content via
-`chezmoi cat` and local content from the filesystem.
+`internal/tui` owns shared presentation state for the focused sync review and
+the read-only workspace. Workspace mode keeps clean entries, projects one
+inventory into tree/flat/filter/search views, caches bounded previews by target,
+view, and reveal state, and ignores stale asynchronous preview completions for
+the active UI state. Sync-only confirmation, execution, and completion behavior
+remain isolated behind explicit mode branches.
 
 ### Report boundary
 
-`internal/report` defines semantic document blocks, inline roles, diff line
-classification, and plain/ANSI/Markdown renderers. Roles such as warning,
-muted, path, command, status, and diff line kind are mapped by renderers rather
-than embedded as presentation strings in app services. `internal/tui/diff_view.go`
-uses the same diff line classifier as report rendering.
+`internal/report` defines semantic blocks, inline roles, diff-line
+classification, and plain/ANSI/Markdown renderers. App services construct
+semantic status, diff, doctor, and version documents. CLI and TUI presentation
+reuse the same diff-line classifier.
 
-## Status model
+## Status and diff boundaries
 
-`cm status` runs:
-
-```bash
-chezmoi status --path-style=absolute
-```
-
-It parses non-empty lines as:
+Raw chezmoi status lines are parsed strictly as:
 
 ```text
 XY path
 ```
 
-The parsed code is internal. The public `local:` block displays:
+The raw code remains internal. A space in the second column means destination
+already matches target and creates no reconciliation item. `R` in the second
+column enters `automation:`; other second-column effects become `ReconcileEntry`
+values.
+
+Source repository status comes from:
 
 ```text
-local:
-  local config differs from chezmoi source
-! /home/me/.zshrc  differs from chezmoi
-  run cm sync
-```
-
-The `chezmoi:` block comes from:
-
-```bash
 chezmoi source-path
-git -C <source-dir> status --porcelain=v1
+git status --porcelain=v1
 ```
 
-Malformed non-empty git porcelain lines are treated as errors rather than being
-silently skipped.
+Malformed non-empty git porcelain lines are errors rather than silently skipped.
+
+## Edit target resolution
+
+`chezmoi managed` completion returns paths relative to the configured destination.
+For a relative `cm edit <target>`, app services call `chezmoi target-path` and
+join against that directory. Absolute targets are passed unchanged. This avoids
+assuming that chezmoi's destination is `$HOME`.
 
 ## Non-goals
 
-- Chezmoi template authoring helpers.
-- Automatic git commit, push, or pull.
-- Daemon, watch, or auto-sync.
-- Persistent state database beyond chezmoi's own state.
-- Replacement for `chezmoi`; `cm` always delegates to it.
+- Template authoring or template-data debugging in the authoritative reconciliation phase.
+- Automatic git commit, push, pull, or update.
+- Daemon, watch, or automatic synchronization.
+- Persistent state beyond chezmoi.
+- Replacing chezmoi diff, template, encryption, source naming, or merge logic.
+- Cancellation of already-started mutating subprocesses without an explicit context-aware runner contract.

@@ -6,10 +6,10 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/zhongyangchuwu/cm/internal/app"
-	"github.com/zhongyangchuwu/cm/internal/chezmoi"
 	"github.com/zhongyangchuwu/cm/internal/report"
 )
 
@@ -126,23 +126,61 @@ func TestRunReportFlagsRejectInvalidValues(t *testing.T) {
 	}
 }
 
-func TestRunSyncExecutesConfirmedTUIActions(t *testing.T) {
+func TestRunSyncExecutesConfirmedReviewedAction(t *testing.T) {
+	target := "/home/me/.zshrc"
+	dirty := app.Review{
+		Entry:       app.ReconcileEntry{Code: "MM", Path: target},
+		Type:        app.TargetFile,
+		Diff:        "diff",
+		Fingerprint: "reviewed",
+		Dirty:       true,
+	}
+	reviewReady := make(chan struct{})
 	service := &fakeService{
-		statusResults: [][]chezmoi.StatusEntry{
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-			{{Code: "MM", Path: "/home/me/.zshrc"}},
-		},
+		statusResults: []app.SyncStatus{{Entries: []app.ReconcileEntry{{Code: "MM", Path: target}}}},
+		reviews:       []app.Review{dirty, dirty, {Entry: app.ReconcileEntry{Path: target}, Dirty: false}},
+		reviewReady:   reviewReady,
 	}
 	var out bytes.Buffer
+	input := &gatedReader{ready: reviewReady, reader: strings.NewReader("a\ry")}
 
-	code := run([]string{"sync", ".zshrc"}, testServices(service), strings.NewReader("a\ry"), &out, &out)
+	code := run([]string{"sync", ".zshrc"}, testServices(service), input, &out, &out)
 
 	if code != 0 {
 		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
 	}
-	wantActions := []app.Action{{Target: "/home/me/.zshrc", Kind: app.ActionAdd}}
+	wantActions := []app.Action{{Target: target, Kind: app.ActionAdd, Fingerprint: "reviewed"}}
 	if !reflect.DeepEqual(service.executed, wantActions) {
 		t.Fatalf("executed = %#v, want %#v", service.executed, wantActions)
+	}
+}
+
+func TestRunWorkspaceKeepsCleanManagedEntriesVisible(t *testing.T) {
+	target := "/home/me/.config/app/config"
+	service := &fakeService{workspaceSnapshot: app.WorkspaceSnapshot{
+		Root: "/home/me",
+		Entries: []app.WorkspaceEntry{{
+			Path:         target,
+			RelativePath: ".config/app/config",
+			State:        app.FileClean,
+			Type:         app.TargetFile,
+		}},
+	}}
+	var out bytes.Buffer
+
+	code := run([]string{"ui", ".config/app"}, testServices(service), strings.NewReader("q"), &out, &out)
+
+	if code != 0 {
+		t.Fatalf("run exit code = %d, want 0; output %q", code, out.String())
+	}
+	if !reflect.DeepEqual(service.inventoryScopes, [][]string{{".config/app"}}) {
+		t.Fatalf("inventory scopes = %#v", service.inventoryScopes)
+	}
+	if !strings.Contains(out.String(), "cm ui") || !strings.Contains(out.String(), "config") {
+		t.Fatalf("workspace output = %q", out.String())
+	}
+	if len(service.executed) != 0 {
+		t.Fatalf("workspace executed mutations: %#v", service.executed)
 	}
 }
 
@@ -300,6 +338,7 @@ func testServices(service *fakeService) commandServices {
 		Status:    service,
 		Diff:      service,
 		Sync:      service,
+		Workspace: service,
 		Target:    service,
 		SourceGit: service,
 		Edit:      service,
@@ -308,28 +347,33 @@ func testServices(service *fakeService) commandServices {
 }
 
 type fakeService struct {
-	entries          []chezmoi.StatusEntry
-	statusResults    [][]chezmoi.StatusEntry
-	statusReport     string
-	statusCalls      int
-	statusArgs       [][]string
-	statusReportArgs [][]string
-	diffArgs         [][]string
-	commands         [][]string
-	diffOutput       string
-	doctorFailed     bool
-	executed         []app.Action
+	status            app.SyncStatus
+	statusResults     []app.SyncStatus
+	reviews           []app.Review
+	reviewReady       chan struct{}
+	reviewReadyOnce   sync.Once
+	statusReport      string
+	statusCalls       int
+	statusArgs        [][]string
+	statusReportArgs  [][]string
+	diffArgs          [][]string
+	commands          [][]string
+	diffOutput        string
+	doctorFailed      bool
+	executed          []app.Action
+	workspaceSnapshot app.WorkspaceSnapshot
+	inventoryScopes   [][]string
 }
 
-func (f *fakeService) Status(targets []string) ([]chezmoi.StatusEntry, error) {
+func (f *fakeService) Status(targets []string) (app.SyncStatus, error) {
 	f.statusCalls++
 	f.statusArgs = append(f.statusArgs, append([]string(nil), targets...))
 	if len(f.statusResults) > 0 {
-		entries := f.statusResults[0]
+		status := f.statusResults[0]
 		f.statusResults = f.statusResults[1:]
-		return append([]chezmoi.StatusEntry(nil), entries...), nil
+		return status, nil
 	}
-	return append([]chezmoi.StatusEntry(nil), f.entries...), nil
+	return f.status, nil
 }
 
 func (f *fakeService) StatusReport(targets []string) (report.Document, error) {
@@ -358,19 +402,48 @@ func (f *fakeService) DoctorReport() (report.Document, bool) {
 	}}, f.doctorFailed
 }
 
-func (f *fakeService) DiffOutput(target string) ([]byte, error) {
-	return []byte(f.diffOutput), nil
+func (f *fakeService) Review(target string) (app.Review, error) {
+	if f.reviewReady != nil {
+		f.reviewReadyOnce.Do(func() { close(f.reviewReady) })
+	}
+	if len(f.reviews) == 0 {
+		return app.Review{Entry: app.ReconcileEntry{Path: target}}, nil
+	}
+	review := f.reviews[0]
+	f.reviews = f.reviews[1:]
+	return review, nil
 }
 
-func (f *fakeService) ExecuteNonInteractive(action app.Action) error {
-	f.executed = append(f.executed, action)
-	return nil
+func (f *fakeService) Inventory(scopes []string) (app.WorkspaceSnapshot, error) {
+	f.inventoryScopes = append(f.inventoryScopes, append([]string(nil), scopes...))
+	return f.workspaceSnapshot, nil
 }
+
+func (f *fakeService) Preview(entry app.WorkspaceEntry, kind app.PreviewKind, reveal bool) (app.WorkspacePreview, error) {
+	return app.WorkspacePreview{Entry: entry, Kind: kind, Notice: "destination matches rendered target"}, nil
+}
+
+func (f *fakeService) ExecuteNonInteractive(action app.Action) (app.ActionResult, error) {
+	f.executed = append(f.executed, action)
+	return app.ActionResult{}, nil
+}
+
 func (f *fakeService) TerminalCommand(action app.Action) (app.TerminalCommand, error) {
 	return terminalCommand{run: func() error {
 		f.executed = append(f.executed, action)
 		return nil
 	}}, nil
+}
+
+type gatedReader struct {
+	once   sync.Once
+	ready  <-chan struct{}
+	reader io.Reader
+}
+
+func (r *gatedReader) Read(p []byte) (int, error) {
+	r.once.Do(func() { <-r.ready })
+	return r.reader.Read(p)
 }
 
 type terminalCommand struct {

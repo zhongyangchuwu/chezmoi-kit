@@ -4,22 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/zhongyangchuwu/cm/internal/chezmoi"
-	"github.com/zhongyangchuwu/cm/internal/diff"
 	"github.com/zhongyangchuwu/cm/internal/process"
 	"github.com/zhongyangchuwu/cm/internal/report"
 )
+
+const maxReviewOutput int64 = 1 << 20
 
 // StatusService builds the read-only reconciliation status use case.
 type StatusService interface {
 	StatusReport(targets []string) (report.Document, error)
 }
 
-// DiffService builds internal target-vs-local diff output.
+// DiffService builds authoritative target-vs-local diff output.
 type DiffService interface {
 	DiffReport(targets []string) (report.Document, error)
 }
@@ -82,10 +82,11 @@ func (k ActionKind) Marker() string {
 	}
 }
 
-// Action is a confirmed reconciliation action for one managed target.
+// Action is a confirmed reconciliation action for one reviewed target state.
 type Action struct {
-	Target string
-	Kind   ActionKind
+	Target      string
+	Kind        ActionKind
+	Fingerprint string
 }
 
 // TerminalCommand is a reconciliation command that temporarily owns the terminal.
@@ -98,9 +99,9 @@ type TerminalCommand interface {
 
 // SyncService is the application boundary for reviewing and executing sync actions.
 type SyncService interface {
-	Status(targets []string) ([]chezmoi.StatusEntry, error)
-	DiffOutput(target string) ([]byte, error)
-	ExecuteNonInteractive(action Action) error
+	Status(targets []string) (SyncStatus, error)
+	Review(target string) (Review, error)
+	ExecuteNonInteractive(action Action) (ActionResult, error)
 	TerminalCommand(action Action) (TerminalCommand, error)
 }
 
@@ -109,6 +110,7 @@ type Services struct {
 	Status    StatusService
 	Diff      DiffService
 	Sync      SyncService
+	Workspace WorkspaceService
 	Target    TargetCommandService
 	SourceGit SourceGitService
 	Edit      EditService
@@ -122,6 +124,7 @@ func NewServices(client chezmoi.Client) Services {
 		Status:    s,
 		Diff:      s,
 		Sync:      s,
+		Workspace: s,
 		Target:    s,
 		SourceGit: s,
 		Edit:      s,
@@ -133,12 +136,16 @@ type service struct {
 	client chezmoi.Client
 }
 
-func (s service) Status(targets []string) ([]chezmoi.StatusEntry, error) {
-	return s.client.Status(targets)
+func (s service) Status(targets []string) (SyncStatus, error) {
+	entries, err := s.client.Status(targets)
+	if err != nil {
+		return SyncStatus{}, err
+	}
+	return partitionSyncStatus(entries), nil
 }
 
 func (s service) StatusReport(targets []string) (report.Document, error) {
-	entries, err := s.Status(targets)
+	status, err := s.Status(targets)
 	if err != nil {
 		return report.Document{}, err
 	}
@@ -148,16 +155,16 @@ func (s service) StatusReport(targets []string) (report.Document, error) {
 	}
 
 	var doc report.Document
-	if len(entries) == 0 && len(sourceEntries) == 0 {
+	if len(status.Entries) == 0 && len(status.Scripts) == 0 && len(sourceEntries) == 0 {
 		doc.Blocks = append(doc.Blocks, report.Paragraph(report.Text("clean")))
 		return doc, nil
 	}
-	if len(entries) > 0 {
+	if len(status.Entries) > 0 {
 		doc.Blocks = append(doc.Blocks,
 			report.Heading(1, report.Strong("local:")),
 			report.Paragraph(report.Text("  local config differs from chezmoi source")),
 		)
-		for _, entry := range entries {
+		for _, entry := range status.Entries {
 			doc.Blocks = append(doc.Blocks, report.Paragraph(
 				report.Warning("!"),
 				report.Text(" "),
@@ -167,8 +174,26 @@ func (s service) StatusReport(targets []string) (report.Document, error) {
 		}
 		doc.Blocks = append(doc.Blocks, report.Paragraph(report.Muted("  run cm sync")))
 	}
+	if len(status.Scripts) > 0 {
+		if len(doc.Blocks) > 0 {
+			doc.Blocks = append(doc.Blocks, report.Blank())
+		}
+		doc.Blocks = append(doc.Blocks,
+			report.Heading(1, report.Strong("automation:")),
+			report.Paragraph(report.Text("  chezmoi scripts are pending; cm sync does not execute scripts")),
+		)
+		for _, entry := range status.Scripts {
+			doc.Blocks = append(doc.Blocks, report.Paragraph(
+				report.Warning("R"),
+				report.Text(" "),
+				report.Path(entry.Path),
+				report.Text("  apply would run this script"),
+			))
+		}
+		doc.Blocks = append(doc.Blocks, report.Paragraph(report.Muted("  use chezmoi diff and chezmoi apply to review and run scripts")))
+	}
 	if len(sourceEntries) > 0 {
-		if len(entries) > 0 {
+		if len(doc.Blocks) > 0 {
 			doc.Blocks = append(doc.Blocks, report.Blank())
 		}
 		doc.Blocks = append(doc.Blocks,
@@ -313,45 +338,97 @@ func (s service) sourceDir() (string, error) {
 
 func (s service) DiffReport(targets []string) (report.Document, error) {
 	if len(targets) == 0 {
-		entries, err := s.Status(nil)
+		status, err := s.Status(nil)
 		if err != nil {
 			return report.Document{}, err
 		}
-		if len(entries) == 0 {
+		if len(status.Entries) == 0 {
+			if len(status.Scripts) > 0 {
+				return report.Document{Blocks: []report.Block{
+					report.Paragraph(report.Text("no file diffs; chezmoi scripts are pending")),
+					report.Paragraph(report.Muted("run chezmoi diff to review script contents")),
+				}}, nil
+			}
 			return report.Document{Blocks: []report.Block{report.Paragraph(report.Text("clean"))}}, nil
 		}
-		targets = make([]string, 0, len(entries))
-		for _, entry := range entries {
+		targets = make([]string, 0, len(status.Entries))
+		for _, entry := range status.Entries {
 			targets = append(targets, entry.Path)
 		}
 	}
 
 	doc := report.Document{Blocks: make([]report.Block, 0, len(targets))}
 	for _, target := range targets {
-		diff, err := s.DiffOutput(target)
+		diffOutput, err := s.DiffOutput(target)
 		if err != nil {
 			return report.Document{}, err
 		}
-		doc.Blocks = append(doc.Blocks, report.DiffBlock(string(diff)))
+		doc.Blocks = append(doc.Blocks, report.DiffBlock(string(diffOutput)))
 	}
 	return doc, nil
 }
 
 func (s service) DiffOutput(target string) ([]byte, error) {
-	differ := diff.Differ{Source: chezmoi.ContentLoader{Client: s.client}}
-	return differ.Diff(target)
+	out, err := s.authoritativeDiff(target)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return []byte(fmt.Sprintf("no diff: %s\n", target)), nil
+	}
+	return out, nil
 }
 
-func (s service) ExecuteNonInteractive(action Action) error {
+func (s service) authoritativeDiff(target string) ([]byte, error) {
+	out, err := s.client.AuthoritativeDiff(target, maxReviewOutput)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > maxReviewOutput {
+		return nil, fmt.Errorf("diff output exceeds %d bytes for %s", maxReviewOutput, target)
+	}
+	return out, nil
+}
+
+func (s service) Review(target string) (Review, error) {
+	status, err := s.Status([]string{target})
+	if err != nil {
+		return Review{}, err
+	}
+	if entry, ok := findReconcileEntry(status.Scripts, target); ok {
+		return newReview(entry, TargetScript, false, ""), nil
+	}
+	entry, ok := findReconcileEntry(status.Entries, target)
+	if !ok {
+		if len(status.Entries) > 0 || len(status.Scripts) > 0 {
+			return Review{}, fmt.Errorf("chezmoi status did not return requested target %s", target)
+		}
+		return cleanReview(target), nil
+	}
+	diffOutput, err := s.authoritativeDiff(entry.Path)
+	if err != nil {
+		return Review{}, err
+	}
+	if len(entry.Code) >= 2 && entry.Code[1] == 'D' {
+		return newReview(entry, TargetRemove, false, string(diffOutput)), nil
+	}
+	metadata, err := s.client.TargetMetadata(entry.Path, maxReviewOutput)
+	if err != nil {
+		return Review{}, err
+	}
+	return newReview(entry, targetTypeFromChezmoi(metadata.Type), metadata.Template, string(diffOutput)), nil
+}
+
+func (s service) ExecuteNonInteractive(action Action) (ActionResult, error) {
 	switch action.Kind {
 	case ActionAdd:
 		return s.runBuffered("re-add", action.Target)
 	case ActionApply:
 		return s.runBuffered("apply", "--force", action.Target)
 	case ActionMerge:
-		return fmt.Errorf("merge requires terminal execution")
+		return ActionResult{}, fmt.Errorf("merge requires terminal execution")
 	default:
-		return fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
+		return ActionResult{}, fmt.Errorf("unknown reconcile action %d for %s", action.Kind, action.Target)
 	}
 }
 
@@ -404,11 +481,14 @@ func (s service) MergeTargets(targets []string) error {
 }
 
 func (s service) EditTarget(target string) error {
-	home, err := os.UserHomeDir()
+	if filepath.IsAbs(target) {
+		return s.client.Run("edit", target)
+	}
+	targetDir, err := s.client.TargetDir()
 	if err != nil {
 		return err
 	}
-	return s.client.Run("edit", filepath.Join(home, target))
+	return s.client.Run("edit", filepath.Join(targetDir, target))
 }
 
 func (s service) ManagedFiles() ([]string, error) {
@@ -419,12 +499,13 @@ func (s service) runner() process.Runner {
 	return s.client.ActiveRunner()
 }
 
-func (s service) runBuffered(args ...string) error {
-	_, stderr, err := s.client.RunBuffered(args...)
+func (s service) runBuffered(args ...string) (ActionResult, error) {
+	stdout, stderr, err := s.client.RunBuffered(args...)
+	result := ActionResult{Stdout: string(stdout), Stderr: string(stderr)}
 	if err != nil {
-		return fmt.Errorf("%w%s", err, formatStderr(stderr))
+		return result, fmt.Errorf("%w%s", err, formatStderr(stderr))
 	}
-	return nil
+	return result, nil
 }
 
 func (s service) runTargets(command string, targets []string) error {

@@ -45,16 +45,16 @@ func TestParseStatusRejectsMalformedLine(t *testing.T) {
 	}
 }
 
-func TestParseManagedFilesSplitsLinesAndSkipsEmpty(t *testing.T) {
-	files := ParseManagedFiles([]byte(".zshrc\n.gitconfig\n.config/nvim/init.lua\n"))
+func TestParseManagedFilesSplitsNULAndSkipsEmpty(t *testing.T) {
+	files := ParseNULPaths([]byte(".zshrc\x00.gitconfig\x00.config/nvim/init.lua\x00"))
 	want := []string{".zshrc", ".gitconfig", ".config/nvim/init.lua"}
 	if !reflect.DeepEqual(files, want) {
 		t.Fatalf("files = %#v, want %#v", files, want)
 	}
 }
 
-func TestParseManagedFilesReturnsEmptyForEmptyInput(t *testing.T) {
-	files := ParseManagedFiles([]byte(""))
+func TestParseNULPathsReturnsEmptyForEmptyInput(t *testing.T) {
+	files := ParseNULPaths(nil)
 	if len(files) != 0 {
 		t.Fatalf("files = %#v, want empty", files)
 	}

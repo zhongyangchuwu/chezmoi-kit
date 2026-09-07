@@ -11,16 +11,28 @@ import (
 	"golang.org/x/term"
 )
 
-type syncDiffMsg struct {
+type syncReviewMsg struct {
 	target string
-	diff   string
+	review app.Review
 	err    error
+}
+
+type workspacePreviewMsg struct {
+	key     string
+	preview app.WorkspacePreview
+	err     error
 }
 
 type executeMsg struct {
 	target   string
-	executed []app.Action
-	skipped  int
+	action   app.Action
+	result   app.ActionResult
+	executed bool
+	skipped  bool
+	resolved bool
+	deferred bool
+	review   app.Review
+	reason   string
 	err      error
 }
 
@@ -48,16 +60,44 @@ func RunSyncTUI(service app.SyncService, targets []string, input io.Reader, outp
 	defer timing.Close()
 
 	start := time.Now()
-	entries, err := service.Status(targets)
-	timing.Info("sync initial status", "targets", len(targets), "entries", len(entries), "duration", elapsed(start), "err", err)
+	status, err := service.Status(targets)
+	timing.Info("sync initial status", "targets", len(targets), "entries", len(status.Entries), "scripts", len(status.Scripts), "duration", elapsed(start), "err", err)
 	if err != nil {
 		return err
 	}
-	if len(entries) == 0 {
+	if len(status.Entries) == 0 {
+		if len(status.Scripts) > 0 {
+			_, err = fmt.Fprintf(output, "no file changes to reconcile; %s pending\nuse chezmoi diff and chezmoi apply to review and run scripts\n", scriptCount(len(status.Scripts)))
+			return err
+		}
 		_, err = fmt.Fprintln(output, "clean")
 		return err
 	}
+	return runTUIProgram(newSyncTUIModel(service, status, timing), input, output)
+}
 
+func RunWorkspaceTUI(service app.WorkspaceService, scopes []string, input io.Reader, output io.Writer, options *app.Options) error {
+	options = app.NormalizeOptions(options)
+	timing, err := newSyncTimingLogger(options.Debug)
+	if err != nil {
+		return fmt.Errorf("create debug log: %w", err)
+	}
+	if timing.Enabled() {
+		_, _ = fmt.Fprintf(options.Stderr, "debug log: %s\n", timing.Path())
+		defer fmt.Fprintf(options.Stderr, "debug log kept at: %s\n", timing.Path())
+	}
+	defer timing.Close()
+
+	start := time.Now()
+	snapshot, err := service.Inventory(scopes)
+	timing.Info("workspace inventory", "scopes", len(scopes), "entries", len(snapshot.Entries), "duration", elapsed(start), "err", err)
+	if err != nil {
+		return err
+	}
+	return runTUIProgram(newWorkspaceModel(service, snapshot, timing), input, output)
+}
+
+func runTUIProgram(initial workspaceModel, input io.Reader, output io.Writer) error {
 	programOptions := []tea.ProgramOption{
 		tea.WithInput(input),
 		tea.WithOutput(output),
@@ -67,12 +107,12 @@ func RunSyncTUI(service app.SyncService, targets []string, input io.Reader, outp
 		programOptions = append(programOptions, tea.WithoutRenderer())
 	}
 
-	program := tea.NewProgram(newSyncTUIModel(service, entries, timing), programOptions...)
+	program := tea.NewProgram(initial, programOptions...)
 	model, err := program.Run()
 	if err != nil {
 		return err
 	}
-	final, ok := model.(syncTUIModel)
+	final, ok := model.(workspaceModel)
 	if !ok {
 		return nil
 	}
@@ -94,20 +134,24 @@ func isTerminalWriter(w io.Writer) bool {
 	return term.IsTerminal(int(file.Fd()))
 }
 
-func (m syncTUIModel) Init() tea.Cmd {
+func (m workspaceModel) Init() tea.Cmd {
 	if m.service == nil || m.currentTarget() == "" {
 		return nil
 	}
-	return loadDiffCmd(m.service, m.currentTarget(), m.timing)
+	_, cmd := m.startDiffLoad(false)
+	return cmd
 }
 
-func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m workspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.search != searchNone {
+			return m.updateSearch(msg)
+		}
 		if m.mode == modeExecuting {
 			return m.updateExecuting(msg)
 		}
@@ -115,12 +159,10 @@ func (m syncTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfirm(msg)
 		}
 		return m.updateReview(msg)
-	case syncDiffMsg:
-		m.applyDiff(msg)
-		if msg.err != nil {
-			return m, nil
-		}
-		return m, nil
+	case syncReviewMsg:
+		return m.applyReview(msg)
+	case workspacePreviewMsg:
+		return m.applyWorkspacePreview(msg)
 	case executeMsg:
 		return m.applyExecuteMsg(msg)
 	case terminalRequestMsg:

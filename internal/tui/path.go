@@ -14,7 +14,7 @@ func homeDir() string {
 	return filepath.Clean(home)
 }
 
-func (m syncTUIModel) displayPath(path string) string {
+func (m workspaceModel) displayPath(path string) string {
 	if path == "" || m.homeDir == "" {
 		return path
 	}

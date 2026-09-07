@@ -1,88 +1,68 @@
-# Stack Map
+# Stack
 
-## Language and runtime
+**Mapped:** 2026-09-07
 
-- The project is a Go CLI module declared as `module github.com/zhongyangchuwu/cm` in `go.mod`.
-- `go.mod` sets the language/toolchain target to `go 1.26`.
-- The process entrypoint is `cmd/cm/main.go`; it passes `os.Args[1:]`, `os.Stdin`, `os.Stdout`, and `os.Stderr` into `internal/cli.Main` and exits with the returned status code.
-- Runtime build metadata is read in `internal/app/version.go` via `runtime/debug.ReadBuildInfo()`.
-- `internal/app/version.go` exposes a package variable `Version = "dev"`, so release builds can override it with `-ldflags` as documented in `docs/development.md`.
-- The CLI is intentionally local/terminal-oriented: there is no server, daemon, database, HTTP API, Dockerfile, or generated-code setup visible in the repository markers.
+## Language and Toolchain
 
-## Module and package layout
+- Go module: `github.com/zhongyangchuwu/cm`
+- Go language version: `1.26`
+- Entrypoint: `cmd/cm/main.go`
+- Formatting: `gofmt`
+- Tests: standard `testing`
+- Static analysis: `go vet`
+- Vulnerability scan: `govulncheck`
+- Release: GoReleaser v2
 
-- `cmd/cm/main.go` is a thin binary wrapper around internal application code.
-- `internal/app/options.go`, `internal/app/version.go`, and `internal/app/services.go` own process options, version metadata, service graph, app use cases, and sync action contracts.
-- `internal/cli/root.go` wires the command tree with Cobra and owns commands such as `status`, `diff`, `sync`, `add`, `apply`, `merge`, `edit`, `git`, `version`, and `completion`.
-- `internal/cli/service.go` aliases the app service graph for command wiring only.
-- `internal/chezmoi/client.go` wraps the external `chezmoi` binary behind a small client and a runner interface.
-- `internal/chezmoi/status.go` parses `chezmoi status` output into status entries.
-- `internal/chezmoi/content.go` loads rendered target content through `chezmoi cat` and local content through `os.Open`.
-- `internal/process/runner.go` is the subprocess boundary using `os/exec` and provides injectable `Output` and `Run` methods.
-- `internal/diff/diff.go` generates in-process unified diffs and caps files at `DefaultMaxFileSize = 1 << 20` bytes.
-- `internal/tui/*.go` owns the Bubble Tea terminal interface, key handling, path display, lazy diff loading, and final confirmation flow.
+## Direct Runtime Dependencies
 
-## Direct dependencies from `go.mod`
+| Module | Purpose |
+|---|---|
+| `charm.land/bubbletea/v2` | TUI runtime and terminal command handoff. |
+| `charm.land/bubbles/v2` | Help and key-binding models. |
+| `charm.land/lipgloss/v2` | Pane layout, styles, display-width handling. |
+| `github.com/charmbracelet/x/ansi` | Display-width-safe ANSI truncation. |
+| `github.com/spf13/cobra` | CLI command tree and completion generation. |
+| `golang.org/x/term` | Terminal detection. |
 
-- `charm.land/bubbles/v2 v2.1.0` — used by `internal/tui/model.go` and `internal/tui/keys.go` for help/key binding UI pieces.
-- `charm.land/bubbletea/v2 v2.0.7` — used by `internal/tui/tui.go`, `internal/tui/update.go`, `internal/tui/view.go`, `internal/tui/diff_state.go`, and `internal/tui/confirm.go` as the TUI runtime.
-- `charm.land/lipgloss/v2 v2.0.4` — used by `internal/tui/view.go` and `internal/tui/keys.go` for terminal styling.
-- `github.com/spf13/cobra v1.10.2` — used by `internal/cli/root.go` for command parsing and shell completion generation.
-- `golang.org/x/term v0.44.0` — used by `internal/cli/render.go` and `internal/tui/tui.go` to detect whether output is a terminal.
+The former `github.com/rogpeppe/go-internal/diff` dependency is removed because chezmoi now produces authoritative builtin diff output.
 
-## Indirect dependencies recorded in `go.mod`
+## External Runtime Commands
 
-- Charm terminal support stack: `github.com/charmbracelet/colorprofile`, `github.com/charmbracelet/ultraviolet`, `github.com/charmbracelet/x/ansi`, `github.com/charmbracelet/x/term`, `github.com/charmbracelet/x/termios`, and `github.com/charmbracelet/x/windows`.
-- Text width and segmentation support: `github.com/clipperhouse/displaywidth`, `github.com/clipperhouse/uax29/v2`, `github.com/mattn/go-runewidth`, and `github.com/rivo/uniseg`.
-- Terminal/color compatibility support: `github.com/lucasb-eyer/go-colorful`, `github.com/mattn/go-colorable`, `github.com/mattn/go-isatty`, `github.com/muesli/cancelreader`, and `github.com/xo/terminfo`.
-- Cobra support dependency: `github.com/spf13/pflag`; Windows console/mousetrap support appears as `github.com/inconshreveable/mousetrap`.
-- Diff and internal helper dependency: `github.com/rogpeppe/go-internal`, used directly as `github.com/rogpeppe/go-internal/diff` in `internal/diff/diff.go` even though it is listed in the indirect block.
-- Go extended packages: `golang.org/x/sync` and `golang.org/x/sys`.
-- `go.sum` is present and records module checksums for reproducible module resolution.
+- `chezmoi` — required for managed status, diff, metadata, edit, and mutation.
+- `git` — required for source repository status.
+- `lazygit` — optional except for `cm git`.
 
-## Go module and package tooling
+## Chezmoi Commands Used
 
-- Dependency resolution is Go Modules only: `go.mod` declares the module path and versions, while `go.sum` pins checksums.
-- The project keeps application code under `internal/`, which means packages such as `internal/cli`, `internal/chezmoi`, `internal/tui`, and `internal/process` are private to this module by Go's import rules.
-- Tests follow Go's standard colocated `*_test.go` convention under the same packages, for example `internal/cli/cli_test.go`, `internal/chezmoi/client_test.go`, `internal/diff/diff_test.go`, and `internal/tui/sync_test.go`.
-- There is no separate assertion/mocking test library in `go.mod`; tests visible in the tree use the standard `testing` package plus hand-written fakes.
-- There is no checked-in formatter/linter configuration; formatting and vet/lint policy are therefore not encoded outside the standard Go toolchain files.
+- `status --include=all --exclude=none --path-style=absolute` and `--skip-secrets` inventory status
+- forced builtin `diff --include=all --exclude=none --reverse`
+- `managed --include=all --exclude=none --path-style=all --format=json`
+- typed `managed` membership plus NUL-delimited `ignored` and scoped `unmanaged`
+- `cat`, `decrypt`, `target-path`, `source-path`
+- `dump --include=all --exclude=none --format=json --recursive=false`
+- `re-add`, `apply --force`, `merge`, `add`, `edit`
 
-## Config, build, and tooling files
+## Output Formats
 
-- `go.mod` and `go.sum` are the Go module configuration files at the repo root.
-- `justfile` defines local install and release build recipes.
-- `docs/development.md` documents development requirements, local execution, release build, and verification commands.
-- `docs/development.md` documents release-version override with `go build -ldflags "-X github.com/zhongyangchuwu/cm/internal/app.Version=v0.1.0"`.
+- plain text
+- ANSI text with TTY/`NO_COLOR` handling
+- Markdown
+- Bubble Tea TUI
 
-## External command integrations
+JSON output remains deferred because report presentation blocks are not the correct domain schema.
 
-- `internal/process/runner.go` executes external commands through `exec.Command`; missing binaries are wrapped as `<command> not found in PATH`.
-- `internal/chezmoi/client.go` defaults the managed binary name to `chezmoi` when `Client.Binary` is empty.
-- `internal/chezmoi/client.go` runs `chezmoi status --path-style=absolute` for local reconciliation status.
-- `internal/chezmoi/client.go` runs `chezmoi managed` for shell completion of editable managed files.
-- `internal/chezmoi/content.go` obtains rendered target content through `chezmoi cat <target>` via `Client.OutputLimit`.
-- `internal/app/services.go` runs `chezmoi source-path` to locate the chezmoi source repository.
-- `internal/app/services.go` runs `git status --porcelain=v1` with `process.IO.Dir` set to the chezmoi source path.
-- `internal/app/services.go` runs `lazygit` in the chezmoi source directory for the `cm git` command.
-- `internal/app/services.go` delegates direct mutation commands to chezmoi: `chezmoi add`, `chezmoi apply`, `chezmoi merge`, and `chezmoi edit`.
-- `internal/app/services.go` uses `chezmoi apply --force` for confirmed apply actions in the sync flow.
-- `internal/cli/root.go` generates shell completions through Cobra for `bash`, `zsh`, `fish`, and `powershell`.
+## Build and Release
 
-## Release-adjacent stack notes
+- `just install` installs the binary and zsh completion.
+- `just build-release` produces a local version-injected binary.
+- GoReleaser builds Linux, macOS, and Windows archives for amd64/arm64.
+- CI and release workflows download the `chezmoi-linux-amd64` v2.72.1 release asset for real-tool tests.
+- CI runs tidy diff, module verification, tests, race tests, vet, govulncheck, GoReleaser check, and snapshot release.
 
-- Version output is built from Go build info in `internal/app/version.go`; it reports version, VCS revision, VCS time, dirty state, and Go version when present.
-- Status, diff, and version command output are represented by `internal/report.Document` and rendered as plain, ANSI, or Markdown text.
-- The documented release override in `docs/development.md` targets `github.com/zhongyangchuwu/cm/internal/app.Version`, so the module path in `go.mod` is part of the release build contract.
-- Because `justfile` installs with `go install ./cmd/cm`, the binary name comes from the `cmd/cm` directory.
-- The install recipe discovers the binary destination with `go env GOBIN`, falling back to `go env GOPATH` plus `/bin` when `GOBIN` is empty.
+## Repository Shape
 
-## Platform and environment assumptions
-
-- The runtime assumes a POSIX-like or PATH-based shell environment where `chezmoi`, `git`, and optionally `lazygit` are discoverable by `exec.Command`.
-- `justfile` assumes `bash` and Unix-style environment variables such as `${HOME}`, `${GOBIN}`, and `${GOPATH}`.
-- `justfile` installs zsh completion under `${HOME}/.zfunc/_cm`, so the default install path is zsh-oriented even though the CLI can generate other shell completions.
-- `internal/app/services.go` and `internal/tui/path.go` use `os.UserHomeDir()` and `filepath` to resolve/display home-relative paths.
-- `internal/tui/path.go` formats paths under the user home as `~` plus `os.PathSeparator`, so displayed separators follow the build platform.
-- `internal/tui/tui.go` changes behavior based on `golang.org/x/term.IsTerminal`; non-terminal output disables the Bubble Tea renderer and prints the final view string.
-- `internal/process/runner.go` passes stdin/stdout/stderr through to external commands, which makes interactive commands such as `chezmoi merge` and `lazygit` depend on a usable terminal.
+- No Viper.
+- No generated application code.
+- No custom diff engine.
+- No external assertion/mocking library.
+- No runtime database owned by cm.
