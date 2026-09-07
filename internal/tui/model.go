@@ -77,6 +77,8 @@ type workspaceModel struct {
 	filter           workspaceFilter
 	currentDir       string
 	directoryCursors map[string]int
+	workspaceNodes   map[string]app.WorkspaceEntry
+	matchingNodes    map[string]bool
 	fileQuery        string
 	search           searchKind
 	searchInput      string
@@ -146,6 +148,8 @@ func newBaseModel(service app.SyncService, timing ...*syncTimingLogger) workspac
 		previewKind:      app.PreviewDiff,
 		filter:           filterAll,
 		directoryCursors: make(map[string]int),
+		workspaceNodes:   make(map[string]app.WorkspaceEntry),
+		matchingNodes:    make(map[string]bool),
 		revealedPreviews: make(map[string]bool),
 		homeDir:          homeDir(),
 		styles:           newTUIStyles(),

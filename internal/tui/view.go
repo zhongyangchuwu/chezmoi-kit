@@ -100,7 +100,7 @@ func (m workspaceModel) title() string {
 	if m.searchResults {
 		view = "search"
 	}
-	return fmt.Sprintf("cm ui • %d/%d • %s • %s", len(m.entries), len(m.allEntries), m.filterLabel(), view)
+	return fmt.Sprintf("cm ui • %d/%d • %s • %s", len(m.entries), len(m.workspaceNodes), m.filterLabel(), view)
 }
 
 func (m workspaceModel) statusLine() string {
@@ -189,9 +189,16 @@ func (m workspaceModel) renderParentPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
 	lines := []string{m.styles.section.Render(truncate("Parent", innerWidth))}
-	for _, entry := range visibleEntries(m.parentEntries(), -1, max(1, innerHeight-1)) {
-		marker := "  "
-		line := marker + m.entryLabel(entry.entry)
+	entries := m.parentEntries()
+	cursor := 0
+	for index, entry := range entries {
+		if entry.RelativePath == m.currentDir {
+			cursor = index
+			break
+		}
+	}
+	for _, entry := range visibleEntries(entries, cursor, max(1, innerHeight-1)) {
+		line := "  " + m.entryLabel(entry.entry)
 		if entry.entry.RelativePath == m.currentDir {
 			line = m.styles.selected.Render("· " + m.entryLabel(entry.entry))
 		}
@@ -283,7 +290,11 @@ func (m workspaceModel) renderDiffPane(size rect) string {
 	contentHeight := innerHeight
 	var heading string
 	if m.isWorkspace() {
-		heading = m.styles.section.Render(truncate("Preview · "+string(m.previewKind), innerWidth))
+		previewLabel := string(m.previewKind)
+		if m.current().Type == app.TargetDirectory {
+			previewLabel = "directory"
+		}
+		heading = m.styles.section.Render(truncate("Preview · "+previewLabel, innerWidth))
 		contentHeight = max(1, innerHeight-1)
 	}
 	state := m.currentDiffState()

@@ -16,6 +16,7 @@ func (m *workspaceModel) rebuildEntries(preserveTarget string) {
 	if preserveTarget == "" {
 		preserveTarget = m.currentTarget()
 	}
+	m.rebuildWorkspaceIndex()
 	if m.searchResults {
 		m.entries = m.searchEntries()
 	} else {
@@ -25,11 +26,49 @@ func (m *workspaceModel) rebuildEntries(preserveTarget string) {
 	m.resetPreviewPosition()
 }
 
+func (m *workspaceModel) rebuildWorkspaceIndex() {
+	nodes := make(map[string]app.WorkspaceEntry, len(m.allEntries))
+	aggregateStates := make(map[string]app.FileState)
+	matchingNodes := make(map[string]bool)
+	for _, original := range m.allEntries {
+		relative := cleanWorkspaceRelative(original.RelativePath)
+		if relative == "" {
+			continue
+		}
+		entry := original
+		entry.RelativePath = relative
+		nodes[relative] = entry
+		for ancestor := workspaceParent(relative); ancestor != ""; ancestor = workspaceParent(ancestor) {
+			aggregateStates[ancestor] = aggregateDirectoryState(aggregateStates[ancestor], entry.State)
+		}
+		if workspaceEntryMatchesFilter(entry, m.filter) {
+			for matched := relative; matched != ""; matched = workspaceParent(matched) {
+				matchingNodes[matched] = true
+			}
+		}
+	}
+	for relative, state := range aggregateStates {
+		if entry, exists := nodes[relative]; exists {
+			entry.Type = app.TargetDirectory
+			entry.State = aggregateDirectoryState(entry.State, state)
+			nodes[relative] = entry
+			continue
+		}
+		nodes[relative] = app.WorkspaceEntry{
+			Path:         filepath.Join(m.snapshot.Root, filepath.FromSlash(relative)),
+			RelativePath: relative,
+			State:        state,
+			Type:         app.TargetDirectory,
+		}
+	}
+	m.workspaceNodes = nodes
+	m.matchingNodes = matchingNodes
+}
+
 func (m workspaceModel) directoryEntries(directory string) []app.WorkspaceEntry {
-	nodes := m.directoryNodes()
 	entries := make([]app.WorkspaceEntry, 0)
-	for relative, entry := range nodes {
-		if workspaceParent(relative) != directory || !m.entryOrDescendantMatches(relative) {
+	for relative, entry := range m.workspaceNodes {
+		if workspaceParent(relative) != directory || !m.matchingNodes[relative] {
 			continue
 		}
 		entries = append(entries, entry)
@@ -42,7 +81,15 @@ func (m workspaceModel) parentEntries() []app.WorkspaceEntry {
 	if m.currentDir == "" {
 		return nil
 	}
-	return m.directoryEntries(workspaceParent(m.currentDir))
+	parent := workspaceParent(m.currentDir)
+	entries := make([]app.WorkspaceEntry, 0)
+	for relative, entry := range m.workspaceNodes {
+		if workspaceParent(relative) == parent && (m.matchingNodes[relative] || relative == m.currentDir) {
+			entries = append(entries, entry)
+		}
+	}
+	sortWorkspaceEntries(entries)
+	return entries
 }
 
 func (m workspaceModel) searchEntries() []app.WorkspaceEntry {
@@ -50,10 +97,9 @@ func (m workspaceModel) searchEntries() []app.WorkspaceEntry {
 	if query == "" {
 		return nil
 	}
-	nodes := m.directoryNodes()
 	entries := make([]app.WorkspaceEntry, 0)
-	for relative, entry := range nodes {
-		if !m.entryOrDescendantMatches(relative) {
+	for relative, entry := range m.workspaceNodes {
+		if !m.matchingNodes[relative] {
 			continue
 		}
 		if strings.Contains(strings.ToLower(entry.RelativePath+"\x00"+entry.SourcePath), query) {
@@ -63,45 +109,8 @@ func (m workspaceModel) searchEntries() []app.WorkspaceEntry {
 	sortWorkspaceEntries(entries)
 	return entries
 }
-func (m workspaceModel) directoryNodes() map[string]app.WorkspaceEntry {
-	nodes := make(map[string]app.WorkspaceEntry, len(m.allEntries))
-	states := make(map[string][]app.FileState)
-	for _, entry := range m.allEntries {
-		relative := cleanWorkspaceRelative(entry.RelativePath)
-		if relative == "" {
-			continue
-		}
-		nodes[relative] = entry
-		for ancestor := path.Dir(relative); ancestor != "."; ancestor = path.Dir(ancestor) {
-			states[ancestor] = append(states[ancestor], entry.State)
-		}
-	}
-	for relative, states := range states {
-		if _, exists := nodes[relative]; exists {
-			continue
-		}
-		nodes[relative] = app.WorkspaceEntry{
-			Path:         filepath.Join(m.snapshot.Root, filepath.FromSlash(relative)),
-			RelativePath: relative,
-			State:        aggregateDirectoryState(states),
-			Type:         app.TargetDirectory,
-		}
-	}
-	return nodes
-}
 
-func (m workspaceModel) entryOrDescendantMatches(relative string) bool {
-	for _, entry := range m.allEntries {
-		if entry.RelativePath == relative || strings.HasPrefix(entry.RelativePath, relative+"/") {
-			if workspaceEntryMatchesFilter(entry, m.filter) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (m workspaceModel) cursorFor(directory, target string) int {
+func (m *workspaceModel) cursorFor(directory, target string) int {
 	if len(m.entries) == 0 {
 		return 0
 	}
@@ -112,6 +121,9 @@ func (m workspaceModel) cursorFor(directory, target string) int {
 				return index
 			}
 		}
+	}
+	if m.searchResults {
+		return 0
 	}
 	if cursor := m.directoryCursors[directory]; cursor >= 0 && cursor < len(m.entries) {
 		return cursor
@@ -220,30 +232,68 @@ func (m workspaceModel) directoryLabel() string {
 }
 
 func initialWorkspaceDirectory(snapshot app.WorkspaceSnapshot) string {
-	if len(snapshot.Scopes) != 1 {
+	if len(snapshot.Scopes) == 0 {
 		return ""
 	}
-	relative, err := filepath.Rel(snapshot.Root, snapshot.Scopes[0])
+	directory := workspaceScopeDirectory(snapshot, snapshot.Scopes[0])
+	for _, scope := range snapshot.Scopes[1:] {
+		directory = commonWorkspaceDirectory(directory, workspaceScopeDirectory(snapshot, scope))
+		if directory == "" {
+			return ""
+		}
+	}
+	return directory
+}
+
+func workspaceScopeDirectory(snapshot app.WorkspaceSnapshot, scope string) string {
+	relative, err := filepath.Rel(snapshot.Root, scope)
 	if err != nil || relative == "." || strings.HasPrefix(relative, "..") {
 		return ""
 	}
 	relative = filepath.ToSlash(relative)
+	exactNonDirectory := false
 	for _, entry := range snapshot.Entries {
-		if entry.RelativePath == relative && entry.Type != app.TargetDirectory {
-			return workspaceParent(relative)
+		entryRelative := cleanWorkspaceRelative(entry.RelativePath)
+		if strings.HasPrefix(entryRelative, relative+"/") {
+			return relative
 		}
+		if entryRelative == relative && entry.Type != app.TargetDirectory {
+			exactNonDirectory = true
+		}
+	}
+	if exactNonDirectory {
+		return workspaceParent(relative)
 	}
 	return relative
 }
 
-func aggregateDirectoryState(states []app.FileState) app.FileState {
-	best := app.FileClean
-	for _, state := range states {
-		if directoryStateRank(state) > directoryStateRank(best) {
-			best = state
-		}
+func commonWorkspaceDirectory(left, right string) string {
+	leftParts := splitWorkspacePath(left)
+	rightParts := splitWorkspacePath(right)
+	limit := min(len(leftParts), len(rightParts))
+	common := leftParts[:0]
+	for index := 0; index < limit && leftParts[index] == rightParts[index]; index++ {
+		common = append(common, leftParts[index])
 	}
-	return best
+	return strings.Join(common, "/")
+}
+
+func splitWorkspacePath(value string) []string {
+	value = cleanWorkspaceRelative(value)
+	if value == "" {
+		return nil
+	}
+	return strings.Split(value, "/")
+}
+
+func aggregateDirectoryState(current, candidate app.FileState) app.FileState {
+	if directoryStateRank(candidate) > directoryStateRank(current) {
+		return candidate
+	}
+	if current == "" {
+		return app.FileClean
+	}
+	return current
 }
 
 func directoryStateRank(state app.FileState) int {
@@ -258,8 +308,10 @@ func directoryStateRank(state app.FileState) int {
 		return 3
 	case app.FileScript:
 		return 2
-	default:
+	case app.FileClean:
 		return 1
+	default:
+		return 0
 	}
 }
 

@@ -80,6 +80,24 @@ func TestWorkspaceDirectoryBrowserBuildsVirtualAncestorsAndRestoresSelection(t *
 	}
 }
 
+func TestWorkspaceAncestorEntryBecomesAggregateDirectory(t *testing.T) {
+	ancestor := workspaceEntry(".config", app.FileClean, app.TargetUnknown)
+	child := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
+	model := newWorkspaceModel(nil, workspaceSnapshot(ancestor, child))
+
+	entry := model.current()
+	if entry.Type != app.TargetDirectory || entry.State != app.FileDirty {
+		t.Fatalf("ancestor entry = %#v, want dirty navigable directory", entry)
+	}
+	model.currentDir = ".config"
+	model.filter = filterIgnored
+	model.rebuildEntries("")
+	parents := model.parentEntries()
+	if len(parents) != 1 || parents[0].RelativePath != ".config" {
+		t.Fatalf("filtered parent context = %#v, want current directory retained", parents)
+	}
+}
+
 func TestWorkspaceStartsAtSingleDirectoryScope(t *testing.T) {
 	entry := workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)
 	snapshot := workspaceSnapshot(entry)
@@ -91,11 +109,24 @@ func TestWorkspaceStartsAtSingleDirectoryScope(t *testing.T) {
 	}
 }
 
+func TestWorkspaceStartsAtCommonDirectoryForMultipleScopes(t *testing.T) {
+	nvim := workspaceEntry(".config/nvim/init.lua", app.FileClean, app.TargetFile)
+	git := workspaceEntry(".config/git/config", app.FileClean, app.TargetFile)
+	snapshot := workspaceSnapshot(nvim, git)
+	snapshot.Scopes = []string{"/home/me/.config/nvim", "/home/me/.config/git"}
+	model := newWorkspaceModel(nil, snapshot)
+
+	if model.currentDir != ".config" || strings.Join(workspacePaths(model.entries), ",") != ".config/git,.config/nvim" {
+		t.Fatalf("multi-scope start = directory:%q entries:%q", model.currentDir, strings.Join(workspacePaths(model.entries), ","))
+	}
+}
+
 func TestWorkspaceDirectoryFilterAndGlobalSearchKeepResultsReachable(t *testing.T) {
 	dirty := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
 	clean := workspaceEntry(".config/clean.toml", app.FileClean, app.TargetFile)
 	ignored := workspaceEntry(".ignored", app.FileIgnored, app.TargetFile)
-	model := newWorkspaceModel(nil, workspaceSnapshot(dirty, clean, ignored))
+	service := &fakeWorkspaceService{}
+	model := newWorkspaceModel(service, workspaceSnapshot(dirty, clean, ignored))
 
 	model.filter = filterDirty
 	model.rebuildEntries("")
@@ -115,10 +146,14 @@ func TestWorkspaceDirectoryFilterAndGlobalSearchKeepResultsReachable(t *testing.
 	if !model.searchResults || model.currentTarget() != dirty.Path {
 		t.Fatalf("search result = results:%t target:%q", model.searchResults, model.currentTarget())
 	}
-	updated, _ := model.updateSearch(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	updated, load := model.updateSearch(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	model = updated.(workspaceModel)
-	if model.searchResults || model.currentDir != ".config" || model.currentTarget() != dirty.Path {
-		t.Fatalf("accepted search = results:%t directory:%q target:%q", model.searchResults, model.currentDir, model.currentTarget())
+	if load == nil {
+		t.Fatal("accepted search did not load the located file preview")
+	}
+	model, _ = model.applyWorkspacePreview(load().(workspacePreviewMsg))
+	if model.searchResults || model.currentDir != ".config" || model.currentTarget() != dirty.Path || len(service.previewCalls) != 1 {
+		t.Fatalf("accepted search = results:%t directory:%q target:%q calls:%d", model.searchResults, model.currentDir, model.currentTarget(), len(service.previewCalls))
 	}
 
 	model.currentDir = ""
@@ -170,8 +205,22 @@ func TestWorkspaceDirectoryPreviewIsLocalSummary(t *testing.T) {
 		t.Fatalf("directory summary message = %T", message)
 	}
 	model, _ = model.applyWorkspacePreview(message)
-	if len(service.previewCalls) != 0 || !strings.Contains(strings.Join(model.currentDiffState().lines, "\n"), "directory summary") {
+	lines := strings.Join(model.currentDiffState().lines, "\n")
+	if len(service.previewCalls) != 0 || !strings.Contains(lines, "view: directory summary") || !strings.Contains(lines, "direct entries: 1") {
 		t.Fatalf("directory preview called service or omitted summary: calls=%#v lines=%#v", service.previewCalls, model.currentDiffState().lines)
+	}
+
+	model.filter = filterIgnored
+	model.rebuildEntries(model.currentTarget())
+	model.filter = filterDirty
+	model.rebuildEntries(model.currentTarget())
+	model, command = model.startWorkspacePreviewLoad(false)
+	if command == nil {
+		t.Fatal("filtered directory summary reused stale cache")
+	}
+	model, _ = model.applyWorkspacePreview(command().(workspacePreviewMsg))
+	if !strings.Contains(strings.Join(model.currentDiffState().lines, "\n"), "direct entries: 1") {
+		t.Fatalf("filtered directory summary = %#v", model.currentDiffState().lines)
 	}
 }
 

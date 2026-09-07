@@ -12,6 +12,11 @@
 4. **Medium — filtered descendants could become unreachable.** Direct-child filters retain every ancestor having a matching descendant.
 5. **Medium — directory preview must not act as a file-content request.** Added local matching-child summary commands and asserted zero WorkspaceService preview calls.
 6. **Medium — previous preview scroll width assumed two panes.** Updated scroll width calculation for wide three-pane, medium two-pane, narrow one-pane, and full-screen layouts.
+7. **High — each directory node rescanned the full inventory during projection.** At the 10,000-entry cap this produced avoidable quadratic work and Parent rendering repeated it. Replaced it with one cached node/match index rebuilt in path-depth-linear work per projection.
+8. **High — accepting a global file-search result could leave its preview unloaded.** Search selection changed without loading during typing, then Enter compared the result to itself. Enter now explicitly loads the located file or directory preview; regression coverage observes the preview service call.
+9. **Medium — multiple explicit scopes started at destination root.** Startup now computes their nearest common directory while retaining file-scope parent behavior.
+10. **Medium — directory summaries could be stale, undercount virtual children, or iterate a shared slice asynchronously.** Directory summaries now bypass persistent cache reuse, count direct projected children, compute before command dispatch, and use an accurate directory-summary label.
+11. **Medium — actual unknown directory ancestors and filtered Parent context could become non-navigable or invisible.** Any inventory node with descendants becomes a directory with aggregate state; Parent always retains and centers the current directory.
 
 ## Intentional Non-Features
 
@@ -20,4 +25,8 @@
 
 ## Remaining Risk
 
-- The directory browser synthesizes nodes at render/projection time. The existing inventory caps remain the boundary; profile large real inventories before adding richer directory metadata.
+- Node and filter indexes rebuild in $O(n \times d)$ work, where $n$ is the bounded inventory and $d$ is path depth. This removes the reviewed quadratic path; profile only if future inventory limits grow materially.
+
+## Merge Assessment
+
+- No Blocker, High, Medium, or Low findings remain open. The change is ready for full verification, PR CI, and squash merge.

@@ -97,6 +97,9 @@ func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, t
 		oldTarget := m.currentTarget()
 		m.cycleFilter()
 		m.message = "filter: " + m.filterLabel()
+		if m.current().Type == app.TargetDirectory {
+			return m.startWorkspacePreviewLoad(true)
+		}
 		return m.loadIfSelectionChanged(oldTarget)
 	case key.Matches(msg, defaultSyncKeys.Help):
 		m.helpVisible = true
@@ -188,7 +191,7 @@ func (m workspaceModel) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			m.enterCurrentDirectory()
 			m.searchInput = ""
-			return m.loadIfSelectionChanged(oldTarget)
+			return m.startDiffLoad(false)
 		}
 		return m, nil
 	case tea.KeyEscape:
