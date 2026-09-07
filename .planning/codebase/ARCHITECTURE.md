@@ -104,9 +104,11 @@ The matrix is conservative because `re-add` ignores non-files and refuses to ove
 2. App loads the destination root, normalized scopes, managed path mappings, secret-skipping status, typed managed membership, and source-ignored entries from chezmoi.
 3. Explicit scopes trigger bounded recursive candidate discovery: filesystem enumeration only provides child paths; chezmoi `unmanaged` remains the membership authority.
 4. TUI projects the sorted inventory into tree/flat/filter/search views, retaining selected absolute path where visible.
-5. Selected previews load lazily as authoritative diff, destination, rendered target, or source views.
-6. Template/encrypted rendered targets, encrypted source, and secret-skipped diffs remain withheld until per-target explicit reveal.
-7. Workspace mode has no mutation path; its `q` exit changes neither source nor destination.
+5. Semantic styles distinguish state/type/attribute tokens and selected focus while retaining every textual marker for no-color terminals.
+6. Selected previews load lazily as authoritative diff, destination, rendered target, or source views; loading, error, clean, and withheld feedback have distinct presentation.
+7. Template/encrypted rendered targets, encrypted source, and secret-skipped diffs remain withheld until per-target explicit reveal.
+8. `?` opens a keyboard-isolated quick-start/key/legend overlay; `Esc`, `?`, and `q` close it without changing workspace data.
+9. Workspace mode has no mutation path; its `q` exit changes neither source nor destination.
 
 ## Edit Flow
 

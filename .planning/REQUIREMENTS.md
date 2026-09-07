@@ -31,6 +31,10 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 - [x] WORKSPACE-04 — Users can inspect complete bounded previews through full-screen mode, horizontal/vertical navigation, search, and hunk jumps; metadata and symlink changes remain visible.
 - [x] TEMPLATE-01 — Users can explicitly switch between rendered target diff, destination content, and source-template detail without exposing template data or decrypted content automatically.
 
+### Phase 2.1 — Workspace Usability
+
+- [x] UX-01 — `cm ui` distinguishes file state/type/attributes with semantic color and retained textual markers, provides responsive contextual guidance, and offers keyboard-isolated in-TUI help with a complete legend.
+
 ### Step 2 / Phase 3 — Mature Tool Handoffs
 
 - [ ] TEMPLATE-02 — Managed source/template edits delegate to `chezmoi edit`, return to refreshed review, and do not implicitly apply or watch through inherited editor configuration.
@@ -89,6 +93,7 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 | WORKSPACE-03 | Phase 2 — Unified File Workspace | Complete |
 | WORKSPACE-04 | Phase 2 — Unified File Workspace | Complete |
 | TEMPLATE-01 | Phase 2 — Unified File Workspace | Complete |
+| UX-01 | Phase 2.1 — Workspace Usability | Complete |
 | TEMPLATE-02 | Phase 3 — Mature Tool Handoffs | Planned |
 | TEMPLATE-03 | Phase 3 — Mature Tool Handoffs | Planned |
 | TOOLS-01 | Phase 3 — Mature Tool Handoffs | Planned |
@@ -103,8 +108,8 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 
 ## Coverage Summary
 
-- Completed baseline and workspace requirements: 15
+- Completed baseline, workspace, and usability requirements: 16
 - Planned next-step requirements: 11 (6 tool handoff, 5 management/diagnostics)
-- Total mapped requirements: 26
+- Total mapped requirements: 27
 - Unmapped requirements: 0
-- Phase 2 implementation satisfies all five workspace requirements; the remaining 11 requirements are planned.
+- Phase 2.1 implementation satisfies UX-01; the remaining 11 requirements are planned.

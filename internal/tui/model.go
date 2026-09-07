@@ -78,9 +78,11 @@ type workspaceModel struct {
 	fileQuery        string
 	search           searchKind
 	searchInput      string
+	helpVisible      bool
 	width            int
 	height           int
 	homeDir          string
+	styles           tuiStyles
 	help             help.Model
 	message          string
 	err              error
@@ -143,6 +145,7 @@ func newBaseModel(service app.SyncService, timing ...*syncTimingLogger) workspac
 		collapsed:        make(map[string]bool),
 		revealedPreviews: make(map[string]bool),
 		homeDir:          homeDir(),
+		styles:           newTUIStyles(),
 		help:             help.New(),
 	}
 	if len(timing) > 0 {

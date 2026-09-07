@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/zhongyangchuwu/cm/internal/app"
 )
@@ -276,6 +277,77 @@ func TestWorkspacePreviewNavigationReachesLineTailsHunksAndMatches(t *testing.T)
 		t.Fatalf("previous preview match scroll = %d, want 2", model.diffScroll)
 	}
 }
+func TestWorkspaceHelpShowsGuidanceAndBlocksWorkspaceActions(t *testing.T) {
+	first := workspaceEntry(".config/first.toml", app.FileClean, app.TargetFile)
+	second := workspaceEntry(".config/second.toml", app.FileDirty, app.TargetFile)
+	model := newWorkspaceModel(nil, workspaceSnapshot(first, second))
+	model.width = 100
+	model.height = 30
+
+	model = workspaceKeyUpdate(t, model, '?')
+	if !model.helpVisible {
+		t.Fatal("help is not visible after ?")
+	}
+	for _, text := range []string{"Quick help", "Start here", "C clean", "[E] encrypted", "Esc, ?, or q closes help"} {
+		if !strings.Contains(ansi.Strip(model.viewString()), text) {
+			t.Fatalf("help does not contain %q", text)
+		}
+	}
+	cursor, filter := model.cursor, model.filter
+	model = workspaceKeyUpdate(t, model, 'j')
+	model = workspaceKeyUpdate(t, model, 'f')
+	if model.cursor != cursor || model.filter != filter {
+		t.Fatalf("help allowed workspace mutation: cursor=%d filter=%v", model.cursor, model.filter)
+	}
+
+	model = workspaceKeyUpdate(t, model, '?')
+	if model.helpVisible {
+		t.Fatal("help remains visible after ?")
+	}
+	model = workspaceKeyUpdate(t, model, '?')
+	model = workspaceKeyUpdate(t, model, 'q')
+	if model.helpVisible || model.stopped {
+		t.Fatal("q did not close help without quitting workspace")
+	}
+}
+
+func TestWorkspaceSemanticLegendSurvivesNoColorMode(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	model := newWorkspaceModel(nil, workspaceSnapshot(workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)))
+	legend := ansi.Strip(model.workspaceLegend())
+	for _, text := range []string{"C clean", "D dirty", "U unmanaged", "I ignored", "R script", "? uninspected", "[T] template", "[E] encrypted"} {
+		if !strings.Contains(legend, text) {
+			t.Fatalf("no-color legend does not contain %q: %q", text, legend)
+		}
+	}
+}
+
+func TestWorkspacePaletteDistinguishesFileStates(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	styles := newTUIStyles()
+	rendered := map[app.FileState]string{}
+	for _, state := range []app.FileState{app.FileClean, app.FileDirty, app.FileUnmanaged, app.FileIgnored, app.FileScript, app.FileUninspected} {
+		rendered[state] = styles.stateStyle(state).Render("x")
+	}
+	for state, value := range rendered {
+		for otherState, otherValue := range rendered {
+			if state != otherState && value == otherValue {
+				t.Fatalf("states %q and %q have identical visual markers", state, otherState)
+			}
+		}
+	}
+}
+
+func TestWorkspaceFooterRetainsHelpAndQuitAtEverySupportedWidth(t *testing.T) {
+	model := newWorkspaceModel(nil, workspaceSnapshot(workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)))
+	for _, width := range []int{24, 60, 80, 120} {
+		model.width = width
+		footer := ansi.Strip(model.workspaceFooter())
+		if !strings.Contains(footer, "?") || !strings.Contains(footer, "q") || lipgloss.Width(footer) > width {
+			t.Fatalf("footer at width %d = %q width=%d", width, footer, lipgloss.Width(footer))
+		}
+	}
+}
 
 func TestWorkspaceFullPreviewOmitsFilesAndFitsNarrowWidth(t *testing.T) {
 	entry := workspaceEntry("workspace-file.txt", app.FileClean, app.TargetFile)
@@ -284,14 +356,14 @@ func TestWorkspaceFullPreviewOmitsFilesAndFitsNarrowWidth(t *testing.T) {
 	model.height = 14
 	model.diffs[model.previewStateKey()] = diffState{lines: []string{"preview payload"}}
 
-	if rendered := model.viewString(); !strings.Contains(rendered, "C:f workspace-file.txt") {
+	if rendered := ansi.Strip(model.viewString()); !strings.Contains(rendered, "C:f workspace-file.txt") {
 		t.Fatalf("normal workspace view omits file pane entry: %q", rendered)
 	}
 	model.previewFull = true
 	if !model.previewFull {
 		t.Fatal("full preview flag is false")
 	}
-	if rendered := model.viewString(); strings.Contains(rendered, "C:f workspace-file.txt") {
+	if rendered := ansi.Strip(model.viewString()); strings.Contains(rendered, "C:f workspace-file.txt") {
 		t.Fatalf("full preview still renders file pane entry: %q", rendered)
 	}
 

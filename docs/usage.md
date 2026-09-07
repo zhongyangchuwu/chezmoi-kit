@@ -122,8 +122,9 @@ those explicit scopes. The workspace never adds, applies, or merges files.
 
 The file list labels `C` clean, `D` dirty, `U` unmanaged, `I` ignored, `R`
 script, and `?` uninspected. `[T]` marks templates and `[E]` encrypted source
-state. `?` means cm intentionally skipped authoritative inspection; it is not
-a clean result.
+state. The workspace uses semantic color for these markers, but each retains its
+letter/badge meaning when color is unavailable. `?` means cm intentionally skipped
+authoritative inspection; it is not a clean result.
 
 | Key | Action |
 |---|---|
@@ -139,13 +140,18 @@ a clean result.
 | `[` / `]` | move to the previous or next diff hunk |
 | `z` | toggle full-screen preview |
 | `R` | explicitly reveal a withheld diff, rendered target, or encrypted source |
-| `q` / `ctrl+c` | quit without mutation |
+| `?` | toggle quick-start, complete key reference, and state/type legend |
+| `q` / `ctrl+c` | quit without mutation; when help is open, close help instead |
 
 Preview output is bounded. Rendered template/encrypted targets, encrypted
 source, and sensitive uninspected diffs are withheld until `R`; this makes the
 reveal an explicit per-target, per-view decision. Plain template source remains
 unrendered source text. Chezmoi remains authoritative for all classification,
 rendering, decryption, target type, and diff behavior.
+
+The file pane keeps a compact state legend when space permits. Its footer adapts
+to narrow terminals but always retains a help (`?`) and quit (`q`) route. Set
+`NO_COLOR=1` to keep the same textual markers and legend without semantic colors.
 
 ## Sync
 

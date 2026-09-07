@@ -29,6 +29,8 @@
 - Long preview lines have horizontal scrolling and narrow terminals switch to one focused pane; extremely tiny terminals may still have limited ergonomics.
 - Cached selected previews are bounded but cumulative for a long browsing session.
 - Stale asynchronous preview completions cache their own result but do not alter the active view message, matches, or scroll position.
+- Semantic colors are intentionally non-configurable in the current slice. Text markers and `NO_COLOR=1` provide the accessibility fallback.
+- Very narrow terminals shorten help/legend prose; the quick help and footer preserve operation routes instead of introducing a paged help state.
 
 ## Compatibility
 

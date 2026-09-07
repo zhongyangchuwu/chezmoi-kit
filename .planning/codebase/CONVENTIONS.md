@@ -42,6 +42,8 @@
 - Build workspace inventory from chezmoi path/type/status/ignore/unmanaged outputs; filesystem traversal may enumerate scoped child candidates only and never replaces chezmoi classification.
 - Treat `--skip-secrets` omissions as uninspected, not clean. Keep preview content bounded and require explicit reveal for sensitive target/source/diff content.
 - Project tree/flat/filter/search views from absolute target identity, retaining the same selected target where visible and otherwise using deterministic index fallback.
+- Workspace color augments rather than replaces `C/D/U/I/R/?`, target-type letters, and `[T]/[E]` badges; `NO_COLOR=1` retains complete text semantics.
+- TUI overlays intercept their own keys before normal workspace dispatch; compact footers retain a help and quit route at narrow widths.
 
 ## Errors and Output
 

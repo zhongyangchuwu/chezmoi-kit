@@ -63,6 +63,12 @@ is bounded. Diff, destination, rendered target, and source are distinct views.
 Template/encrypted rendered targets, encrypted source, and uninspected diffs
 require explicit reveal. The workspace has no add, apply, or merge actions.
 
+Workspace presentation uses a semantic palette for state, target type, template,
+encryption, selection, loading, error, and withheld feedback. Letters and badges
+remain the authoritative visual meaning so no-color terminals remain usable. `?`
+opens a keyboard-isolated help view containing quick start, contextual key groups,
+and the complete state/type legend; `Esc`, `?`, or `q` returns to the workspace.
+
 
 ### Reviews bind confirmation to exact state
 

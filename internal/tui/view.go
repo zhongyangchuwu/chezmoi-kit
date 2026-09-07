@@ -36,10 +36,13 @@ func (m workspaceModel) viewString() string {
 	if height <= 0 {
 		height = 30
 	}
+	if m.isWorkspace() && m.helpVisible {
+		return m.renderWorkspaceHelp(width, height) + "\n"
+	}
 
-	header := titleStyle.Render(truncate(m.title(), width))
+	header := m.styles.title.Render(truncate(m.title(), width))
 	footer := m.footer()
-	status := m.statusLine()
+	status := m.renderStatusLine()
 	messageHeight := 0
 	if status != "" {
 		messageHeight = lipgloss.Height(status)
@@ -116,28 +119,61 @@ func (m workspaceModel) statusLine() string {
 	return ""
 }
 
+func (m workspaceModel) renderStatusLine() string {
+	status := m.statusLine()
+	if status == "" {
+		return ""
+	}
+	if m.search != searchNone {
+		return m.styles.loading.Render(status)
+	}
+	state := m.currentDiffState()
+	if state.preview.Withheld && status == state.preview.Notice {
+		return m.styles.withheld.Render(status)
+	}
+	if strings.HasPrefix(status, "error:") {
+		return m.styles.error.Render(status)
+	}
+	return m.styles.muted.Render(status)
+}
+
 func (m workspaceModel) renderFilesPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
-	lines := make([]string, 0, innerHeight)
-	for _, entry := range visibleEntries(m.entries, m.cursor, innerHeight) {
+	legendHeight := 0
+	if m.isWorkspace() && innerHeight >= 8 {
+		legendHeight = 1
+	}
+	listHeight := max(1, innerHeight-1-legendHeight)
+	lines := []string{m.styles.section.Render(truncate(m.filesPaneTitle(), innerWidth))}
+	for _, entry := range visibleEntries(m.entries, m.cursor, listHeight) {
 		cursor := "  "
 		if entry.index == m.cursor {
 			cursor = "> "
 		}
 		line := cursor + m.entryLabel(entry.entry)
+		if entry.index == m.cursor {
+			if m.focus == focusFiles && m.mode == modeReview {
+				line = m.styles.selectedActive.Render(line)
+			} else {
+				line = m.styles.selected.Render(line)
+			}
+		}
 		lines = append(lines, truncate(line, innerWidth))
 	}
-	if len(lines) == 0 {
-		lines = append(lines, "no entries")
+	if len(lines) == 1 {
+		lines = append(lines, m.styles.muted.Render("no entries"))
+	}
+	if legendHeight > 0 {
+		lines = append(lines, truncate(m.workspaceLegend(), innerWidth))
 	}
 	for len(lines) < innerHeight {
 		lines = append(lines, "")
 	}
 
-	style := paneStyle
+	style := m.styles.pane
 	if m.focus == focusFiles && m.mode == modeReview {
-		style = activePaneStyle
+		style = m.styles.activePane
 	}
 	return style.Width(size.width).Height(size.height).Render(strings.Join(lines, "\n"))
 }
@@ -165,7 +201,10 @@ func (m workspaceModel) entryLabel(entry app.WorkspaceEntry) string {
 	if !m.flat {
 		displayName = path.Base(pathLabel)
 	}
-	return fmt.Sprintf("%s%s%s:%s %s%s", indent, treeMarker, stateMarker(entry.State), typeMarker(entry), displayName, attributeMarker(entry))
+	state := m.styles.stateStyle(entry.State).Render(stateMarker(entry.State))
+	targetType := m.styles.typeStyle(entry.Type).Render(typeMarker(entry))
+	name := m.styles.typeStyle(entry.Type).Render(displayName)
+	return fmt.Sprintf("%s%s%s:%s %s%s", indent, treeMarker, state, targetType, name, m.attributeMarker(entry))
 }
 
 func stateMarker(state app.FileState) string {
@@ -204,13 +243,13 @@ func typeMarker(entry app.WorkspaceEntry) string {
 	}
 }
 
-func attributeMarker(entry app.WorkspaceEntry) string {
+func (m workspaceModel) attributeMarker(entry app.WorkspaceEntry) string {
 	var marker strings.Builder
 	if entry.Template {
-		marker.WriteString(" [T]")
+		marker.WriteString(" " + m.styles.template.Render("[T]"))
 	}
 	if entry.Encrypted {
-		marker.WriteString(" [E]")
+		marker.WriteString(" " + m.styles.encrypted.Render("[E]"))
 	}
 	return marker.String()
 }
@@ -229,13 +268,13 @@ func (m workspaceModel) renderDiffPane(size rect) string {
 	var content string
 	switch {
 	case len(m.entries) == 0:
-		content = "no entries match the current view"
+		content = m.styles.muted.Render("no entries match the current view")
 	case state.loading:
-		content = "loading preview..."
+		content = m.styles.loading.Render("loading preview...")
 	case state.err != nil:
-		content = state.err.Error()
+		content = m.styles.error.Render("error: " + state.err.Error())
 	case len(state.lines) == 0:
-		content = "no preview"
+		content = m.styles.muted.Render("no preview")
 	default:
 		lines := state.lines
 		if m.diffScroll > len(lines) {
@@ -250,13 +289,13 @@ func (m workspaceModel) renderDiffPane(size rect) string {
 		for i, line := range lines {
 			visible[i] = cropLine(line, m.previewX, innerWidth)
 		}
-		content = renderDiffLines(visible)
+		content = renderPreviewLines(m, visible, state)
 	}
 
 	content = padLines(content, innerHeight)
-	style := paneStyle
+	style := m.styles.pane
 	if m.focus == focusDiff && m.mode == modeReview {
-		style = activePaneStyle
+		style = m.styles.activePane
 	}
 	return style.Width(size.width).Height(size.height).Render(content)
 }
@@ -268,7 +307,7 @@ func (m workspaceModel) renderConfirmPane(size rect) string {
 	if m.mode == modeExecuting {
 		title = "Executing actions"
 	}
-	lines := []string{sectionStyle.Render(title), ""}
+	lines := []string{m.styles.section.Render(title), ""}
 	if m.mode == modeExecuting {
 		if m.executingIndex < len(m.executing) {
 			action := m.executing[m.executingIndex]
@@ -285,30 +324,12 @@ func (m workspaceModel) renderConfirmPane(size rect) string {
 	}
 	content := strings.Join(lines, "\n")
 	content = padLines(content, innerHeight)
-	return activePaneStyle.Width(size.width).Height(size.height).Render(content)
+	return m.styles.activePane.Width(size.width).Height(size.height).Render(content)
 }
 
 func (m workspaceModel) footer() string {
 	if m.isWorkspace() {
-		content := "files • tab preview • j/k move • t view • f filter • / search"
-		if m.focus == focusDiff {
-			content = fmt.Sprintf("preview • tab files • j/k scroll • h/l x=%d • 1-4 view • z full • / search", m.previewX)
-			if m.previewKind == app.PreviewDiff {
-				content += " • [/] hunks"
-			}
-			if m.previewQuery != "" {
-				content += " • n/N matches"
-			}
-			if m.currentDiffState().preview.Withheld {
-				content += " • R reveal"
-			}
-		}
-		content += " • q quit"
-		width := m.width
-		if width <= 0 {
-			width = 100
-		}
-		return helpStyle.Render(truncate(content, width))
+		return m.workspaceFooter()
 	}
 	var content string
 	if m.mode == modeExecuting {
@@ -325,7 +346,18 @@ func (m workspaceModel) footer() string {
 	if m.scriptCount > 0 {
 		content += " • " + scriptCount(m.scriptCount) + " outside cm sync"
 	}
-	return helpStyle.Render(content)
+	return m.styles.help.Render(content)
+}
+
+func (m workspaceModel) filesPaneTitle() string {
+	if !m.isWorkspace() {
+		return "Files"
+	}
+	view := "tree"
+	if m.flat {
+		view = "flat"
+	}
+	return fmt.Sprintf("Files · %s · %s", m.filterLabel(), view)
 }
 
 type visibleEntry struct {

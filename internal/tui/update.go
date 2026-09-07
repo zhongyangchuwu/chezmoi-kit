@@ -100,6 +100,9 @@ func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, t
 		oldTarget := m.currentTarget()
 		m.toggleCurrentDirectory()
 		return m.loadIfSelectionChanged(oldTarget)
+	case key.Matches(msg, defaultSyncKeys.Help):
+		m.helpVisible = true
+		return m, nil
 	case key.Matches(msg, defaultSyncKeys.Search):
 		return m.beginSearch(), nil
 	case key.Matches(msg, defaultSyncKeys.Full):
@@ -141,6 +144,13 @@ func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, t
 	default:
 		return m, nil
 	}
+}
+
+func (m workspaceModel) updateWorkspaceHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, defaultSyncKeys.Back) || key.Matches(msg, defaultSyncKeys.Help) || key.Matches(msg, defaultSyncKeys.Quit) {
+		m.helpVisible = false
+	}
+	return m, nil
 }
 
 func (m workspaceModel) beginSearch() workspaceModel {

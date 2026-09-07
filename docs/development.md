@@ -131,8 +131,8 @@ For `cm sync`, verify:
 
 For `cm ui`, verify both unscoped and explicit-scope inventory, tree/flat
 projection, filters, path and preview search, hunk and horizontal navigation,
-full-screen/narrow rendering, template/encrypted reveal, and quit-without-
-mutation behavior.
+full-screen/narrow rendering, template/encrypted reveal, semantic state markers,
+the `?` help overlay, `NO_COLOR=1` text fallback, and quit-without-mutation behavior.
 
 
 To collect sync phase timings during manual smoke:
