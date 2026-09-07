@@ -17,6 +17,7 @@
 9. **Medium — multiple explicit scopes started at destination root.** Startup now computes their nearest common directory while retaining file-scope parent behavior.
 10. **Medium — directory summaries could be stale, undercount virtual children, or iterate a shared slice asynchronously.** Directory summaries now bypass persistent cache reuse, count direct projected children, compute before command dispatch, and use an accurate directory-summary label.
 11. **Medium — actual unknown directory ancestors and filtered Parent context could become non-navigable or invisible.** Any inventory node with descendants becomes a directory with aggregate state; Parent always retains and centers the current directory.
+12. **Medium — Copilot found raw directory-summary prefix matching.** Non-canonical relative paths could be indexed correctly but omitted from descendant counts. Summary matching now normalizes the directory and every candidate through the same `cleanWorkspaceRelative` path used by the browser; regression coverage includes `./`, duplicate separator, and trailing separator input.
 
 ## Intentional Non-Features
 

@@ -174,7 +174,6 @@ func TestWorkspaceDirectoryFilterAndGlobalSearchKeepResultsReachable(t *testing.
 	if model.searchResults || model.currentDir != ".config" || model.currentTarget() != dirty.Path || model.message != "no path matches" {
 		t.Fatalf("empty search = results:%t directory:%q target:%q message:%q", model.searchResults, model.currentDir, model.currentTarget(), model.message)
 	}
-
 }
 
 func TestWorkspaceRejectsReconciliationActions(t *testing.T) {
@@ -192,7 +191,7 @@ func TestWorkspaceRejectsReconciliationActions(t *testing.T) {
 }
 
 func TestWorkspaceDirectoryPreviewIsLocalSummary(t *testing.T) {
-	child := workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)
+	child := workspaceEntry("./.config/app.toml/", app.FileDirty, app.TargetFile)
 	service := &fakeWorkspaceService{}
 	model := newWorkspaceModel(service, workspaceSnapshot(child))
 
@@ -206,7 +205,7 @@ func TestWorkspaceDirectoryPreviewIsLocalSummary(t *testing.T) {
 	}
 	model, _ = model.applyWorkspacePreview(message)
 	lines := strings.Join(model.currentDiffState().lines, "\n")
-	if len(service.previewCalls) != 0 || !strings.Contains(lines, "view: directory summary") || !strings.Contains(lines, "direct entries: 1") {
+	if len(service.previewCalls) != 0 || !strings.Contains(lines, "view: directory summary") || !strings.Contains(lines, "direct entries: 1") || !strings.Contains(lines, "matching descendants: 1") {
 		t.Fatalf("directory preview called service or omitted summary: calls=%#v lines=%#v", service.previewCalls, model.currentDiffState().lines)
 	}
 

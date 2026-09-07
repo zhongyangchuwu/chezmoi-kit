@@ -57,10 +57,12 @@ func (m workspaceModel) startWorkspacePreviewLoad(refresh bool) (workspaceModel,
 }
 
 func loadDirectoryPreviewCmd(entry app.WorkspaceEntry, direct int, allEntries []app.WorkspaceEntry, filter workspaceFilter, kind app.PreviewKind) tea.Cmd {
+	directory := cleanWorkspaceRelative(entry.RelativePath)
 	descendants := 0
 	counts := map[app.FileState]int{}
 	for _, candidate := range allEntries {
-		if !strings.HasPrefix(candidate.RelativePath, entry.RelativePath+"/") || !workspaceEntryMatchesFilter(candidate, filter) {
+		candidateRelative := cleanWorkspaceRelative(candidate.RelativePath)
+		if !strings.HasPrefix(candidateRelative, directory+"/") || !workspaceEntryMatchesFilter(candidate, filter) {
 			continue
 		}
 		descendants++

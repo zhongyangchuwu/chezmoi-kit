@@ -7,7 +7,7 @@
 3. `h`/left and `l`/right/Enter navigate paths in Current focus and restore parent selections; Preview focus retains horizontal scrolling.
 4. One explicit directory scope opens there; multiple scopes open at their nearest common directory.
 5. Filters retain matching ancestors; global search finds inventory nodes, and Enter locates and loads the selected result.
-6. Directory previews are fresh local summaries, include virtual direct children, and do not call chezmoi content preview.
+6. Directory previews are fresh local summaries, include virtual direct children, normalize descendant paths consistently with the browser index, and do not call chezmoi content preview.
 7. Projection indexes avoid a full inventory scan for every directory node.
 8. Wide, medium, narrow, help, semantic-color, and `NO_COLOR=1` layouts remain usable.
 9. Workspace remains read-only.
