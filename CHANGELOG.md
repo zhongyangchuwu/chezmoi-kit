@@ -7,9 +7,10 @@ All notable changes to `cm` are documented here.
 ### Added
 
 - `cm ui [path...]` provides a persistent, read-only workspace for managed clean/dirty files, source-ignored entries, and explicitly scoped unmanaged candidates.
-- Workspace tree/flat projections, category filters, path/preview search, full-screen preview, horizontal scrolling, diff hunk navigation, and labeled destination/target/source views.
+- Workspace category filters, global path/preview search, full-screen preview, horizontal scrolling, diff hunk navigation, and labeled destination/target/source views.
 - Explicit per-view reveal for uninspected diffs, rendered template/encrypted targets, and encrypted source content; no-scope workspace inventory never scans unmanaged `$HOME` paths.
 - `cm ui` now uses semantic state/type/attribute colors, a compact legend, responsive key hints, and `?` in-TUI help while retaining text-only fallback under `NO_COLOR=1`.
+- `cm ui` now uses a Yazi-inspired Parent/Current/Preview directory browser with virtual path ancestors, direct-child directory navigation, local directory summaries, and aligned trailing-`/` directory rows.
 
 ### Changed
 

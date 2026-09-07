@@ -24,8 +24,9 @@
 
 ## TUI
 
-- Workspace starts several bounded chezmoi metadata commands before lazy preview loading; very large inventories can feel slower, but eager content loading is intentionally avoided.
+- Workspace starts several bounded chezmoi metadata commands before lazy file-preview loading; very large inventories can feel slower, but eager content loading is intentionally avoided.
 - Scoped unmanaged recursion caps discovered entries and queries; users must narrow a pathological scope rather than trigger an unbounded home scan.
+- Virtual directory nodes are derived per projection from the full inventory. This is bounded by inventory size but may become noticeable with much larger future workspaces.
 - Long preview lines have horizontal scrolling and narrow terminals switch to one focused pane; extremely tiny terminals may still have limited ergonomics.
 - Cached selected previews are bounded but cumulative for a long browsing session.
 - Stale asynchronous preview completions cache their own result but do not alter the active view message, matches, or scroll position.

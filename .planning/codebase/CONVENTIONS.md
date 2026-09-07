@@ -41,7 +41,8 @@
 - Do not infer chezmoi source attributes from filename prefixes/suffixes when a command/filter supplies the fact.
 - Build workspace inventory from chezmoi path/type/status/ignore/unmanaged outputs; filesystem traversal may enumerate scoped child candidates only and never replaces chezmoi classification.
 - Treat `--skip-secrets` omissions as uninspected, not clean. Keep preview content bounded and require explicit reveal for sensitive target/source/diff content.
-- Project tree/flat/filter/search views from absolute target identity, retaining the same selected target where visible and otherwise using deterministic index fallback.
+- Derive direct-child workspace views and missing path ancestors from absolute inventory identities; filters retain matching ancestor directories and global path search locates results without issuing extra inventory commands.
+- Directory navigation nodes use a local summary preview; only actual non-directory entries invoke chezmoi content preview. Current-focus `h`/`l` traverses paths; Preview-focus `h`/`l` scrolls.
 - Workspace color augments rather than replaces `C/D/U/I/R/?`, target-type letters, and `[T]/[E]` badges; `NO_COLOR=1` retains complete text semantics.
 - TUI overlays intercept their own keys before normal workspace dispatch; compact footers retain a help and quit route at narrow widths.
 

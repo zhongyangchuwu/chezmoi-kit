@@ -113,35 +113,44 @@ cm ui ~/.config
 cm ui ~/.config ~/.local/bin
 ```
 
-`cm ui` is a persistent, read-only workbench. It starts on the authoritative
-diff preview and retains clean managed entries instead of exiting when no drift
-exists. With no paths, it inventories managed entries and source-ignored
-entries only; it never scans all of `$HOME` for unmanaged files. Pass one or
-more destination paths to discover unmanaged candidates recursively within
-those explicit scopes. The workspace never adds, applies, or merges files.
+`cm ui` is a persistent, read-only workbench. It opens the selected item's
+labeled preview: an authoritative diff for files or a local summary for
+directories. It retains clean managed entries instead of exiting when no drift
+exists. With no paths, it inventories managed entries and source-ignored entries
+only; it never scans all of `$HOME` for unmanaged files. Pass one or more
+destination paths to discover unmanaged candidates recursively within those
+explicit scopes. The workspace never adds, applies, or merges files.
 
-The file list labels `C` clean, `D` dirty, `U` unmanaged, `I` ignored, `R`
+The Current pane labels `C` clean, `D` dirty, `U` unmanaged, `I` ignored, `R`
 script, and `?` uninspected. `[T]` marks templates and `[E]` encrypted source
-state. The workspace uses semantic color for these markers, but each retains its
-letter/badge meaning when color is unavailable. `?` means cm intentionally skipped
-authoritative inspection; it is not a clean result.
+state. Directories end with `/`; there are no expandable-row glyphs, so state,
+type, and name columns align with file rows. A wide terminal adds a read-only
+Parent pane and Preview pane; medium widths omit Parent and narrow widths switch
+between Current and Preview with `tab`.
+
+The workspace uses semantic color for these markers, but each retains its
+letter/badge meaning when color is unavailable. `?` means cm intentionally
+skipped authoritative inspection; it is not a clean result.
 
 | Key | Action |
 |---|---|
-| `tab` | switch file-list and preview focus |
-| `j` / `k`, `up` / `down` | move files or scroll the preview |
-| `t` | switch tree and flat file views |
-| `space` | collapse or expand the selected directory in tree view |
+| `tab` | switch Current and Preview focus |
+| `j` / `k`, `up` / `down` | move Current selection or scroll the preview |
+| `h` / `left` | return to the parent directory in Current focus; scroll preview left in Preview focus |
+| `l` / `right` / `enter` | enter the selected directory in Current focus; scroll preview right in Preview focus |
 | `f` | cycle all, managed, dirty, unmanaged, ignored, and script filters |
-| `/` | search paths in the file list, or preview text in preview focus |
+| `/` | search every workspace path in Current focus, or preview text in Preview focus; `enter` locates a path result |
 | `n` / `N` | move to next or previous preview match |
 | `1` / `2` / `3` / `4` | choose diff, destination, rendered target, or source preview |
-| `h` / `l` | scroll the preview horizontally |
 | `[` / `]` | move to the previous or next diff hunk |
 | `z` | toggle full-screen preview |
 | `R` | explicitly reveal a withheld diff, rendered target, or encrypted source |
 | `?` | toggle quick-start, complete key reference, and state/type legend |
 | `q` / `ctrl+c` | quit without mutation; when help is open, close help instead |
+
+Filtering keeps a directory visible when it contains a matching descendant. A
+directory preview is a local matching-child summary and never requests content
+from chezmoi; selecting a file still uses the existing authoritative preview.
 
 Preview output is bounded. Rendered template/encrypted targets, encrypted
 source, and sensitive uninspected diffs are withheld until `R`; this makes the
@@ -149,7 +158,7 @@ reveal an explicit per-target, per-view decision. Plain template source remains
 unrendered source text. Chezmoi remains authoritative for all classification,
 rendering, decryption, target type, and diff behavior.
 
-The file pane keeps a compact state legend when space permits. Its footer adapts
+The Current pane keeps a compact state legend when space permits. Its footer adapts
 to narrow terminals but always retains a help (`?`) and quit (`q`) route. Set
 `NO_COLOR=1` to keep the same textual markers and legend without semantic colors.
 

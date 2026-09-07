@@ -23,7 +23,6 @@ type syncKeyMap struct {
 	Back            key.Binding
 	Quit            key.Binding
 	Help            key.Binding
-	Tree            key.Binding
 	Filter          key.Binding
 	Search          key.Binding
 	Full            key.Binding
@@ -36,7 +35,6 @@ type syncKeyMap struct {
 	HunkNext        key.Binding
 	MatchPrevious   key.Binding
 	MatchNext       key.Binding
-	ToggleDirectory key.Binding
 }
 
 func (k syncKeyMap) reviewHelp(focus syncFocus, review app.Review) []key.Binding {
@@ -90,7 +88,6 @@ var defaultSyncKeys = syncKeyMap{
 	Back:            key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	Quit:            key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	Help:            key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-	Tree:            key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "tree/flat")),
 	Filter:          key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),
 	Search:          key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 	Full:            key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "full preview")),
@@ -103,5 +100,4 @@ var defaultSyncKeys = syncKeyMap{
 	HunkNext:        key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next hunk")),
 	MatchPrevious:   key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "previous match")),
 	MatchNext:       key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "next match")),
-	ToggleDirectory: key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "collapse")),
 }

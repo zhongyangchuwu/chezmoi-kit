@@ -62,17 +62,25 @@ func (m workspaceModel) viewString() string {
 		} else {
 			body = m.renderMainPane(rect{width: width, height: bodyHeight})
 		}
+	case m.isWorkspace() && width < 100:
+		filesWidth := clamp(width*2/5, 28, 42)
+		files := m.renderFilesPane(rect{width: filesWidth, height: bodyHeight})
+		main := m.renderMainPane(rect{width: width - filesWidth - 1, height: bodyHeight})
+		body = lipgloss.JoinHorizontal(lipgloss.Top, files, main)
+	case m.isWorkspace():
+		parentWidth := clamp(width/5, 20, 30)
+		filesWidth := clamp(width/3, 30, 44)
+		parent := m.renderParentPane(rect{width: parentWidth, height: bodyHeight})
+		files := m.renderFilesPane(rect{width: filesWidth, height: bodyHeight})
+		main := m.renderMainPane(rect{width: width - parentWidth - filesWidth - 2, height: bodyHeight})
+		body = lipgloss.JoinHorizontal(lipgloss.Top, parent, files, main)
 	default:
 		leftWidth := clamp(width/3, 28, 48)
 		if leftWidth > width-24 {
 			leftWidth = width / 2
 		}
-		rightWidth := width - leftWidth - 1
-		if rightWidth < 20 {
-			rightWidth = 20
-		}
 		files := m.renderFilesPane(rect{width: leftWidth, height: bodyHeight})
-		main := m.renderMainPane(rect{width: rightWidth, height: bodyHeight})
+		main := m.renderMainPane(rect{width: width - leftWidth - 1, height: bodyHeight})
 		body = lipgloss.JoinHorizontal(lipgloss.Top, files, main)
 	}
 
@@ -88,9 +96,9 @@ func (m workspaceModel) title() string {
 	if !m.isWorkspace() {
 		return "cm sync"
 	}
-	view := "tree"
-	if m.flat {
-		view = "flat"
+	view := m.directoryLabel()
+	if m.searchResults {
+		view = "search"
 	}
 	return fmt.Sprintf("cm ui • %d/%d • %s • %s", len(m.entries), len(m.allEntries), m.filterLabel(), view)
 }
@@ -136,7 +144,6 @@ func (m workspaceModel) renderStatusLine() string {
 	}
 	return m.styles.muted.Render(status)
 }
-
 func (m workspaceModel) renderFilesPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
@@ -178,6 +185,27 @@ func (m workspaceModel) renderFilesPane(size rect) string {
 	return style.Width(size.width).Height(size.height).Render(strings.Join(lines, "\n"))
 }
 
+func (m workspaceModel) renderParentPane(size rect) string {
+	innerWidth := size.width - 2
+	innerHeight := size.height - 2
+	lines := []string{m.styles.section.Render(truncate("Parent", innerWidth))}
+	for _, entry := range visibleEntries(m.parentEntries(), -1, max(1, innerHeight-1)) {
+		marker := "  "
+		line := marker + m.entryLabel(entry.entry)
+		if entry.entry.RelativePath == m.currentDir {
+			line = m.styles.selected.Render("· " + m.entryLabel(entry.entry))
+		}
+		lines = append(lines, truncate(line, innerWidth))
+	}
+	if len(lines) == 1 {
+		lines = append(lines, m.styles.muted.Render("root"))
+	}
+	for len(lines) < innerHeight {
+		lines = append(lines, "")
+	}
+	return m.styles.pane.Width(size.width).Height(size.height).Render(strings.Join(lines, "\n"))
+}
+
 func (m workspaceModel) entryLabel(entry app.WorkspaceEntry) string {
 	pathLabel := entry.RelativePath
 	if pathLabel == "" || !m.isWorkspace() {
@@ -186,25 +214,14 @@ func (m workspaceModel) entryLabel(entry app.WorkspaceEntry) string {
 	if !m.isWorkspace() {
 		return m.pendingLabel(entry.Path) + " " + pathLabel
 	}
-	indent := ""
-	treeMarker := ""
-	if !m.flat {
-		indent = strings.Repeat("  ", treeDepth(entry.RelativePath))
-		if entry.Type == app.TargetDirectory {
-			treeMarker = "▾ "
-			if m.collapsed[entry.RelativePath] {
-				treeMarker = "▸ "
-			}
-		}
-	}
-	displayName := pathLabel
-	if !m.flat {
-		displayName = path.Base(pathLabel)
+	displayName := path.Base(pathLabel)
+	if entry.Type == app.TargetDirectory {
+		displayName += "/"
 	}
 	state := m.styles.stateStyle(entry.State).Render(stateMarker(entry.State))
 	targetType := m.styles.typeStyle(entry.Type).Render(typeMarker(entry))
 	name := m.styles.typeStyle(entry.Type).Render(displayName)
-	return fmt.Sprintf("%s%s%s:%s %s%s", indent, treeMarker, state, targetType, name, m.attributeMarker(entry))
+	return fmt.Sprintf("%s:%s %s%s", state, targetType, name, m.attributeMarker(entry))
 }
 
 func stateMarker(state app.FileState) string {
@@ -253,7 +270,6 @@ func (m workspaceModel) attributeMarker(entry app.WorkspaceEntry) string {
 	}
 	return marker.String()
 }
-
 func (m workspaceModel) renderMainPane(size rect) string {
 	if m.mode == modeConfirm || m.mode == modeExecuting {
 		return m.renderConfirmPane(size)
@@ -264,6 +280,12 @@ func (m workspaceModel) renderMainPane(size rect) string {
 func (m workspaceModel) renderDiffPane(size rect) string {
 	innerWidth := size.width - 2
 	innerHeight := size.height - 2
+	contentHeight := innerHeight
+	var heading string
+	if m.isWorkspace() {
+		heading = m.styles.section.Render(truncate("Preview · "+string(m.previewKind), innerWidth))
+		contentHeight = max(1, innerHeight-1)
+	}
 	state := m.currentDiffState()
 	var content string
 	switch {
@@ -282,8 +304,8 @@ func (m workspaceModel) renderDiffPane(size rect) string {
 		} else {
 			lines = lines[m.diffScroll:]
 		}
-		if len(lines) > innerHeight {
-			lines = lines[:innerHeight]
+		if len(lines) > contentHeight {
+			lines = lines[:contentHeight]
 		}
 		visible := make([]string, len(lines))
 		for i, line := range lines {
@@ -292,7 +314,10 @@ func (m workspaceModel) renderDiffPane(size rect) string {
 		content = renderPreviewLines(m, visible, state)
 	}
 
-	content = padLines(content, innerHeight)
+	content = padLines(content, contentHeight)
+	if heading != "" {
+		content = heading + "\n" + content
+	}
 	style := m.styles.pane
 	if m.focus == focusDiff && m.mode == modeReview {
 		style = m.styles.activePane
@@ -353,11 +378,10 @@ func (m workspaceModel) filesPaneTitle() string {
 	if !m.isWorkspace() {
 		return "Files"
 	}
-	view := "tree"
-	if m.flat {
-		view = "flat"
+	if m.searchResults {
+		return fmt.Sprintf("Search · %s", m.filterLabel())
 	}
-	return fmt.Sprintf("Files · %s · %s", m.filterLabel(), view)
+	return fmt.Sprintf("Current · %s · %s", m.directoryLabel(), m.filterLabel())
 }
 
 type visibleEntry struct {
@@ -371,6 +395,9 @@ func visibleEntries(entries []app.WorkspaceEntry, cursor int, height int) []visi
 	}
 	if height > len(entries) {
 		height = len(entries)
+	}
+	if cursor < 0 {
+		cursor = 0
 	}
 	start := cursor - height/2
 	if start < 0 {

@@ -9,9 +9,8 @@ func (m workspaceModel) renderWorkspaceHelp(width, height int) string {
 	lines := []string{m.styles.section.Render("cm ui · Quick help"), ""}
 	if compact {
 		lines = append(lines,
-			"j/k move or scroll · tab changes focus",
-			"1-4 preview: diff, destination, target, source",
-			"/ search · f filter · t tree/flat · z full preview",
+			"j/k move · h parent · l/enter directory · tab focus",
+			"1-4 preview · / global path search · f filter · z full preview",
 			"R reveals withheld sensitive content",
 			"",
 			m.workspaceStateLegend(),
@@ -22,13 +21,13 @@ func (m workspaceModel) renderWorkspaceHelp(width, height int) string {
 	} else {
 		lines = append(lines,
 			m.styles.section.Render("Start here"),
-			"1. j/k selects a file. Tab moves to its preview.",
-			"2. 1-4 chooses diff, destination, target, or source.",
-			"3. / searches paths or preview text; n/N moves matches.",
-			"4. R explicitly reveals withheld sensitive content.",
+			"1. j/k selects a direct child; l or Enter enters a directory; h returns.",
+			"2. Tab moves to its preview. h/l then scroll the preview horizontally.",
+			"3. / searches every inventory path; Enter locates the selected result.",
+			"4. 1-4 selects diff, destination, target, or source; R reveals withheld content.",
 			"",
-			m.styles.section.Render("Files"),
-			"j/k move · / search · f filter · t tree/flat · space collapse",
+			m.styles.section.Render("Directory browser"),
+			"j/k move · h/left parent · l/right/enter directory · / search · f filter",
 			"",
 			m.styles.section.Render("Preview"),
 			"j/k scroll · h/l horizontal · [/] hunks · z full screen",
@@ -86,13 +85,13 @@ func (m workspaceModel) workspaceFooter() string {
 	}
 	var content string
 	if m.focus == focusFiles {
-		content = "j/k move · / search · f filter · t tree · space collapse · tab preview"
+		content = "j/k move · h parent · l/enter directory · / search · f filter · tab preview"
 	} else {
 		content = fmtPreviewFooter(m)
 	}
 	if width < 96 {
 		if m.focus == focusFiles {
-			content = "j/k move · / search · f filter · tab preview"
+			content = "j/k move · h/l browse · / search · tab preview"
 		} else {
 			content = "j/k scroll · 1-4 view · / search · tab files"
 		}

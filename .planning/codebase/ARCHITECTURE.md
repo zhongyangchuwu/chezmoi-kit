@@ -103,9 +103,9 @@ The matrix is conservative because `re-add` ignores non-files and refuses to ove
 1. CLI calls `WorkspaceService.Inventory` from `cm ui [path...]`.
 2. App loads the destination root, normalized scopes, managed path mappings, secret-skipping status, typed managed membership, and source-ignored entries from chezmoi.
 3. Explicit scopes trigger bounded recursive candidate discovery: filesystem enumeration only provides child paths; chezmoi `unmanaged` remains the membership authority.
-4. TUI projects the sorted inventory into tree/flat/filter/search views, retaining selected absolute path where visible.
-5. Semantic styles distinguish state/type/attribute tokens and selected focus while retaining every textual marker for no-color terminals.
-6. Selected previews load lazily as authoritative diff, destination, rendered target, or source views; loading, error, clean, and withheld feedback have distinct presentation.
+4. TUI derives direct-child browser views and virtual path ancestors from the inventory. State filters retain a directory when any descendant matches; global search locates a selected node's parent directory.
+5. Wide layouts render Parent/Current/Preview, medium layouts omit Parent, and narrow layouts switch Current/Preview by focus. Current-focus `h`/`l` traverses directories; preview-focus `h`/`l` scrolls horizontally.
+6. File previews load lazily as authoritative diff, destination, rendered target, or source views. Directory previews are local matching-child summaries; loading, error, clean, and withheld feedback have distinct presentation.
 7. Template/encrypted rendered targets, encrypted source, and secret-skipped diffs remain withheld until per-target explicit reveal.
 8. `?` opens a keyboard-isolated quick-start/key/legend overlay; `Esc`, `?`, and `q` close it without changing workspace data.
 9. Workspace mode has no mutation path; its `q` exit changes neither source nor destination.

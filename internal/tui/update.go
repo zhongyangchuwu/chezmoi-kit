@@ -71,34 +71,32 @@ func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, t
 		}
 		return m, nil
 	case key.Matches(msg, defaultSyncKeys.Left):
-		if m.focus == focusDiff {
-			return m.scrollPreviewHorizontal(-4, m.previewPaneWidth()), nil
+		if m.focus == focusFiles {
+			oldTarget := m.currentTarget()
+			if m.leaveCurrentDirectory() {
+				m.message = "directory: " + m.directoryLabel()
+			}
+			return m.loadIfSelectionChanged(oldTarget)
 		}
-		return m, nil
-	case key.Matches(msg, defaultSyncKeys.Right):
-		if m.focus == focusDiff {
+		return m.scrollPreviewHorizontal(-4, m.previewPaneWidth()), nil
+	case key.Matches(msg, defaultSyncKeys.Right), key.Matches(msg, defaultSyncKeys.Enter):
+		if m.focus == focusFiles {
+			oldTarget := m.currentTarget()
+			if m.enterCurrentDirectory() {
+				m.message = "directory: " + m.directoryLabel()
+			}
+			return m.loadIfSelectionChanged(oldTarget)
+		}
+		if key.Matches(msg, defaultSyncKeys.Right) {
 			return m.scrollPreviewHorizontal(4, m.previewPaneWidth()), nil
 		}
 		return m, nil
 	case key.Matches(msg, defaultSyncKeys.Diff):
 		return m.startDiffLoad(true)
-	case key.Matches(msg, defaultSyncKeys.Tree):
-		oldTarget := m.currentTarget()
-		m.toggleTreeMode()
-		view := "tree"
-		if m.flat {
-			view = "flat"
-		}
-		m.message = "view: " + view
-		return m.loadIfSelectionChanged(oldTarget)
 	case key.Matches(msg, defaultSyncKeys.Filter):
 		oldTarget := m.currentTarget()
 		m.cycleFilter()
 		m.message = "filter: " + m.filterLabel()
-		return m.loadIfSelectionChanged(oldTarget)
-	case key.Matches(msg, defaultSyncKeys.ToggleDirectory):
-		oldTarget := m.currentTarget()
-		m.toggleCurrentDirectory()
 		return m.loadIfSelectionChanged(oldTarget)
 	case key.Matches(msg, defaultSyncKeys.Help):
 		m.helpVisible = true
@@ -159,11 +157,15 @@ func (m workspaceModel) beginSearch() workspaceModel {
 		m.search = searchPreview
 		m.searchInput = m.previewQuery
 		m.searchOriginal = m.previewQuery
-	} else {
-		m.search = searchFiles
-		m.searchInput = m.fileQuery
-		m.searchOriginal = m.fileQuery
+		return m
 	}
+	m.search = searchFiles
+	m.searchInput = ""
+	m.searchOriginal = m.fileQuery
+	m.searchOriginDir = m.currentDir
+	m.searchResults = true
+	m.fileQuery = ""
+	m.rebuildEntries(m.searchTarget)
 	return m
 }
 
@@ -174,13 +176,27 @@ func (m workspaceModel) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.search = searchNone
 		m.message = ""
 		if search == searchFiles {
-			return m.startDiffLoad(false)
+			oldTarget := m.currentTarget()
+			if len(m.entries) == 0 {
+				m.searchResults = false
+				m.fileQuery = ""
+				m.currentDir = m.searchOriginDir
+				m.rebuildEntries(m.searchTarget)
+				m.searchInput = ""
+				m.message = "no path matches"
+				return m.loadIfSelectionChanged(oldTarget)
+			}
+			m.enterCurrentDirectory()
+			m.searchInput = ""
+			return m.loadIfSelectionChanged(oldTarget)
 		}
 		return m, nil
 	case tea.KeyEscape:
 		oldTarget := m.currentTarget()
 		if m.search == searchFiles {
 			m.fileQuery = m.searchOriginal
+			m.searchResults = false
+			m.currentDir = m.searchOriginDir
 			m.rebuildEntries(m.searchTarget)
 		} else {
 			m.previewQuery = m.searchOriginal
@@ -287,8 +303,17 @@ func (m workspaceModel) previewPaneWidth() int {
 	if width <= 0 {
 		width = 100
 	}
-	if m.previewFull {
+	if m.previewFull || (m.isWorkspace() && width < 60) {
 		return max(1, width-2)
+	}
+	if m.isWorkspace() {
+		if width < 100 {
+			filesWidth := clamp(width*2/5, 28, 42)
+			return max(1, width-filesWidth-3)
+		}
+		parentWidth := clamp(width/5, 20, 30)
+		filesWidth := clamp(width/3, 30, 44)
+		return max(1, width-parentWidth-filesWidth-4)
 	}
 	leftWidth := clamp(width/3, 28, 48)
 	if leftWidth > width-24 {

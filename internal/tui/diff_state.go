@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ func (m workspaceModel) startDiffLoad(refresh bool) (workspaceModel, tea.Cmd) {
 
 func (m workspaceModel) startWorkspacePreviewLoad(refresh bool) (workspaceModel, tea.Cmd) {
 	entry := m.current()
-	if entry.Path == "" || m.workspace == nil {
+	if entry.Path == "" {
 		return m, nil
 	}
 	key := m.previewStateKey()
@@ -44,7 +45,45 @@ func (m workspaceModel) startWorkspacePreviewLoad(refresh bool) (workspaceModel,
 		return m, nil
 	}
 	m.diffs[key] = diffState{loading: true}
+	if entry.Type == app.TargetDirectory {
+		return m, loadDirectoryPreviewCmd(entry, m.allEntries, m.filter, m.previewKind)
+	}
+	if m.workspace == nil {
+		return m, nil
+	}
 	return m, loadWorkspacePreviewCmd(m.workspace, entry, m.previewKind, m.currentPreviewRevealed(), m.timing)
+}
+
+func loadDirectoryPreviewCmd(entry app.WorkspaceEntry, allEntries []app.WorkspaceEntry, filter workspaceFilter, kind app.PreviewKind) tea.Cmd {
+	return func() tea.Msg {
+		direct, descendants := 0, 0
+		counts := map[app.FileState]int{}
+		for _, candidate := range allEntries {
+			if !strings.HasPrefix(candidate.RelativePath, entry.RelativePath+"/") || !workspaceEntryMatchesFilter(candidate, filter) {
+				continue
+			}
+			descendants++
+			if workspaceParent(candidate.RelativePath) == entry.RelativePath {
+				direct++
+			}
+			counts[candidate.State]++
+		}
+		lines := []string{
+			"directory summary",
+			"path: " + entry.Path,
+			fmt.Sprintf("direct entries: %d", direct),
+			fmt.Sprintf("matching descendants: %d", descendants),
+		}
+		for _, state := range []app.FileState{app.FileDirty, app.FileUninspected, app.FileUnmanaged, app.FileIgnored, app.FileScript, app.FileClean} {
+			if counts[state] > 0 {
+				lines = append(lines, fmt.Sprintf("%s: %d", stateMarker(state), counts[state]))
+			}
+		}
+		return workspacePreviewMsg{
+			key:     workspacePreviewKey(entry.Path, kind, false),
+			preview: app.WorkspacePreview{Entry: entry, Kind: kind, Content: strings.Join(lines, "\n")},
+		}
+	}
 }
 
 func loadReviewCmd(service interface {
