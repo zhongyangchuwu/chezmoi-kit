@@ -14,6 +14,7 @@ type syncKeyMap struct {
 	PageDown        key.Binding
 	Tab             key.Binding
 	Diff            key.Binding
+	SourceEdit      key.Binding
 	Add             key.Binding
 	Apply           key.Binding
 	Merge           key.Binding
@@ -79,6 +80,7 @@ var defaultSyncKeys = syncKeyMap{
 	PageDown:        key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("ctrl+d", "page down")),
 	Tab:             key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "focus")),
 	Diff:            key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "reload diff")),
+	SourceEdit:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit source")),
 	Add:             key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
 	Apply:           key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
 	Merge:           key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),

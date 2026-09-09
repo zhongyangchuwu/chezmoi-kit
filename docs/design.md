@@ -49,7 +49,7 @@ clean-after-file-reconciliation invariant.
 `chezmoi apply`. Direct `cm apply` remains a thin wrapper and therefore retains
 chezmoi's script behavior.
 
-### Read-only workspace inventory
+### Inspection-first workspace inventory
 
 `cm ui [path...]` is a persistent inspection surface, separate from focused
 `cm sync` reconciliation. Its entries are constructed from chezmoi managed,
@@ -72,6 +72,14 @@ directory preview is a local child summary, never a chezmoi content call. Diff,
 destination, rendered target, and source remain distinct file views.
 Template/encrypted rendered targets, encrypted source, and uninspected diffs
 require explicit reveal. The workspace has no add, apply, or merge actions.
+
+`e` is the one explicit mutation handoff: an eligible managed file or symlink
+opens through `chezmoi edit --apply=false --watch=false`. Bubble Tea yields the
+terminal to the configured editor, then re-inventories original scopes regardless
+of editor exit status. Refresh preserves viable navigation state but discards old
+preview, reveal, search-match, and scroll caches before loading a fresh preview.
+This prevents inherited chezmoi edit settings from applying or watching destination
+changes outside cm review.
 
 Workspace presentation uses a semantic palette for state, target type, template,
 encryption, selection, loading, error, and withheld feedback. Letters and badges
@@ -144,7 +152,7 @@ internal/app            use cases, semantic reports, reconciliation domain and s
 internal/chezmoi        chezmoi executable adapter and strict output parsers
 internal/process        external process runner abstraction
 internal/report         semantic report model and renderers
-internal/tui            Bubble Tea sync and read-only workspace TUI
+internal/tui            Bubble Tea sync and inspection-first workspace TUI
 ```
 
 ### Entry point and CLI
@@ -215,11 +223,12 @@ interactive.
 ### TUI boundary
 
 `internal/tui` owns shared presentation state for the focused sync review and
-the read-only workspace. Workspace mode keeps clean entries, derives direct-child
-directory projections and virtual ancestors from one inventory, caches bounded
-previews by target/view/reveal state, and ignores stale asynchronous preview
-completions for the active UI state. Sync-only confirmation, execution, and
-completion behavior remain isolated behind explicit mode branches.
+the inspection-first workspace. Workspace mode keeps clean entries, derives
+direct-child directory projections and virtual ancestors from one inventory, and
+caches bounded previews by target/view/reveal state. Explicit source edit yields
+the terminal to chezmoi, then invalidates workspace caches and re-inventories the
+original scopes. Sync-only confirmation, execution, and completion behavior
+remain isolated behind explicit mode branches.
 
 ### Report boundary
 

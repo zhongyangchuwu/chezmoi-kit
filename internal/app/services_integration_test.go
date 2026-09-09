@@ -260,6 +260,103 @@ func TestServiceEditTargetUsesCustomDestinationNonInteractively(t *testing.T) {
 	}
 }
 
+func TestServiceSourceEditCommandDoesNotApplyDestination(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	target := filepath.Join(h.destination, ".workspace-editable")
+	writeIntegrationFile(t, target, "before\n", 0o600)
+	h.run(t, "add", target)
+
+	editor := filepath.Join(h.root, "workspace-editor")
+	writeIntegrationFile(t, editor, "#!/bin/sh\nprintf 'edited-source\n' > \"$1\"\n", 0o700)
+	t.Setenv("EDITOR", editor)
+	t.Setenv("VISUAL", editor)
+	command, err := h.service.SourceEditCommand(WorkspaceEntry{
+		Path:       target,
+		SourcePath: filepath.Join(h.source, "dot_workspace-editable"),
+		State:      FileClean,
+		Type:       TargetFile,
+	})
+	if err != nil {
+		t.Fatalf("SourceEditCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("workspace source edit returned error: %v", err)
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read destination: %v", err)
+	}
+	if string(content) != "before\n" {
+		t.Fatalf("destination changed after workspace source edit: %q", content)
+	}
+	review, err := h.service.Review(target)
+	if err != nil {
+		t.Fatalf("Review returned error: %v", err)
+	}
+	if !review.Dirty || !strings.Contains(review.Diff, "edited-source") {
+		t.Fatalf("review after source edit = %#v", review)
+	}
+}
+
+func TestServiceSourceEditCommandEditsTemplateAndEncryptedSourcesWithoutApply(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	identity := filepath.Join(h.root, "age-identity.txt")
+	h.run(t, "age-keygen", "--output", identity)
+	recipient := strings.TrimSpace(string(h.output(t, "age-keygen", "--convert", identity)))
+	if recipient == "" {
+		t.Fatal("age-keygen returned an empty recipient")
+	}
+	writeIntegrationFile(t, h.config, fmt.Sprintf("encryption = \"age\"\n[age]\nidentity = %q\nrecipient = %q\n", identity, recipient), 0o600)
+
+	editor := filepath.Join(h.root, "workspace-editor")
+	writeIntegrationFile(t, editor, "#!/bin/sh\nprintf 'edited-source\\n' > \"$1\"\n", 0o700)
+	t.Setenv("EDITOR", editor)
+	t.Setenv("VISUAL", editor)
+
+	templateTarget := filepath.Join(h.destination, ".template")
+	writeIntegrationFile(t, templateTarget, "template-before\n", 0o600)
+	h.run(t, "add", "--template", templateTarget)
+	templateSource := strings.TrimSpace(string(h.output(t, "source-path", templateTarget)))
+
+	encryptedTarget := filepath.Join(h.destination, ".secret")
+	writeIntegrationFile(t, encryptedTarget, "secret-before\n", 0o600)
+	h.run(t, "add", "--encrypt", encryptedTarget)
+	encryptedSource := strings.TrimSpace(string(h.output(t, "source-path", encryptedTarget)))
+
+	for _, entry := range []WorkspaceEntry{
+		{Path: templateTarget, SourcePath: templateSource, State: FileClean, Type: TargetFile, Template: true},
+		{Path: encryptedTarget, SourcePath: encryptedSource, State: FileUninspected, Type: TargetFile, Encrypted: true},
+	} {
+		command, err := h.service.SourceEditCommand(entry)
+		if err != nil {
+			t.Fatalf("SourceEditCommand(%s) returned error: %v", entry.Path, err)
+		}
+		if err := command.Run(); err != nil {
+			t.Fatalf("workspace source edit %s returned error: %v", entry.Path, err)
+		}
+	}
+
+	for _, target := range []string{templateTarget, encryptedTarget} {
+		content, err := os.ReadFile(target)
+		if err != nil {
+			t.Fatalf("read destination %s: %v", target, err)
+		}
+		if strings.Contains(string(content), "edited-source") {
+			t.Fatalf("destination changed after workspace source edit: %s = %q", target, content)
+		}
+		if got := string(h.output(t, "cat", target)); got != "edited-source\n" {
+			t.Fatalf("rendered source after edit %s = %q", target, got)
+		}
+	}
+	encryptedBytes, err := os.ReadFile(encryptedSource)
+	if err != nil {
+		t.Fatalf("read encrypted source: %v", err)
+	}
+	if strings.Contains(string(encryptedBytes), "edited-source") {
+		t.Fatal("encrypted source contains plaintext editor content")
+	}
+}
+
 func TestServiceReAddPreservesEncryptedSourceAttribute(t *testing.T) {
 	h := newChezmoiIntegration(t)
 	identity := filepath.Join(h.root, "age-identity.txt")

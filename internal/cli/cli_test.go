@@ -423,6 +423,10 @@ func (f *fakeService) Preview(entry app.WorkspaceEntry, kind app.PreviewKind, re
 	return app.WorkspacePreview{Entry: entry, Kind: kind, Notice: "destination matches rendered target"}, nil
 }
 
+func (f *fakeService) SourceEditCommand(entry app.WorkspaceEntry) (app.TerminalCommand, error) {
+	return terminalCommand{}, nil
+}
+
 func (f *fakeService) ExecuteNonInteractive(action app.Action) (app.ActionResult, error) {
 	f.executed = append(f.executed, action)
 	return app.ActionResult{}, nil

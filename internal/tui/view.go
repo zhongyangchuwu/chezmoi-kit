@@ -114,6 +114,9 @@ func (m workspaceModel) statusLine() string {
 	if m.message != "" {
 		return m.message
 	}
+	if m.workspaceNotice != "" {
+		return m.workspaceNotice
+	}
 	if m.isWorkspace() {
 		parts := make([]string, 0, 2)
 		if m.snapshot.Notice != "" {

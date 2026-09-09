@@ -47,6 +47,7 @@ func (m workspaceModel) updateReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	m.workspaceNotice = ""
 	switch {
 	case key.Matches(msg, defaultSyncKeys.Quit):
 		return m, tea.Quit
@@ -91,6 +92,8 @@ func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, t
 			return m.scrollPreviewHorizontal(4, m.previewPaneWidth()), nil
 		}
 		return m, nil
+	case key.Matches(msg, defaultSyncKeys.SourceEdit):
+		return m.startWorkspaceSourceEdit()
 	case key.Matches(msg, defaultSyncKeys.Diff):
 		return m.startDiffLoad(true)
 	case key.Matches(msg, defaultSyncKeys.Filter):

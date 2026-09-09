@@ -41,7 +41,7 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 
 ### Step 2 / Phase 3 — Mature Tool Handoffs
 
-- [ ] TEMPLATE-02 — Managed source/template edits delegate to `chezmoi edit`, return to refreshed review, and do not implicitly apply or watch through inherited editor configuration.
+- [x] TEMPLATE-02 — Managed source/template edits delegate to `chezmoi edit`, return to refreshed review, and do not implicitly apply or watch through inherited editor configuration.
 - [ ] TEMPLATE-03 — Merge launch explains destination/source/target roles and delegates to the configured merge tool; return shows remaining differences before any explicit apply.
 - [ ] TOOLS-01 — A distinct local-edit action launches the configured editor for destination content rather than silently editing source state.
 - [ ] TOOLS-02 — Users open lazygit in the source-repository context from cm and return afterward; cm does not reimplement Git mutations.
@@ -113,8 +113,8 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 
 ## Coverage Summary
 
-- Completed baseline, workspace, usability, and directory-browser requirements: 17
-- Planned next-step requirements: 11 (6 tool handoff, 5 management/diagnostics)
+- Completed baseline, workspace, usability, directory-browser, and source-edit requirements: 18
+- Planned next-step requirements: 10 (5 tool handoff, 5 management/diagnostics)
 - Total mapped requirements: 28
 - Unmapped requirements: 0
-- Phase 2.2 implementation satisfies UX-02; the remaining 11 requirements are planned.
+- Phase 3.1 implementation satisfies TEMPLATE-02; the remaining 10 requirements are planned.

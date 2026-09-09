@@ -194,6 +194,63 @@ func TestServiceTerminalCommandBuildsMergeCommand(t *testing.T) {
 	}
 }
 
+func TestServiceSourceEditCommandForcesNoApplyOrWatch(t *testing.T) {
+	runner := &recordingRunner{}
+	service := service{client: chezmoi.Client{Runner: runner, Dir: "/work"}}
+	entry := WorkspaceEntry{
+		Path:       "/home/me/.zshrc",
+		SourcePath: "/home/me/source/dot_zshrc",
+		State:      FileDirty,
+		Type:       TargetFile,
+	}
+
+	command, err := service.SourceEditCommand(entry)
+	if err != nil {
+		t.Fatalf("SourceEditCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("source edit command Run returned error: %v", err)
+	}
+	if want := [][]string{{"chezmoi", "edit", "--apply=false", "--watch=false", "/home/me/.zshrc"}}; !reflect.DeepEqual(runner.runCalls, want) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, want)
+	}
+	if got := runner.runIO[0].Dir; got != "/work" {
+		t.Fatalf("Dir = %q, want /work", got)
+	}
+}
+
+func TestSourceEditUnavailableReasonRejectsUnsupportedWorkspaceEntries(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry WorkspaceEntry
+		want  string
+	}{
+		{"unmanaged", WorkspaceEntry{State: FileUnmanaged, Type: TargetFile}, "unmanaged target has no chezmoi source"},
+		{"directory", WorkspaceEntry{SourcePath: "/source", Type: TargetDirectory}, "select a managed file or symlink"},
+		{"script", WorkspaceEntry{SourcePath: "/source", State: FileScript, Type: TargetScript}, "scripts cannot be edited through workspace source edit"},
+		{"external", WorkspaceEntry{SourcePath: "/source", Type: TargetExternal}, "source edit unsupported for external target"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := SourceEditUnavailableReason(test.entry); got != test.want {
+				t.Fatalf("SourceEditUnavailableReason() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestSourceEditUnavailableReasonAllowsManagedFileAndSymlinkVariants(t *testing.T) {
+	for _, entry := range []WorkspaceEntry{
+		{SourcePath: "/source/template", State: FileDirty, Type: TargetFile, Template: true},
+		{SourcePath: "/source/encrypted", State: FileUninspected, Type: TargetFile, Encrypted: true},
+		{SourcePath: "/source/link", State: FileClean, Type: TargetSymlink},
+	} {
+		if reason := SourceEditUnavailableReason(entry); reason != "" {
+			t.Fatalf("SourceEditUnavailableReason(%#v) = %q, want allowed", entry, reason)
+		}
+	}
+}
+
 func TestServiceEditTargetUsesConfiguredDestination(t *testing.T) {
 	runner := &recordingRunner{outputs: [][]byte{[]byte("/srv/dotfiles-home\n")}}
 	service := service{client: chezmoi.Client{Runner: runner}}

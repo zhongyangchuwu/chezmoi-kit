@@ -19,8 +19,27 @@ type syncReviewMsg struct {
 
 type workspacePreviewMsg struct {
 	key     string
+	epoch   uint64
 	preview app.WorkspacePreview
 	err     error
+}
+
+type workspaceHandoffRequestMsg struct {
+	entry   app.WorkspaceEntry
+	command app.TerminalCommand
+	err     error
+}
+
+type workspaceHandoffDoneMsg struct {
+	target string
+	err    error
+}
+
+type workspaceRefreshMsg struct {
+	snapshot  app.WorkspaceSnapshot
+	target    string
+	editorErr error
+	err       error
 }
 
 type executeMsg struct {
@@ -147,8 +166,10 @@ func (m workspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, nil
 	case tea.KeyPressMsg:
+		if m.isWorkspace() && m.workspaceBusy {
+			return m, nil
+		}
 		if m.isWorkspace() && m.helpVisible {
 			return m.updateWorkspaceHelp(msg)
 		}
@@ -166,6 +187,12 @@ func (m workspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyReview(msg)
 	case workspacePreviewMsg:
 		return m.applyWorkspacePreview(msg)
+	case workspaceHandoffRequestMsg:
+		return m.applyWorkspaceHandoffRequest(msg)
+	case workspaceHandoffDoneMsg:
+		return m.applyWorkspaceHandoffDone(msg)
+	case workspaceRefreshMsg:
+		return m.applyWorkspaceRefresh(msg)
 	case executeMsg:
 		return m.applyExecuteMsg(msg)
 	case terminalRequestMsg:
