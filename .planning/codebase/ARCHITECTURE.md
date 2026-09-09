@@ -108,7 +108,7 @@ The matrix is conservative because `re-add` ignores non-files and refuses to ove
 6. File previews load lazily as authoritative diff, destination, rendered target, or source views. Directory previews are local matching-child summaries; loading, error, clean, and withheld feedback have distinct presentation.
 7. Template/encrypted rendered targets, encrypted source, and secret-skipped diffs remain withheld until per-target explicit reveal.
 8. `?` opens a keyboard-isolated quick-start/key/legend overlay; `Esc`, `?`, and `q` close it without changing workspace data.
-9. Workspace mode has no mutation path; its `q` exit changes neither source nor destination.
+9. `e` is available only for eligible managed files/symlinks with a source mapping. It yields the terminal to `chezmoi edit --apply=false --watch=false <absolute-target>`, then re-inventories original scopes regardless of editor exit. Successful refresh preserves viable workspace context, invalidates stale preview epochs/caches, and reloads an authoritative preview; failed refresh keeps the old inventory browsable without a stale preview.
 
 ## Edit Flow
 

@@ -73,6 +73,7 @@ type workspaceModel struct {
 	diffScroll       int
 	previewQuery     string
 	previewMatches   []int
+	previewEpoch     uint64
 	previewMatch     int
 	filter           workspaceFilter
 	currentDir       string
@@ -83,6 +84,8 @@ type workspaceModel struct {
 	search           searchKind
 	searchInput      string
 	helpVisible      bool
+	workspaceBusy    bool
+	workspaceNotice  string
 	width            int
 	height           int
 	homeDir          string

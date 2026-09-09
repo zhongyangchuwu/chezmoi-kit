@@ -100,8 +100,9 @@ The verified `v0.2.0` reconciliation baseline and Phase 2 unified workspace are 
   - Missing tools, nonzero exits, resize, and cancellation restore a usable terminal; no Git operation is automatically run on startup or return.
 - Verification: Actual PTY round trips with configured editor, merge tool, and lazygit using disposable chezmoi state and a local bare Git remote; exercise source edits, branch changes, failure, and cancellation without production pushes.
 - Not Doing: Reimplementing Git/editor/merge features, embedding a continuously running child terminal in a subpane, automatically committing/pulling/pushing, or starting helpers while cm is already mutating a target.
-- Plans: TBD — expand the execution plan after Phase 2's state contract is stable.
-  - [ ] phase-3-tool-handoffs-01
+- Plans: 2
+  - [x] phase-3.1-workspace-source-edit-01
+  - [ ] phase-3-tool-handoffs-02
 
 ### Phase 4: Management and Diagnostics
 
@@ -142,5 +143,5 @@ The verified `v0.2.0` reconciliation baseline and Phase 2 unified workspace are 
 | Phase 2: Unified File Workspace | 1/1 | complete | 2026-09-07 |
 | Phase 2.1: Workspace Usability | 1/1 | complete | 2026-09-07 |
 | Phase 2.2: Directory Browser | 1/1 | complete | 2026-09-07 |
-| Phase 3: Mature Tool Handoffs | 0/TBD | planned | - |
+| Phase 3: Mature Tool Handoffs | 1/2 | in progress | 2026-09-10 |
 | Phase 4: Management and Diagnostics | 0/TBD | planned | - |

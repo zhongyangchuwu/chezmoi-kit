@@ -53,10 +53,12 @@ type WorkspacePreview struct {
 	Review   Review
 }
 
-// WorkspaceService adds read-only browsing to the existing reconciliation service.
-// reveal is an explicit, per-target user decision, not an automatic fallback.
+// WorkspaceService adds browsing and explicit source-editor handoffs to the
+// existing reconciliation service. reveal is an explicit, per-target decision,
+// not an automatic fallback.
 type WorkspaceService interface {
 	SyncService
 	Inventory(scopes []string) (WorkspaceSnapshot, error)
 	Preview(entry WorkspaceEntry, kind PreviewKind, reveal bool) (WorkspacePreview, error)
+	SourceEditCommand(entry WorkspaceEntry) (TerminalCommand, error)
 }

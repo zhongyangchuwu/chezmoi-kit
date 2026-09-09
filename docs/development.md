@@ -132,9 +132,9 @@ For `cm sync`, verify:
 For `cm ui`, verify both unscoped and explicit-scope inventory, parent/current/
 preview responsive layouts, `h`/`l` directory navigation and cursor restoration,
 global path/preview search, filters that retain matching ancestors, directory
-summaries, hunk and horizontal navigation, full-screen/narrow rendering,
-template/encrypted reveal, semantic state markers, the `?` help overlay,
-`NO_COLOR=1` text fallback, and quit-without-mutation behavior.
+summaries, source-edit `e` handoff/return/refresh without destination auto-apply,
+template/encrypted source editing, full-screen/narrow rendering, semantic state
+markers, the `?` help overlay, `NO_COLOR=1` text fallback, and quit behavior.
 
 
 To collect sync phase timings during manual smoke:
@@ -251,10 +251,11 @@ auto-detects TTY stdout, and disables color when `NO_COLOR` is non-empty.
 ### `internal/tui`
 
 Owns the terminal sync and workspace UI. Sync consumes app-owned reviews,
-invalidates stale pending actions, executes confirmed targets sequentially, and
-removes a target only after app postflight state reports it clean. Workspace
-mode is read-only, persists clean entries, and only loads sensitive content
-after an explicit reveal.
+invalidates stale pending actions, and executes confirmed targets sequentially.
+Workspace mode is inspection-first: it persists clean entries and only loads
+sensitive content after an explicit reveal. `e` is the only workspace mutation
+handoff; it delegates source edits to chezmoi without applying or watching
+destination changes, then refreshes the original inventory.
 
 ### `internal/process`
 

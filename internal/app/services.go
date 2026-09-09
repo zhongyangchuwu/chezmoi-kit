@@ -89,7 +89,7 @@ type Action struct {
 	Fingerprint string
 }
 
-// TerminalCommand is a reconciliation command that temporarily owns the terminal.
+// TerminalCommand is a command that temporarily owns the terminal.
 type TerminalCommand interface {
 	Run() error
 	SetStdin(io.Reader)

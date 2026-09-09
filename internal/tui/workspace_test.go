@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -220,6 +221,141 @@ func TestWorkspaceDirectoryPreviewIsLocalSummary(t *testing.T) {
 	model, _ = model.applyWorkspacePreview(command().(workspacePreviewMsg))
 	if !strings.Contains(strings.Join(model.currentDiffState().lines, "\n"), "direct entries: 1") {
 		t.Fatalf("filtered directory summary = %#v", model.currentDiffState().lines)
+	}
+}
+
+func TestWorkspaceSourceEditHandoffRefreshesAndClearsStalePreviewState(t *testing.T) {
+	entry := workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)
+	entry.SourcePath = "/home/me/source/dot_config/app.toml"
+	updated := entry
+	updated.State = app.FileDirty
+	service := &fakeWorkspaceService{snapshot: app.WorkspaceSnapshot{
+		Root:    "/home/me",
+		Scopes:  []string{"/home/me/.config"},
+		Entries: []app.WorkspaceEntry{updated},
+	}}
+	initial := workspaceSnapshot(entry)
+	initial.Scopes = []string{"/home/me/.config"}
+	model := newWorkspaceModel(service, initial)
+	model.currentDir = ".config"
+	model.rebuildEntries(entry.Path)
+	model.filter = filterManaged
+	model.focus = focusDiff
+	model.previewKind = app.PreviewTarget
+	model.previewFull = true
+	model.diffs[model.previewStateKey()] = diffState{lines: []string{"stale preview"}}
+	model.revealedPreviews[model.revealKey()] = true
+	model.previewQuery = "stale"
+	model.previewMatches = []int{0}
+	model.diffScroll, model.previewX = 3, 2
+	stalePreview := workspacePreviewMsg{
+		key:     model.previewStateKey(),
+		epoch:   model.previewEpoch,
+		preview: app.WorkspacePreview{Entry: entry, Kind: model.previewKind, Content: "stale response"},
+	}
+
+	updatedModel, prepare := model.Update(tea.KeyPressMsg(tea.Key{Code: 'e'}))
+	model = updatedModel.(workspaceModel)
+	if !model.workspaceBusy || prepare == nil || model.message != "opening source editor..." {
+		t.Fatalf("source edit start = busy:%t command:%t message:%q", model.workspaceBusy, prepare != nil, model.message)
+	}
+	lockedCursor := model.cursor
+	locked, _ := model.Update(tea.KeyPressMsg(tea.Key{Code: 'j'}))
+	model = locked.(workspaceModel)
+	if model.cursor != lockedCursor {
+		t.Fatalf("editor handoff allowed input: cursor=%d want %d", model.cursor, lockedCursor)
+	}
+	request, ok := prepare().(workspaceHandoffRequestMsg)
+	if !ok || len(service.sourceEditCalls) != 1 || service.sourceEditCalls[0].Path != entry.Path {
+		t.Fatalf("source edit request = %#v calls=%#v", request, service.sourceEditCalls)
+	}
+	model, _ = model.applyWorkspaceHandoffRequest(request)
+	model, refresh := model.applyWorkspaceHandoffDone(workspaceHandoffDoneMsg{target: entry.Path})
+	if refresh == nil || model.message != "refreshing workspace..." {
+		t.Fatalf("handoff return = refresh:%t message:%q", refresh != nil, model.message)
+	}
+	model, preview := model.applyWorkspaceRefresh(refresh().(workspaceRefreshMsg))
+	model, _ = model.applyWorkspacePreview(stalePreview)
+	if lines := model.currentDiffState().lines; len(lines) != 0 {
+		t.Fatalf("stale preview response survived refresh: %q", lines)
+	}
+	if model.workspaceBusy || model.currentTarget() != updated.Path || model.currentDir != ".config" || model.filter != filterManaged || model.focus != focusDiff || model.previewKind != app.PreviewTarget || !model.previewFull {
+		t.Fatalf("refreshed workspace state = %#v", model)
+	}
+	if len(model.diffs) != 1 || len(model.revealedPreviews) != 0 || model.previewQuery != "" || len(model.previewMatches) != 0 || model.diffScroll != 0 || model.previewX != 0 {
+		t.Fatalf("stale preview state survived refresh: diffs=%#v revealed=%#v query=%q matches=%#v scroll=%d x=%d", model.diffs, model.revealedPreviews, model.previewQuery, model.previewMatches, model.diffScroll, model.previewX)
+	}
+	if preview == nil {
+		t.Fatal("refresh did not reload selected preview")
+	}
+	model, _ = model.applyWorkspacePreview(preview().(workspacePreviewMsg))
+	if !strings.Contains(model.workspaceNotice, "workspace refreshed") || !strings.Contains(strings.Join(model.currentDiffState().lines, "\n"), "target preview") {
+		t.Fatalf("refreshed preview = notice:%q lines=%#v", model.workspaceNotice, model.currentDiffState().lines)
+	}
+	if got := service.inventoryCalls; len(got) != 1 || strings.Join(got[0], ",") != "/home/me/.config" {
+		t.Fatalf("inventory calls = %#v", got)
+	}
+}
+
+func TestWorkspaceSourceEditRejectsUnsupportedEntryAndRefreshesAfterEditorError(t *testing.T) {
+	unmanaged := workspaceEntry("new.conf", app.FileUnmanaged, app.TargetFile)
+	model := newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(unmanaged))
+	model = workspaceKeyUpdate(t, model, 'e')
+	if !strings.Contains(model.message, "unmanaged target has no chezmoi source") {
+		t.Fatalf("unmanaged source edit message = %q", model.message)
+	}
+
+	entry := workspaceEntry("app.toml", app.FileClean, app.TargetFile)
+	entry.SourcePath = "/home/me/source/dot_app.toml"
+	service := &fakeWorkspaceService{snapshot: workspaceSnapshot(entry)}
+	model = newWorkspaceModel(service, workspaceSnapshot(entry))
+	model, prepare := model.startWorkspaceSourceEdit()
+	request := prepare().(workspaceHandoffRequestMsg)
+	model, _ = model.applyWorkspaceHandoffRequest(request)
+	model, refresh := model.applyWorkspaceHandoffDone(workspaceHandoffDoneMsg{target: entry.Path, err: errors.New("editor cancelled")})
+	model, _ = model.applyWorkspaceRefresh(refresh().(workspaceRefreshMsg))
+	if model.workspaceBusy || !strings.Contains(model.workspaceNotice, "editor exited with error: editor cancelled") || !strings.Contains(model.workspaceNotice, "workspace refreshed") {
+		t.Fatalf("editor error refresh = busy:%t notice:%q", model.workspaceBusy, model.workspaceNotice)
+	}
+}
+
+func TestWorkspaceSourceEditRefreshFailureKeepsBrowsableSnapshot(t *testing.T) {
+	entry := workspaceEntry("app.toml", app.FileClean, app.TargetFile)
+	entry.SourcePath = "/home/me/source/dot_app.toml"
+	service := &fakeWorkspaceService{inventoryErr: errors.New("inventory unavailable")}
+	model := newWorkspaceModel(service, workspaceSnapshot(entry))
+	model.diffs[model.previewStateKey()] = diffState{lines: []string{"stale"}}
+	model.revealedPreviews[model.revealKey()] = true
+
+	model, refresh := model.applyWorkspaceHandoffDone(workspaceHandoffDoneMsg{target: entry.Path})
+	model, _ = model.applyWorkspaceRefresh(refresh().(workspaceRefreshMsg))
+	if model.workspaceBusy || len(model.entries) != 1 || len(model.diffs) != 0 || len(model.revealedPreviews) != 0 || !strings.Contains(model.message, "workspace refresh failed: inventory unavailable") {
+		t.Fatalf("refresh failure state = entries:%#v diffs:%#v revealed:%#v message:%q", model.entries, model.diffs, model.revealedPreviews, model.message)
+	}
+}
+func TestWorkspaceSourceEditRefreshUsesSelectionFallbackAndContextualFooter(t *testing.T) {
+	oldEntry := workspaceEntry(".config/old.toml", app.FileClean, app.TargetFile)
+	oldEntry.SourcePath = "/home/me/source/dot_config/old.toml"
+	newEntry := workspaceEntry(".config/new.toml", app.FileDirty, app.TargetFile)
+	newEntry.SourcePath = "/home/me/source/dot_config/new.toml"
+	service := &fakeWorkspaceService{snapshot: workspaceSnapshot(newEntry)}
+	model := newWorkspaceModel(service, workspaceSnapshot(oldEntry))
+	model.currentDir = ".config"
+	model.rebuildEntries(oldEntry.Path)
+
+	model, refresh := model.applyWorkspaceHandoffDone(workspaceHandoffDoneMsg{target: oldEntry.Path})
+	model, _ = model.applyWorkspaceRefresh(refresh().(workspaceRefreshMsg))
+	if model.currentDir != ".config" || model.currentTarget() != newEntry.Path {
+		t.Fatalf("selection fallback = directory:%q target:%q", model.currentDir, model.currentTarget())
+	}
+	if !strings.Contains(ansi.Strip(model.workspaceFooter()), "e edit source") {
+		t.Fatalf("eligible footer = %q", ansi.Strip(model.workspaceFooter()))
+	}
+
+	unmanaged := workspaceEntry("new.conf", app.FileUnmanaged, app.TargetFile)
+	model = newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(unmanaged))
+	if strings.Contains(ansi.Strip(model.workspaceFooter()), "e edit source") {
+		t.Fatalf("unmanaged footer advertises source edit: %q", ansi.Strip(model.workspaceFooter()))
 	}
 }
 
@@ -550,9 +686,14 @@ type workspacePreviewCall struct {
 }
 
 type fakeWorkspaceService struct {
-	snapshot     app.WorkspaceSnapshot
-	previews     map[workspacePreviewResponseKey]app.WorkspacePreview
-	previewCalls []workspacePreviewCall
+	snapshot        app.WorkspaceSnapshot
+	inventoryErr    error
+	inventoryCalls  [][]string
+	previews        map[workspacePreviewResponseKey]app.WorkspacePreview
+	previewCalls    []workspacePreviewCall
+	sourceEditErr   error
+	sourceEditCalls []app.WorkspaceEntry
+	sourceEditCmd   app.TerminalCommand
 }
 
 func (f *fakeWorkspaceService) Status([]string) (app.SyncStatus, error) {
@@ -571,8 +712,23 @@ func (f *fakeWorkspaceService) TerminalCommand(app.Action) (app.TerminalCommand,
 	return workspaceTerminalCommand{}, nil
 }
 
-func (f *fakeWorkspaceService) Inventory([]string) (app.WorkspaceSnapshot, error) {
+func (f *fakeWorkspaceService) Inventory(scopes []string) (app.WorkspaceSnapshot, error) {
+	f.inventoryCalls = append(f.inventoryCalls, append([]string(nil), scopes...))
+	if f.inventoryErr != nil {
+		return app.WorkspaceSnapshot{}, f.inventoryErr
+	}
 	return f.snapshot, nil
+}
+
+func (f *fakeWorkspaceService) SourceEditCommand(entry app.WorkspaceEntry) (app.TerminalCommand, error) {
+	f.sourceEditCalls = append(f.sourceEditCalls, entry)
+	if f.sourceEditErr != nil {
+		return nil, f.sourceEditErr
+	}
+	if f.sourceEditCmd != nil {
+		return f.sourceEditCmd, nil
+	}
+	return workspaceTerminalCommand{}, nil
 }
 
 func (f *fakeWorkspaceService) Preview(entry app.WorkspaceEntry, kind app.PreviewKind, reveal bool) (app.WorkspacePreview, error) {

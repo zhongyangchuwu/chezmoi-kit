@@ -44,7 +44,7 @@ func (m workspaceModel) startWorkspacePreviewLoad(refresh bool) (workspaceModel,
 	if entry.Type == app.TargetDirectory {
 		m.diffs[key] = diffState{loading: true}
 		direct := len(m.directoryEntries(entry.RelativePath))
-		return m, loadDirectoryPreviewCmd(entry, direct, m.allEntries, m.filter, m.previewKind)
+		return m, loadDirectoryPreviewCmd(entry, direct, m.allEntries, m.filter, m.previewKind, m.previewEpoch)
 	}
 	if state, ok := m.diffs[key]; ok && !state.loading && state.err == nil && !refresh {
 		return m, nil
@@ -53,10 +53,10 @@ func (m workspaceModel) startWorkspacePreviewLoad(refresh bool) (workspaceModel,
 	if m.workspace == nil {
 		return m, nil
 	}
-	return m, loadWorkspacePreviewCmd(m.workspace, entry, m.previewKind, m.currentPreviewRevealed(), m.timing)
+	return m, loadWorkspacePreviewCmd(m.workspace, entry, m.previewKind, m.currentPreviewRevealed(), m.previewEpoch, m.timing)
 }
 
-func loadDirectoryPreviewCmd(entry app.WorkspaceEntry, direct int, allEntries []app.WorkspaceEntry, filter workspaceFilter, kind app.PreviewKind) tea.Cmd {
+func loadDirectoryPreviewCmd(entry app.WorkspaceEntry, direct int, allEntries []app.WorkspaceEntry, filter workspaceFilter, kind app.PreviewKind, epoch uint64) tea.Cmd {
 	directory := cleanWorkspaceRelative(entry.RelativePath)
 	descendants := 0
 	counts := map[app.FileState]int{}
@@ -79,6 +79,7 @@ func loadDirectoryPreviewCmd(entry app.WorkspaceEntry, direct int, allEntries []
 	}
 	message := workspacePreviewMsg{
 		key:     workspacePreviewKey(entry.Path, kind, false),
+		epoch:   epoch,
 		preview: app.WorkspacePreview{Entry: entry, Kind: kind, Content: strings.Join(lines, "\n")},
 	}
 	return func() tea.Msg {
@@ -97,12 +98,12 @@ func loadReviewCmd(service interface {
 	}
 }
 
-func loadWorkspacePreviewCmd(service app.WorkspaceService, entry app.WorkspaceEntry, kind app.PreviewKind, reveal bool, timing *syncTimingLogger) tea.Cmd {
+func loadWorkspacePreviewCmd(service app.WorkspaceService, entry app.WorkspaceEntry, kind app.PreviewKind, reveal bool, epoch uint64, timing *syncTimingLogger) tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
 		preview, err := service.Preview(entry, kind, reveal)
 		timing.Info("workspace preview", "target", entry.Path, "kind", kind, "reveal", reveal, "bytes", len(preview.Content), "withheld", preview.Withheld, "duration", elapsed(start), "err", err)
-		return workspacePreviewMsg{key: workspacePreviewKey(entry.Path, kind, reveal), preview: preview, err: err}
+		return workspacePreviewMsg{key: workspacePreviewKey(entry.Path, kind, reveal), epoch: epoch, preview: preview, err: err}
 	}
 }
 
@@ -129,6 +130,9 @@ func (m workspaceModel) applyReview(msg syncReviewMsg) (workspaceModel, tea.Cmd)
 }
 
 func (m workspaceModel) applyWorkspacePreview(msg workspacePreviewMsg) (workspaceModel, tea.Cmd) {
+	if msg.epoch != m.previewEpoch {
+		return m, nil
+	}
 	current := msg.key == m.previewStateKey()
 	if msg.err != nil {
 		m.diffs[msg.key] = diffState{err: msg.err}
