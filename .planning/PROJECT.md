@@ -27,7 +27,7 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 
 ### Active
 
-- Phase 3.1 workspace source edit is complete and locally verified; it preserves bare `cm` status and focused `cm sync` contracts.
+- Phase 3.1 workspace source edit is complete, merged, and verified; it preserves bare `cm` status and focused `cm sync` contracts.
 - Remaining Phase 3 handoffs: destination edit, merge, and source Git/lazygit with terminal restoration and refreshed state.
 - Next step 3 / Phase 4: Management and Diagnostics — contextual operations, target lifecycle/attributes, and actionable diagnostics.
 - `.planning/ROADMAP.md` defines remaining scope, exclusions, dependencies, and acceptance scenarios. `.planning/REQUIREMENTS.md` retains template requirements across the remaining steps.

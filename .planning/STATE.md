@@ -5,17 +5,17 @@
 See `.planning/PROJECT.md` (updated 2026-09-10).
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** Phase 3.1 workspace source edit is implemented and locally verified; continue the remaining external-tool handoffs after its PR is merged.
+**Current focus:** Phase 3.1 workspace source edit is merged and verified; plan the remaining external-tool handoffs.
 
 ## Current Position
 
 - Phase: Phase 3.1 — Workspace Source Edit
 - Plan: `phase-3.1-workspace-source-edit-01`
-- Status: verified locally, pending PR
-- Active Artifact: `.planning/phases/phase-3.1-workspace-source-edit/VERIFICATION.md`
-- Branch: `feat/workspace-source-edit`
-- Last activity: 2026-09-10 — implemented source-edit terminal handoff, authoritative refresh, stale-preview invalidation, documentation, and real-tool validation.
-- Progress: Phases 1, 2, 2.1, and 2.2 are complete and merged; Phase 3.1 source edit is locally complete; remaining Phase 3 and Phase 4 work is planned.
+- Status: complete and merged
+- Active Artifact: `.planning/phases/phase-3.1-workspace-source-edit/CAPTURE.md`
+- Branch: `main`
+- Last activity: 2026-09-10 — squash-merged source edit through PR #6 as `1165048`; branch CI and merged-main CI passed.
+- Progress: Phases 1, 2, 2.1, 2.2, and 3.1 are complete and merged; remaining Phase 3 and Phase 4 work is planned.
 
 ## Accumulated Context
 
@@ -43,11 +43,11 @@ See `.planning/PROJECT.md` (updated 2026-09-10).
 - Real fixture passed: clean, dirty, template, encrypted, symlink, directory, script, ignored, nested unmanaged, and secret-backed template reveal.
 - Source edit service integration passed for regular, template, and encrypted source; it confirmed source edits do not auto-apply destination. TUI coverage includes eligibility, handoff input locking, refresh/restoration, stale-preview response rejection, editor error, and refresh failure.
 - Actual PTY passed: configured editor changed managed source through `e`, TUI returned/refreshed, and destination remained unchanged.
-- Full Go, race, vet, module, LSP, and whitespace gates passed locally.
+- Full Go, race, vet, module, LSP, and whitespace gates passed locally; branch CI and merged-main CI passed.
 
 ## Session Continuity
 
 - Last session: 2026-09-10
-- Completed: Phase 3.1 source edit implementation and local verification on `feat/workspace-source-edit`; branch is ready for review/PR.
-- Next Action: create PR, obtain review and CI, then squash merge and capture delivery evidence.
-- Resume file: `.planning/phases/phase-3.1-workspace-source-edit/VERIFICATION.md`
+- Completed: Phase 3.1 source edit reviewed, squash-merged through PR #6 as `1165048`, and verified on merged `main`.
+- Next Action: create the next Phase 3 execution plan for destination edit, merge, and lazygit handoffs.
+- Resume file: `.planning/ROADMAP.md`
