@@ -1,51 +1,76 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
+
+const workspaceHelpClose = "Esc, ?, or q closes help"
 
 func (m workspaceModel) renderWorkspaceHelp(width, height int) string {
 	innerWidth := max(1, width-2)
 	innerHeight := max(1, height-4)
-	compact := innerHeight < 18 || innerWidth < 64
-	lines := []string{m.styles.section.Render("cm ui · Quick help"), ""}
-	if compact {
-		lines = append(lines,
-			"j/k move · h parent · l/enter directory · e edit source · tab focus",
-			"1-4 preview · / global path search · f filter · z full preview",
-			"e edits managed files/symlinks; it never applies or watches destination changes",
-			"",
-			m.workspaceStateLegend(),
-			m.workspaceAttributeLegend(),
-			"",
-			"Esc, ?, or q closes help",
-		)
-	} else {
-		lines = append(lines,
-			m.styles.section.Render("Start here"),
-			"1. j/k selects a direct child; l or Enter enters a directory; h returns.",
-			"2. e opens an eligible managed file/symlink with chezmoi edit; it returns refreshed without applying.",
-			"3. Tab moves to its preview. h/l then scroll the preview horizontally.",
-			"4. / searches every inventory path; Enter locates the selected result.",
-			"5. 1-4 selects diff, destination, target, or source; R reveals withheld content.",
-			"",
-			m.styles.section.Render("Directory browser"),
-			"j/k move · h/left parent · l/right/enter directory · e source edit · / search · f filter",
-			"",
-			m.styles.section.Render("Preview"),
-			"j/k scroll · h/l horizontal · e source edit · [/] hunks · z full screen",
-			"",
-			m.styles.section.Render("Legend"),
-			m.workspaceStateLegend(),
-			m.workspaceAttributeLegend(),
-			"f file · d directory · l symlink · s script · x remove · e external",
-			"",
-			"Esc, ?, or q closes help",
-		)
-	}
+	lines := m.workspaceHelpLines(innerHeight)
 	for i, line := range lines {
 		lines[i] = truncate(line, innerWidth)
 	}
 	content := padLines(strings.Join(lines, "\n"), innerHeight)
 	return m.styles.activePane.Width(width).Height(height).Render(content)
+}
+
+func (m workspaceModel) workspaceHelpLines(height int) []string {
+	full := []string{
+		m.styles.section.Render("cm ui · Quick help"), "",
+		m.styles.section.Render("Start here"),
+		"1. j/k selects a direct child; l or Enter enters a directory; h returns.",
+		"2. e opens an eligible managed file/symlink with chezmoi edit; it returns refreshed without applying.",
+		"3. Tab moves to its preview. h/l then scroll the preview horizontally.",
+		"4. / searches every inventory path; Enter locates the selected result.",
+		"5. 1-4 selects diff, destination, target, or source; R reveals withheld content.",
+		"",
+		m.styles.section.Render("Directory browser"),
+		"j/k move · h/left parent · l/right/enter directory · e source edit · / search · f filter",
+		"",
+		m.styles.section.Render("Preview"),
+		"j/k scroll · h/l horizontal · e source edit · [/] hunks · z full screen",
+		"",
+		m.styles.section.Render("Legend"),
+		m.workspaceStateLegend(),
+		m.workspaceAttributeLegend(),
+		"f file · d directory · l symlink · s script · x remove · e external",
+		"",
+		workspaceHelpClose,
+	}
+	if height >= len(full) {
+		return full
+	}
+
+	compact := []string{
+		m.styles.section.Render("cm ui · Quick help"), "",
+		"j/k move · h parent · l/enter directory · tab preview",
+		"j/k scroll preview · h/l horizontal · 1-4 views",
+		"/ search · f filter · z full preview · R reveal",
+		"e edits managed files/symlinks; it never applies or watches destination changes",
+		"",
+		m.workspaceStateLegend(),
+		m.workspaceAttributeLegend(),
+		"",
+		workspaceHelpClose,
+	}
+	return fitWorkspaceHelpLines(compact, height)
+}
+
+func fitWorkspaceHelpLines(lines []string, height int) []string {
+	if height >= len(lines) {
+		return lines
+	}
+	if height <= 1 {
+		return []string{workspaceHelpClose}
+	}
+	fitted := make([]string, 0, height)
+	fitted = append(fitted, lines[:height-1]...)
+	return append(fitted, workspaceHelpClose)
 }
 
 func (m workspaceModel) workspaceLegendParts() []string {
@@ -73,6 +98,8 @@ func (m workspaceModel) workspaceLegend() string {
 	return strings.Join(m.workspaceLegendParts(), " · ")
 }
 
+const workspaceFooterTail = " · ? help · q quit"
+
 func (m workspaceModel) workspaceFooter() string {
 	width := m.width
 	if width <= 0 {
@@ -84,24 +111,33 @@ func (m workspaceModel) workspaceFooter() string {
 	if m.workspaceBusy {
 		return m.styles.help.Render(truncate("external tool handoff · input locked", width))
 	}
-	edit := m.sourceEditFooter()
-	if width < 60 {
-		return m.styles.help.Render(truncate("tab focus"+edit+" · ? help · q quit", width))
-	}
-	var content string
+
+	full := fmtPreviewFooter(m)
+	compact := "j/k scroll · 1-4 view · / search · tab files"
 	if m.focus == focusFiles {
-		content = "j/k move · h parent · l/enter directory · / search · f filter · tab preview"
-	} else {
-		content = fmtPreviewFooter(m)
+		full = "j/k move · h parent · l/enter directory · / search · f filter · tab preview"
+		compact = "j/k move · h/l browse · / search · tab preview"
 	}
-	if width < 96 {
-		if m.focus == focusFiles {
-			content = "j/k move · h/l browse · / search · tab preview"
-		} else {
-			content = "j/k scroll · 1-4 view · / search · tab files"
+	edit := m.sourceEditFooter()
+	return m.styles.help.Render(workspaceFooterLine(width, full, compact, edit))
+}
+
+func workspaceFooterLine(width int, full, compact, edit string) string {
+	candidates := [...]string{
+		full + edit,
+		compact + edit,
+		full,
+		compact,
+		"tab focus" + edit,
+		"tab focus",
+	}
+	for _, candidate := range candidates {
+		line := candidate + workspaceFooterTail
+		if lipgloss.Width(line) <= width {
+			return line
 		}
 	}
-	return m.styles.help.Render(truncate(content+edit+" · ? help · q quit", width))
+	return truncate(workspaceFooterTail, width)
 }
 
 func fmtPreviewFooter(m workspaceModel) string {

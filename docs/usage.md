@@ -148,7 +148,7 @@ skipped authoritative inspection; it is not a clean result.
 | `e` | open the selected managed file or symlink through `chezmoi edit`; never auto-apply or watch destination changes |
 | `z` | toggle full-screen preview |
 | `R` | explicitly reveal a withheld diff, rendered target, or encrypted source |
-| `?` | toggle quick-start, complete key reference, and state/type legend |
+| `?` | open responsive quick-start help; full key reference and state/type legend appear when terminal space permits |
 | `q` / `ctrl+c` | quit without mutation; when help is open, close help instead |
 Filtering keeps a directory visible when it contains a matching descendant. A
 directory preview is a local matching-child summary and never requests content
@@ -167,8 +167,9 @@ reveal an explicit per-target, per-view decision. Plain template source remains
 unrendered source text. Chezmoi remains authoritative for all classification,
 rendering, decryption, target type, and diff behavior.
 
-The Current pane keeps a compact state legend when space permits. Its footer adapts
-to narrow terminals but always retains a help (`?`) and quit (`q`) route. Set
+The Current pane keeps a compact state legend when space permits. Help always
+retains an explicit close route, while it adapts its detail to terminal height.
+The footer preserves help (`?`) and quit (`q`) routes at narrow widths. Set
 `NO_COLOR=1` to keep the same textual markers and legend without semantic colors.
 
 ## Sync
