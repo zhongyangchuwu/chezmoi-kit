@@ -23,23 +23,25 @@ type workspacePreviewMsg struct {
 	preview app.WorkspacePreview
 	err     error
 }
-
 type workspaceHandoffRequestMsg struct {
 	entry   app.WorkspaceEntry
+	kind    workspaceHandoffKind
 	command app.TerminalCommand
 	err     error
 }
 
 type workspaceHandoffDoneMsg struct {
 	target string
+	kind   workspaceHandoffKind
 	err    error
 }
 
 type workspaceRefreshMsg struct {
-	snapshot  app.WorkspaceSnapshot
-	target    string
-	editorErr error
-	err       error
+	snapshot app.WorkspaceSnapshot
+	target   string
+	kind     workspaceHandoffKind
+	toolErr  error
+	err      error
 }
 
 type executeMsg struct {

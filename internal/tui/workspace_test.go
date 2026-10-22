@@ -297,6 +297,79 @@ func TestWorkspaceSourceEditHandoffRefreshesAndClearsStalePreviewState(t *testin
 	}
 }
 
+func TestWorkspaceDestinationEditAndMergeHandoffsRefresh(t *testing.T) {
+	entry := workspaceEntry("app.toml", app.FileClean, app.TargetFile)
+	entry.SourcePath = "/home/me/source/dot_app.toml"
+	for _, test := range []struct {
+		name       string
+		key        rune
+		kind       workspaceHandoffKind
+		toolErr    error
+		closedText string
+		called     func(*fakeWorkspaceService) int
+	}{
+		{name: "destination edit", key: 'E', kind: workspaceDestinationEdit, closedText: "destination editor closed", called: func(service *fakeWorkspaceService) int { return len(service.destinationEditCalls) }},
+		{name: "merge", key: 'm', kind: workspaceMerge, toolErr: errors.New("merge cancelled"), closedText: "merge tool exited with error: merge cancelled", called: func(service *fakeWorkspaceService) int { return len(service.mergeCalls) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			updated := entry
+			updated.State = app.FileDirty
+			service := &fakeWorkspaceService{snapshot: workspaceSnapshot(updated)}
+			model := newWorkspaceModel(service, workspaceSnapshot(entry))
+			model.width = 120
+			footer := ansi.Strip(model.workspaceFooter())
+			for _, action := range []string{"e source", "E destination", "m merge"} {
+				if !strings.Contains(footer, action) {
+					t.Fatalf("workspace footer omits %q: %q", action, footer)
+				}
+			}
+
+			result, prepare := model.Update(tea.KeyPressMsg(tea.Key{Code: test.key}))
+			model = result.(workspaceModel)
+			if !model.workspaceBusy || prepare == nil || model.message != test.kind.openingMessage() {
+				t.Fatalf("handoff start = busy:%t command:%t message:%q", model.workspaceBusy, prepare != nil, model.message)
+			}
+			request, ok := prepare().(workspaceHandoffRequestMsg)
+			if !ok || request.kind != test.kind || test.called(service) != 1 {
+				t.Fatalf("handoff request = %#v", request)
+			}
+			model, _ = model.applyWorkspaceHandoffRequest(request)
+			model, refresh := model.applyWorkspaceHandoffDone(workspaceHandoffDoneMsg{target: entry.Path, kind: test.kind, err: test.toolErr})
+			if refresh == nil {
+				t.Fatal("handoff return did not refresh workspace")
+			}
+			model, _ = model.applyWorkspaceRefresh(refresh().(workspaceRefreshMsg))
+			if model.workspaceBusy || !strings.Contains(model.workspaceNotice, test.closedText) || !strings.Contains(model.workspaceNotice, "workspace refreshed") || strings.Contains(model.workspaceNotice, "destination unchanged") {
+				t.Fatalf("handoff refresh notice = %q", model.workspaceNotice)
+			}
+		})
+	}
+}
+
+func TestWorkspaceDestinationEditAndMergeRejectUnsupportedEntries(t *testing.T) {
+	symlink := workspaceEntry("link", app.FileClean, app.TargetSymlink)
+	symlink.SourcePath = "/home/me/source/symlink_link"
+	model := newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(symlink))
+	model = workspaceKeyUpdate(t, model, 'E')
+	if !strings.Contains(model.message, "destination edit unavailable: destination edit does not follow symlinks") {
+		t.Fatalf("symlink destination edit message = %q", model.message)
+	}
+
+	model = newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(symlink))
+	model = workspaceKeyUpdate(t, model, 'm')
+	if !strings.Contains(model.message, "merge unavailable: merge does not follow symlinks") {
+		t.Fatalf("symlink merge message = %q", model.message)
+	}
+
+	script := workspaceEntry("script", app.FileScript, app.TargetScript)
+	script.SourcePath = "/home/me/source/run_once_script"
+	model = newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(script))
+	model = workspaceKeyUpdate(t, model, 'm')
+	if !strings.Contains(model.message, "merge unavailable: scripts cannot be merged") {
+		t.Fatalf("script merge message = %q", model.message)
+	}
+}
+
 func TestWorkspaceSourceEditRejectsUnsupportedEntryAndRefreshesAfterEditorError(t *testing.T) {
 	unmanaged := workspaceEntry("new.conf", app.FileUnmanaged, app.TargetFile)
 	model := newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(unmanaged))
@@ -314,7 +387,7 @@ func TestWorkspaceSourceEditRejectsUnsupportedEntryAndRefreshesAfterEditorError(
 	model, _ = model.applyWorkspaceHandoffRequest(request)
 	model, refresh := model.applyWorkspaceHandoffDone(workspaceHandoffDoneMsg{target: entry.Path, err: errors.New("editor cancelled")})
 	model, _ = model.applyWorkspaceRefresh(refresh().(workspaceRefreshMsg))
-	if model.workspaceBusy || !strings.Contains(model.workspaceNotice, "editor exited with error: editor cancelled") || !strings.Contains(model.workspaceNotice, "workspace refreshed") {
+	if model.workspaceBusy || !strings.Contains(model.workspaceNotice, "source editor exited with error: editor cancelled") || !strings.Contains(model.workspaceNotice, "workspace refreshed") {
 		t.Fatalf("editor error refresh = busy:%t notice:%q", model.workspaceBusy, model.workspaceNotice)
 	}
 }
@@ -348,13 +421,13 @@ func TestWorkspaceSourceEditRefreshUsesSelectionFallbackAndContextualFooter(t *t
 	if model.currentDir != ".config" || model.currentTarget() != newEntry.Path {
 		t.Fatalf("selection fallback = directory:%q target:%q", model.currentDir, model.currentTarget())
 	}
-	if !strings.Contains(ansi.Strip(model.workspaceFooter()), "e edit source") {
+	if !strings.Contains(ansi.Strip(model.workspaceFooter()), "e source") {
 		t.Fatalf("eligible footer = %q", ansi.Strip(model.workspaceFooter()))
 	}
 
 	unmanaged := workspaceEntry("new.conf", app.FileUnmanaged, app.TargetFile)
 	model = newWorkspaceModel(&fakeWorkspaceService{}, workspaceSnapshot(unmanaged))
-	if strings.Contains(ansi.Strip(model.workspaceFooter()), "e edit source") {
+	if strings.Contains(ansi.Strip(model.workspaceFooter()), "e source") {
 		t.Fatalf("unmanaged footer advertises source edit: %q", ansi.Strip(model.workspaceFooter()))
 	}
 }
@@ -604,7 +677,7 @@ func TestWorkspaceFooterKeepsHelpAndQuitForEligibleSourceEdit(t *testing.T) {
 		}
 	}
 	model.width = 60
-	if footer := ansi.Strip(model.workspaceFooter()); !strings.Contains(footer, "e edit source") {
+	if footer := ansi.Strip(model.workspaceFooter()); !strings.Contains(footer, "e source") {
 		t.Fatalf("eligible compact footer omits source edit: %q", footer)
 	}
 }
@@ -722,14 +795,20 @@ type workspacePreviewCall struct {
 }
 
 type fakeWorkspaceService struct {
-	snapshot        app.WorkspaceSnapshot
-	inventoryErr    error
-	inventoryCalls  [][]string
-	previews        map[workspacePreviewResponseKey]app.WorkspacePreview
-	previewCalls    []workspacePreviewCall
-	sourceEditErr   error
-	sourceEditCalls []app.WorkspaceEntry
-	sourceEditCmd   app.TerminalCommand
+	snapshot             app.WorkspaceSnapshot
+	inventoryErr         error
+	inventoryCalls       [][]string
+	previews             map[workspacePreviewResponseKey]app.WorkspacePreview
+	previewCalls         []workspacePreviewCall
+	sourceEditErr        error
+	sourceEditCalls      []app.WorkspaceEntry
+	sourceEditCmd        app.TerminalCommand
+	destinationEditErr   error
+	destinationEditCalls []app.WorkspaceEntry
+	destinationEditCmd   app.TerminalCommand
+	mergeErr             error
+	mergeCalls           []app.WorkspaceEntry
+	mergeCmd             app.TerminalCommand
 }
 
 func (f *fakeWorkspaceService) Status([]string) (app.SyncStatus, error) {
@@ -763,6 +842,28 @@ func (f *fakeWorkspaceService) SourceEditCommand(entry app.WorkspaceEntry) (app.
 	}
 	if f.sourceEditCmd != nil {
 		return f.sourceEditCmd, nil
+	}
+	return workspaceTerminalCommand{}, nil
+}
+
+func (f *fakeWorkspaceService) DestinationEditCommand(entry app.WorkspaceEntry) (app.TerminalCommand, error) {
+	f.destinationEditCalls = append(f.destinationEditCalls, entry)
+	if f.destinationEditErr != nil {
+		return nil, f.destinationEditErr
+	}
+	if f.destinationEditCmd != nil {
+		return f.destinationEditCmd, nil
+	}
+	return workspaceTerminalCommand{}, nil
+}
+
+func (f *fakeWorkspaceService) MergeCommand(entry app.WorkspaceEntry) (app.TerminalCommand, error) {
+	f.mergeCalls = append(f.mergeCalls, entry)
+	if f.mergeErr != nil {
+		return nil, f.mergeErr
+	}
+	if f.mergeCmd != nil {
+		return f.mergeCmd, nil
 	}
 	return workspaceTerminalCommand{}, nil
 }

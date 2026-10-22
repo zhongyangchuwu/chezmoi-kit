@@ -61,4 +61,6 @@ type WorkspaceService interface {
 	Inventory(scopes []string) (WorkspaceSnapshot, error)
 	Preview(entry WorkspaceEntry, kind PreviewKind, reveal bool) (WorkspacePreview, error)
 	SourceEditCommand(entry WorkspaceEntry) (TerminalCommand, error)
+	DestinationEditCommand(entry WorkspaceEntry) (TerminalCommand, error)
+	MergeCommand(entry WorkspaceEntry) (TerminalCommand, error)
 }

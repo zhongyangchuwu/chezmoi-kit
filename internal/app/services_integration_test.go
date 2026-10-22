@@ -293,6 +293,95 @@ func TestServiceEditTargetUsesCustomDestinationNonInteractively(t *testing.T) {
 	}
 }
 
+func TestServiceDestinationEditCommandDoesNotEditSource(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	target := filepath.Join(h.destination, ".destination-editable")
+	writeIntegrationFile(t, target, "before\n", 0o600)
+	h.run(t, "add", target)
+	sourcePath := strings.TrimSpace(string(h.output(t, "source-path", target)))
+	sourceBefore, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read source before destination edit: %v", err)
+	}
+
+	editor := filepath.Join(h.root, "destination-editor")
+	writeIntegrationFile(t, editor, "#!/bin/sh\nprintf 'edited-destination\\n' > \"$1\"\n", 0o700)
+	t.Setenv("VISUAL", editor)
+	t.Setenv("EDITOR", "")
+	command, err := h.service.DestinationEditCommand(WorkspaceEntry{
+		Path:       target,
+		SourcePath: sourcePath,
+		State:      FileClean,
+		Type:       TargetFile,
+	})
+	if err != nil {
+		t.Fatalf("DestinationEditCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("destination edit returned error: %v", err)
+	}
+
+	destination, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read destination after edit: %v", err)
+	}
+	if string(destination) != "edited-destination\n" {
+		t.Fatalf("destination after edit = %q", destination)
+	}
+	sourceAfter, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read source after destination edit: %v", err)
+	}
+	if string(sourceAfter) != string(sourceBefore) {
+		t.Fatalf("source changed after destination edit: before=%q after=%q", sourceBefore, sourceAfter)
+	}
+}
+
+func TestServiceWorkspaceMergeCommandUsesConfiguredThreeWayTool(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	target := filepath.Join(h.destination, ".mergeable")
+	writeIntegrationFile(t, target, "source-before\n", 0o600)
+	h.run(t, "add", target)
+	sourcePath := strings.TrimSpace(string(h.output(t, "source-path", target)))
+	writeIntegrationFile(t, target, "destination-before\n", 0o600)
+
+	capture := filepath.Join(h.root, "merge-arguments")
+	tool := filepath.Join(h.root, "merge-tool")
+	writeIntegrationFile(t, tool, fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", capture), 0o700)
+	config := fmt.Sprintf("[merge]\ncommand = %q\nargs = [\"{{ .Destination }}\", \"{{ .Source }}\", \"{{ .Target }}\"]\n", tool)
+	writeIntegrationFile(t, h.config, config, 0o600)
+
+	command, err := h.service.MergeCommand(WorkspaceEntry{
+		Path:       target,
+		SourcePath: sourcePath,
+		State:      FileDirty,
+		Type:       TargetFile,
+	})
+	if err != nil {
+		t.Fatalf("MergeCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("merge command returned error: %v", err)
+	}
+	arguments, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("read merge arguments: %v", err)
+	}
+	paths := strings.Split(strings.TrimSpace(string(arguments)), "\n")
+	if len(paths) != 3 || paths[0] != target || paths[1] != sourcePath || paths[2] == "" {
+		t.Fatalf("merge arguments = %#v", paths)
+	}
+	for path, want := range map[string]string{target: "destination-before\n", sourcePath: "source-before\n"} {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s after merge: %v", path, err)
+		}
+		if string(content) != want {
+			t.Fatalf("content %s after merge = %q, want %q", path, content, want)
+		}
+	}
+}
+
 func TestServiceSourceEditCommandDoesNotApplyDestination(t *testing.T) {
 	h := newChezmoiIntegration(t)
 	target := filepath.Join(h.destination, ".workspace-editable")

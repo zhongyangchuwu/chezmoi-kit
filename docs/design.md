@@ -71,15 +71,18 @@ File previews load only for selected files and are bounded. A virtual or actual
 directory preview is a local child summary, never a chezmoi content call. Diff,
 destination, rendered target, and source remain distinct file views.
 Template/encrypted rendered targets, encrypted source, and uninspected diffs
-require explicit reveal. The workspace has no add, apply, or merge actions.
+require explicit reveal. The workspace has no add or apply action.
 
-`e` is the one explicit mutation handoff: an eligible managed file or symlink
-opens through `chezmoi edit --apply=false --watch=false`. Bubble Tea yields the
-terminal to the configured editor, then re-inventories original scopes regardless
-of editor exit status. Refresh preserves viable navigation state but discards old
-preview, reveal, search-match, and scroll caches before loading a fresh preview.
-This prevents inherited chezmoi edit settings from applying or watching destination
-changes outside cm review.
+Three explicit terminal handoffs may mutate state. `e` opens an eligible managed
+file or symlink through `chezmoi edit --apply=false --watch=false`, so inherited
+chezmoi edit settings cannot apply or watch destination changes. `E` opens an
+eligible managed regular destination file via `VISUAL` or `EDITOR` without a
+shell, source edit, or apply. `m` delegates an eligible managed regular file to
+chezmoi's configured three-way merge tool, which receives destination, source,
+and rendered target and may modify source or destination. Every handoff yields the
+terminal, re-inventories original scopes on every return, preserves viable
+navigation state, and discards old preview, reveal, search-match, and scroll caches
+before loading a fresh preview.
 
 Workspace presentation uses a semantic palette for state, target type, template,
 encryption, selection, loading, error, and withheld feedback. Letters and badges
@@ -222,13 +225,13 @@ interactive.
 
 ### TUI boundary
 
-`internal/tui` owns shared presentation state for the focused sync review and
-the inspection-first workspace. Workspace mode keeps clean entries, derives
-direct-child directory projections and virtual ancestors from one inventory, and
-caches bounded previews by target/view/reveal state. Explicit source edit yields
-the terminal to chezmoi, then invalidates workspace caches and re-inventories the
-original scopes. Sync-only confirmation, execution, and completion behavior
-remain isolated behind explicit mode branches.
+`internal/tui` owns shared presentation state for focused sync review and the
+inspection-first workspace. Workspace mode keeps clean entries, derives direct-child
+directory projections and virtual ancestors from one inventory, and caches bounded
+previews by target/view/reveal state. Source edit, destination edit, and merge share
+one terminal handoff lifecycle: each invalidates workspace caches and re-inventories
+original scopes after the tool returns. Sync-only confirmation, execution, and
+completion behavior remain isolated behind explicit mode branches.
 
 ### Report boundary
 

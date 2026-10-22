@@ -444,6 +444,14 @@ func (f *fakeService) SourceEditCommand(entry app.WorkspaceEntry) (app.TerminalC
 	return terminalCommand{}, nil
 }
 
+func (f *fakeService) DestinationEditCommand(entry app.WorkspaceEntry) (app.TerminalCommand, error) {
+	return terminalCommand{}, nil
+}
+
+func (f *fakeService) MergeCommand(entry app.WorkspaceEntry) (app.TerminalCommand, error) {
+	return terminalCommand{}, nil
+}
+
 func (f *fakeService) ExecuteNonInteractive(action app.Action) (app.ActionResult, error) {
 	f.executed = append(f.executed, action)
 	return app.ActionResult{}, nil

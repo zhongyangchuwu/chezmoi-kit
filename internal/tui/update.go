@@ -94,6 +94,10 @@ func (m workspaceModel) updateWorkspaceReview(msg tea.KeyPressMsg) (tea.Model, t
 		return m, nil
 	case key.Matches(msg, defaultSyncKeys.SourceEdit):
 		return m.startWorkspaceSourceEdit()
+	case key.Matches(msg, defaultSyncKeys.DestinationEdit):
+		return m.startWorkspaceDestinationEdit()
+	case key.Matches(msg, defaultSyncKeys.Merge):
+		return m.startWorkspaceMerge()
 	case key.Matches(msg, defaultSyncKeys.Diff):
 		return m.startDiffLoad(true)
 	case key.Matches(msg, defaultSyncKeys.Filter):

@@ -218,6 +218,68 @@ func TestServiceTerminalCommandBuildsMergeCommand(t *testing.T) {
 	}
 }
 
+func TestServiceWorkspaceMergeCommandUsesChezmoiMerge(t *testing.T) {
+	runner := &recordingRunner{}
+	service := service{client: chezmoi.Client{Runner: runner, Dir: "/work"}}
+	entry := WorkspaceEntry{Path: "/home/me/.tmux.conf", SourcePath: "/home/me/source/dot_tmux.conf", State: FileDirty, Type: TargetFile}
+
+	command, err := service.MergeCommand(entry)
+	if err != nil {
+		t.Fatalf("MergeCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("merge command Run returned error: %v", err)
+	}
+	if want := [][]string{{"chezmoi", "merge", entry.Path}}; !reflect.DeepEqual(runner.runCalls, want) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, want)
+	}
+	if got := runner.runIO[0].Dir; got != "/work" {
+		t.Fatalf("Dir = %q, want /work", got)
+	}
+}
+
+func TestServiceDestinationEditCommandUsesVisualAndPreservesDestinationPath(t *testing.T) {
+	t.Setenv("VISUAL", `editor --wait "profile name"`)
+	t.Setenv("EDITOR", "fallback-editor")
+	runner := &recordingRunner{}
+	service := service{client: chezmoi.Client{Runner: runner, Dir: "/work"}}
+	entry := WorkspaceEntry{Path: "/home/me/.config/app config", SourcePath: "/home/me/source/dot_config/app config", State: FileClean, Type: TargetFile}
+
+	command, err := service.DestinationEditCommand(entry)
+	if err != nil {
+		t.Fatalf("DestinationEditCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("destination edit command Run returned error: %v", err)
+	}
+	want := [][]string{{"editor", "--wait", "profile name", entry.Path}}
+	if !reflect.DeepEqual(runner.runCalls, want) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, want)
+	}
+}
+
+func TestDestinationEditCommandRejectsUnsafeEntriesAndMissingEditor(t *testing.T) {
+	symlink := WorkspaceEntry{Path: "/home/me/link", SourcePath: "/home/me/source/symlink_link", State: FileClean, Type: TargetSymlink}
+	if reason := DestinationEditUnavailableReason(symlink); !strings.Contains(reason, "does not follow symlinks") {
+		t.Fatalf("DestinationEditUnavailableReason(symlink) = %q", reason)
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "")
+	service := service{client: chezmoi.Client{Runner: &recordingRunner{}}}
+	entry := WorkspaceEntry{Path: "/home/me/.zshrc", SourcePath: "/home/me/source/dot_zshrc", State: FileClean, Type: TargetFile}
+	if _, err := service.DestinationEditCommand(entry); err == nil || !strings.Contains(err.Error(), "set VISUAL or EDITOR") {
+		t.Fatalf("DestinationEditCommand missing editor error = %v", err)
+	}
+}
+
+func TestSplitEditorCommandRejectsMalformedInput(t *testing.T) {
+	for _, command := range []string{`editor "unterminated`, `editor \`} {
+		if _, err := splitEditorCommand(command); err == nil {
+			t.Fatalf("splitEditorCommand(%q) returned nil error", command)
+		}
+	}
+}
+
 func TestServiceSourceEditCommandForcesNoApplyOrWatch(t *testing.T) {
 	runner := &recordingRunner{}
 	service := service{client: chezmoi.Client{Runner: runner, Dir: "/work"}}
