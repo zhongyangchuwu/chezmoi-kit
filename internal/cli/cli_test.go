@@ -184,6 +184,21 @@ func TestRunWorkspaceKeepsCleanManagedEntriesVisible(t *testing.T) {
 	}
 }
 
+func TestRunCDOpensConfiguredSourceShell(t *testing.T) {
+	service := &fakeService{}
+	var out bytes.Buffer
+
+	for _, args := range [][]string{{"cd"}, {"cd", ".config/nvim"}} {
+		code := run(args, testServices(service), strings.NewReader(""), &out, &out)
+		if code != 0 {
+			t.Fatalf("run %q exit code = %d, want 0; output %q", args, code, out.String())
+		}
+	}
+	if !reflect.DeepEqual(service.sourceShellArgs, []string{"", ".config/nvim"}) {
+		t.Fatalf("sourceShellArgs = %#v", service.sourceShellArgs)
+	}
+}
+
 func TestRunSyncDebugWritesTempLogPathToStderr(t *testing.T) {
 	service := &fakeService{}
 	var stdout bytes.Buffer
@@ -335,14 +350,15 @@ func TestRunCompletionPrintsShellScript(t *testing.T) {
 
 func testServices(service *fakeService) commandServices {
 	return commandServices{
-		Status:    service,
-		Diff:      service,
-		Sync:      service,
-		Workspace: service,
-		Target:    service,
-		SourceGit: service,
-		Edit:      service,
-		Doctor:    service,
+		Status:      service,
+		Diff:        service,
+		Sync:        service,
+		Workspace:   service,
+		Target:      service,
+		SourceGit:   service,
+		Edit:        service,
+		SourceShell: service,
+		Doctor:      service,
 	}
 }
 
@@ -363,6 +379,7 @@ type fakeService struct {
 	executed          []app.Action
 	workspaceSnapshot app.WorkspaceSnapshot
 	inventoryScopes   [][]string
+	sourceShellArgs   []string
 }
 
 func (f *fakeService) Status(targets []string) (app.SyncStatus, error) {
@@ -493,6 +510,11 @@ func (f *fakeService) MergeTargets(targets []string) error {
 
 func (f *fakeService) OpenSourceGit() error {
 	f.commands = append(f.commands, []string{"git"})
+	return nil
+}
+
+func (f *fakeService) OpenSourceShell(target string) error {
+	f.sourceShellArgs = append(f.sourceShellArgs, target)
 	return nil
 }
 

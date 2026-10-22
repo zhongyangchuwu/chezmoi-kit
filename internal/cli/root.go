@@ -128,6 +128,20 @@ func newRootCommand(services commandServices, stdin io.Reader, stdout, stderr io
 		},
 	})
 	root.AddCommand(&cobra.Command{
+		Use:   "cd [path]",
+		Short: "Open a child shell in chezmoi source state",
+		Long: "Open a chezmoi-configured child shell in the source directory. " +
+			"This cannot change the working directory of the invoking shell.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := ""
+			if len(args) == 1 {
+				path = args[0]
+			}
+			return services.SourceShell.OpenSourceShell(path)
+		},
+	})
+	root.AddCommand(&cobra.Command{
 		Use:   "doctor",
 		Short: "Check cm environment prerequisites",
 		Args:  cobra.NoArgs,

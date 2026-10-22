@@ -272,6 +272,19 @@ cm edit .zshrc        # edit a managed file through chezmoi edit
 names such as `.zshrc` resolve against `chezmoi target-path`, so custom destination
 directories work; absolute managed target paths are passed through unchanged.
 
+## Source shell
+
+```bash
+cm cd
+cm cd ~/.config/nvim
+```
+
+`cm cd` delegates to `chezmoi cd`. It opens the chezmoi-configured child shell
+in the source directory; with a destination directory path, chezmoi opens its
+corresponding source directory. It honors chezmoi's `cd.command`, `cd.args`,
+and `CHEZMOI*` environment. Like `chezmoi cd`, it cannot change the working
+directory of the shell that launched `cm`; exit the child shell to return.
+
 ## Git source repository
 
 ```bash

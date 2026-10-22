@@ -36,6 +36,11 @@ type SourceGitService interface {
 	OpenSourceGit() error
 }
 
+// SourceShellService opens a chezmoi-configured source shell.
+type SourceShellService interface {
+	OpenSourceShell(path string) error
+}
+
 // EditService edits chezmoi-managed targets and exposes completion candidates.
 type EditService interface {
 	EditTarget(target string) error
@@ -107,28 +112,30 @@ type SyncService interface {
 
 // Services groups application use cases for adapters.
 type Services struct {
-	Status    StatusService
-	Diff      DiffService
-	Sync      SyncService
-	Workspace WorkspaceService
-	Target    TargetCommandService
-	SourceGit SourceGitService
-	Edit      EditService
-	Doctor    DoctorService
+	Status      StatusService
+	Diff        DiffService
+	Sync        SyncService
+	Workspace   WorkspaceService
+	Target      TargetCommandService
+	SourceGit   SourceGitService
+	SourceShell SourceShellService
+	Edit        EditService
+	Doctor      DoctorService
 }
 
 // NewServices creates the default application service graph backed by chezmoi.
 func NewServices(client chezmoi.Client) Services {
 	s := service{client: client}
 	return Services{
-		Status:    s,
-		Diff:      s,
-		Sync:      s,
-		Workspace: s,
-		Target:    s,
-		SourceGit: s,
-		Edit:      s,
-		Doctor:    s,
+		Status:      s,
+		Diff:        s,
+		Sync:        s,
+		Workspace:   s,
+		Target:      s,
+		SourceGit:   s,
+		SourceShell: s,
+		Edit:        s,
+		Doctor:      s,
 	}
 }
 
@@ -306,6 +313,14 @@ func doctorStatus(status string) report.Inline {
 	default:
 		return report.Warning("fail")
 	}
+}
+
+func (s service) OpenSourceShell(path string) error {
+	args := []string{"cd"}
+	if path != "" {
+		args = append(args, path)
+	}
+	return s.client.Run(args...)
 }
 
 func (s service) OpenSourceGit() error {
