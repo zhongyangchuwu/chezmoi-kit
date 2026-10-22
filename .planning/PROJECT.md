@@ -27,7 +27,7 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 
 ### Active
 
-- Phase 3.1 source edit is complete and merged. Phase 3.2 destination edit and merge is locally verified; both preserve bare `cm` status and focused `cm sync` contracts.
+- Phase 3.1 source edit and Phase 3.2 destination edit/merge are complete, merged, and verified; both preserve bare `cm` status and focused `cm sync` contracts.
 - Remaining Phase 3 handoff: source Git/lazygit with terminal restoration and refreshed source Git state.
 - Next step 3 / Phase 4: Management and Diagnostics — contextual operations, target lifecycle/attributes, and actionable diagnostics.
 - `.planning/ROADMAP.md` defines remaining scope, exclusions, dependencies, and acceptance scenarios. `.planning/REQUIREMENTS.md` retains template requirements across the remaining steps.

@@ -5,17 +5,17 @@
 See `.planning/PROJECT.md` (updated 2026-10-23).
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** Phase 3.2 workspace destination edit and merge is locally verified; obtain review and CI before merging, then implement source Git/lazygit handoff.
+**Current focus:** Phase 3.2 workspace destination edit and merge is merged and verified; plan the remaining source Git/lazygit handoff.
 
 ## Current Position
 
 - Phase: Phase 3.2 — Workspace Destination Edit and Merge
 - Plan: `phase-3.2-workspace-destination-edit-merge-01`
-- Status: verified locally, pending PR
-- Active Artifact: `.planning/phases/phase-3.2-workspace-destination-edit-merge/VERIFICATION.md`
-- Branch: `feat/workspace-editor-merge`
-- Last activity: 2026-10-23 — implemented destination editor, three-way merge, generalized workspace handoff refresh, documentation, and real chezmoi integration coverage.
-- Progress: Phases 1, 2, 2.1, 2.2, and 3.1 are complete and merged; Phase 3.2 is locally complete; source Git/lazygit and Phase 4 remain planned.
+- Status: complete and merged
+- Active Artifact: `.planning/phases/phase-3.2-workspace-destination-edit-merge/CAPTURE.md`
+- Branch: `main`
+- Last activity: 2026-10-23 — squash-merged destination edit and merge through PR #9 as `ee51c5e`; branch CI and merged-main CI passed.
+- Progress: Phases 1, 2, 2.1, 2.2, 3.1, and 3.2 are complete and merged; source Git/lazygit and Phase 4 remain planned.
 
 ## Accumulated Context
 
@@ -39,11 +39,11 @@ See `.planning/PROJECT.md` (updated 2026-10-23).
 
 - Real source edit integration verifies no destination auto-apply; real destination edit integration verifies source preservation; real configured merge integration verifies destination/source/target argument roles and no implicit apply.
 - TUI coverage includes eligibility, contextual guidance, terminal handoff input lock, refresh/restoration, stale-preview response rejection, tool error refresh, and refresh failure.
-- Full Go, race, vet, module, LSP, and whitespace gates passed locally.
+- Full Go, race, vet, module, LSP, and whitespace gates passed locally; branch CI and merged-main CI passed.
 
 ## Session Continuity
 
 - Last session: 2026-10-23
-- Completed: Phase 3.2 implementation and local verification on `feat/workspace-editor-merge`.
-- Next Action: create PR, obtain review and CI, squash merge, capture delivery evidence, then plan source Git/lazygit handoff.
-- Resume file: `.planning/phases/phase-3.2-workspace-destination-edit-merge/VERIFICATION.md`
+- Completed: Phase 3.2 destination edit and merge reviewed, squash-merged through PR #9 as `ee51c5e`, and verified on merged `main`.
+- Next Action: create the Phase 3.3 execution plan for source Git/lazygit handoff and refreshed source Git state.
+- Resume file: `.planning/ROADMAP.md`
