@@ -24,16 +24,17 @@ func (m workspaceModel) workspaceHelpLines(height int) []string {
 		m.styles.section.Render("cm ui · Quick help"), "",
 		m.styles.section.Render("Start here"),
 		"1. j/k selects a direct child; l or Enter enters a directory; h returns.",
-		"2. e opens an eligible managed file/symlink with chezmoi edit; it returns refreshed without applying.",
-		"3. Tab moves to its preview. h/l then scroll the preview horizontally.",
-		"4. / searches every inventory path; Enter locates the selected result.",
-		"5. 1-4 selects diff, destination, target, or source; R reveals withheld content.",
+		"2. e edits eligible source; E edits eligible destination. Both return refreshed without applying.",
+		"3. m opens chezmoi's three-way merge: destination, source, and rendered target.",
+		"4. Tab moves to its preview. h/l then scroll the preview horizontally.",
+		"5. / searches every inventory path; Enter locates the selected result.",
+		"6. 1-4 selects diff, destination, target, or source; R reveals withheld content.",
 		"",
 		m.styles.section.Render("Directory browser"),
-		"j/k move · h/left parent · l/right/enter directory · e source edit · / search · f filter",
+		"j/k move · h/left parent · l/right/enter directory · e/E edit · m merge · / search · f filter",
 		"",
 		m.styles.section.Render("Preview"),
-		"j/k scroll · h/l horizontal · e source edit · [/] hunks · z full screen",
+		"j/k scroll · h/l horizontal · e/E edit · m merge · [/] hunks · z full screen",
 		"",
 		m.styles.section.Render("Legend"),
 		m.workspaceStateLegend(),
@@ -51,7 +52,7 @@ func (m workspaceModel) workspaceHelpLines(height int) []string {
 		"j/k move · h parent · l/enter directory · tab preview",
 		"j/k scroll preview · h/l horizontal · 1-4 views",
 		"/ search · f filter · z full preview · R reveal",
-		"e edits managed files/symlinks; it never applies or watches destination changes",
+		"e source · E destination · m three-way merge; every action refreshes the workspace",
 		"",
 		m.workspaceStateLegend(),
 		m.workspaceAttributeLegend(),
@@ -118,20 +119,20 @@ func (m workspaceModel) workspaceFooter() string {
 		full = "j/k move · h parent · l/enter directory · / search · f filter · tab preview"
 		compact = "j/k move · h/l browse · / search · tab preview"
 	}
-	edit := m.sourceEditFooter()
-	return m.styles.help.Render(workspaceFooterLine(width, full, compact, edit))
+	actions := m.workspaceActionFooters()
+	return m.styles.help.Render(workspaceFooterLine(width, full, compact, actions))
 }
 
-func workspaceFooterLine(width int, full, compact, edit string) string {
-	candidates := [...]string{
-		full + edit,
-		compact + edit,
-		full,
-		compact,
-		"tab focus" + edit,
-		"tab focus",
+func workspaceFooterLine(width int, full, compact string, actions []string) string {
+	for i := len(actions) - 1; i >= 0; i-- {
+		for _, candidate := range [...]string{full, compact, "tab focus"} {
+			line := candidate + actions[i] + workspaceFooterTail
+			if lipgloss.Width(line) <= width {
+				return line
+			}
+		}
 	}
-	for _, candidate := range candidates {
+	for _, candidate := range [...]string{full, compact, "tab focus"} {
 		line := candidate + workspaceFooterTail
 		if lipgloss.Width(line) <= width {
 			return line

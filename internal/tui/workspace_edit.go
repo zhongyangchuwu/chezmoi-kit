@@ -1,70 +1,141 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/zhongyangchuwu/cm/internal/app"
 )
 
+type workspaceHandoffKind string
+
+const (
+	workspaceSourceEdit      workspaceHandoffKind = "source edit"
+	workspaceDestinationEdit workspaceHandoffKind = "destination edit"
+	workspaceMerge           workspaceHandoffKind = "merge"
+)
+
+func (k workspaceHandoffKind) normalized() workspaceHandoffKind {
+	if k == "" {
+		return workspaceSourceEdit
+	}
+	return k
+}
+
+func (k workspaceHandoffKind) openingMessage() string {
+	switch k.normalized() {
+	case workspaceDestinationEdit:
+		return "opening destination editor..."
+	case workspaceMerge:
+		return "opening three-way merge: destination · source · rendered target..."
+	default:
+		return "opening source editor..."
+	}
+}
+
+func (k workspaceHandoffKind) closedMessage(err error) string {
+	var tool string
+	switch k.normalized() {
+	case workspaceDestinationEdit:
+		tool = "destination editor"
+	case workspaceMerge:
+		tool = "merge tool"
+	default:
+		tool = "source editor"
+	}
+	if err != nil {
+		return tool + " exited with error: " + err.Error()
+	}
+	return tool + " closed"
+}
+
+func (k workspaceHandoffKind) refreshedNotice(outcome string) string {
+	if k.normalized() == workspaceSourceEdit {
+		return outcome + " · workspace refreshed · destination unchanged"
+	}
+	return outcome + " · workspace refreshed"
+}
+
 func (m workspaceModel) startWorkspaceSourceEdit() (workspaceModel, tea.Cmd) {
-	entry := m.current()
-	if reason := app.SourceEditUnavailableReason(entry); reason != "" {
-		m.message = "source edit unavailable: " + reason
+	return m.startWorkspaceHandoff(workspaceSourceEdit, m.current(), app.SourceEditUnavailableReason(m.current()))
+}
+
+func (m workspaceModel) startWorkspaceDestinationEdit() (workspaceModel, tea.Cmd) {
+	return m.startWorkspaceHandoff(workspaceDestinationEdit, m.current(), app.DestinationEditUnavailableReason(m.current()))
+}
+
+func (m workspaceModel) startWorkspaceMerge() (workspaceModel, tea.Cmd) {
+	return m.startWorkspaceHandoff(workspaceMerge, m.current(), app.MergeUnavailableReason(m.current()))
+}
+
+func (m workspaceModel) startWorkspaceHandoff(kind workspaceHandoffKind, entry app.WorkspaceEntry, reason string) (workspaceModel, tea.Cmd) {
+	if reason != "" {
+		m.message = string(kind) + " unavailable: " + reason
 		return m, nil
 	}
 	if m.workspace == nil {
-		m.message = "source edit unavailable: workspace service is unavailable"
+		m.message = string(kind) + " unavailable: workspace service is unavailable"
 		return m, nil
 	}
 	m.workspaceBusy = true
 	m.workspaceNotice = ""
-	m.message = "opening source editor..."
-	return m, prepareWorkspaceSourceEditCmd(m.workspace, entry, m.timing)
+	m.message = kind.openingMessage()
+	return m, prepareWorkspaceHandoffCmd(m.workspace, entry, kind, m.timing)
 }
 
-func prepareWorkspaceSourceEditCmd(service app.WorkspaceService, entry app.WorkspaceEntry, timing *syncTimingLogger) tea.Cmd {
+func prepareWorkspaceHandoffCmd(service app.WorkspaceService, entry app.WorkspaceEntry, kind workspaceHandoffKind, timing *syncTimingLogger) tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
-		command, err := service.SourceEditCommand(entry)
-		timing.Info("workspace source edit prepare", "target", entry.Path, "duration", elapsed(start), "err", err)
-		return workspaceHandoffRequestMsg{entry: entry, command: command, err: err}
+		var (
+			command app.TerminalCommand
+			err     error
+		)
+		switch kind.normalized() {
+		case workspaceDestinationEdit:
+			command, err = service.DestinationEditCommand(entry)
+		case workspaceMerge:
+			command, err = service.MergeCommand(entry)
+		default:
+			command, err = service.SourceEditCommand(entry)
+		}
+		timing.Info("workspace "+string(kind)+" prepare", "target", entry.Path, "duration", elapsed(start), "err", err)
+		return workspaceHandoffRequestMsg{entry: entry, kind: kind, command: command, err: err}
 	}
 }
 
-func refreshWorkspaceCmd(service app.WorkspaceService, scopes []string, target string, editorErr error, timing *syncTimingLogger) tea.Cmd {
+func refreshWorkspaceCmd(service app.WorkspaceService, scopes []string, target string, kind workspaceHandoffKind, toolErr error, timing *syncTimingLogger) tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
 		snapshot, err := service.Inventory(scopes)
-		timing.Info("workspace refresh after handoff", "target", target, "scopes", len(scopes), "entries", len(snapshot.Entries), "duration", elapsed(start), "err", err)
-		return workspaceRefreshMsg{snapshot: snapshot, target: target, editorErr: editorErr, err: err}
+		timing.Info("workspace refresh after handoff", "target", target, "kind", kind, "scopes", len(scopes), "entries", len(snapshot.Entries), "duration", elapsed(start), "err", err)
+		return workspaceRefreshMsg{snapshot: snapshot, target: target, kind: kind, toolErr: toolErr, err: err}
 	}
 }
 
 func (m workspaceModel) applyWorkspaceHandoffRequest(msg workspaceHandoffRequestMsg) (workspaceModel, tea.Cmd) {
+	kind := msg.kind.normalized()
 	if msg.err != nil {
 		m.workspaceBusy = false
-		m.message = "source edit failed: " + msg.err.Error()
+		m.message = string(kind) + " failed: " + msg.err.Error()
 		return m, nil
 	}
 	start := time.Now()
 	return m, tea.Exec(msg.command, func(err error) tea.Msg {
-		m.timing.Info("workspace source edit", "target", msg.entry.Path, "duration", elapsed(start), "err", err)
-		return workspaceHandoffDoneMsg{target: msg.entry.Path, err: err}
+		m.timing.Info("workspace "+string(kind), "target", msg.entry.Path, "duration", elapsed(start), "err", err)
+		return workspaceHandoffDoneMsg{target: msg.entry.Path, kind: kind, err: err}
 	})
 }
 
 func (m workspaceModel) applyWorkspaceHandoffDone(msg workspaceHandoffDoneMsg) (workspaceModel, tea.Cmd) {
 	m.message = "refreshing workspace..."
-	return m, refreshWorkspaceCmd(m.workspace, append([]string(nil), m.snapshot.Scopes...), msg.target, msg.err, m.timing)
+	return m, refreshWorkspaceCmd(m.workspace, append([]string(nil), m.snapshot.Scopes...), msg.target, msg.kind, msg.err, m.timing)
 }
 
 func (m workspaceModel) applyWorkspaceRefresh(msg workspaceRefreshMsg) (workspaceModel, tea.Cmd) {
 	m.workspaceBusy = false
-	outcome := "editor closed"
-	if msg.editorErr != nil {
-		outcome = "editor exited with error: " + msg.editorErr.Error()
-	}
+	kind := msg.kind.normalized()
+	outcome := kind.closedMessage(msg.toolErr)
 	if msg.err != nil {
 		m.clearWorkspacePreviewState()
 		m.message = outcome + " · workspace refresh failed: " + msg.err.Error()
@@ -84,7 +155,7 @@ func (m workspaceModel) applyWorkspaceRefresh(msg workspaceRefreshMsg) (workspac
 	m.rebuildWorkspaceIndex()
 	m.currentDir = m.closestWorkspaceDirectory(previousDirectory)
 	m.rebuildEntries(msg.target)
-	m.workspaceNotice = outcome + " · workspace refreshed · destination unchanged"
+	m.workspaceNotice = kind.refreshedNotice(outcome)
 	m.message = ""
 	return m.startDiffLoad(false)
 }
@@ -111,9 +182,21 @@ func (m workspaceModel) closestWorkspaceDirectory(directory string) string {
 	return ""
 }
 
-func (m workspaceModel) sourceEditFooter() string {
-	if reason := app.SourceEditUnavailableReason(m.current()); reason == "" {
-		return " · e edit source"
+func (m workspaceModel) workspaceActionFooters() []string {
+	actions := make([]string, 0, 3)
+	entry := m.current()
+	if app.SourceEditUnavailableReason(entry) == "" {
+		actions = append(actions, "e source")
 	}
-	return ""
+	if app.DestinationEditUnavailableReason(entry) == "" {
+		actions = append(actions, "E destination")
+	}
+	if app.MergeUnavailableReason(entry) == "" {
+		actions = append(actions, "m merge")
+	}
+	footers := make([]string, len(actions))
+	for i := range actions {
+		footers[i] = " · " + strings.Join(actions[:i+1], " · ")
+	}
+	return footers
 }

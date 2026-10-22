@@ -15,6 +15,7 @@ type syncKeyMap struct {
 	Tab             key.Binding
 	Diff            key.Binding
 	SourceEdit      key.Binding
+	DestinationEdit key.Binding
 	Add             key.Binding
 	Apply           key.Binding
 	Merge           key.Binding
@@ -81,6 +82,7 @@ var defaultSyncKeys = syncKeyMap{
 	Tab:             key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "focus")),
 	Diff:            key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "reload diff")),
 	SourceEdit:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit source")),
+	DestinationEdit: key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "edit destination")),
 	Add:             key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
 	Apply:           key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
 	Merge:           key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),

@@ -451,7 +451,11 @@ func (s service) TerminalCommand(action Action) (TerminalCommand, error) {
 	if action.Kind != ActionMerge {
 		return nil, fmt.Errorf("%s does not require terminal execution", action.Kind)
 	}
-	return &runnerCommand{runner: s.runner(), command: s.client.BinaryName(), args: []string{"merge", action.Target}, io: process.IO{Dir: s.client.Dir}}, nil
+	return s.mergeTerminalCommand(action.Target), nil
+}
+
+func (s service) mergeTerminalCommand(target string) TerminalCommand {
+	return &runnerCommand{runner: s.runner(), command: s.client.BinaryName(), args: []string{"merge", target}, io: process.IO{Dir: s.client.Dir}}
 }
 
 type runnerCommand struct {

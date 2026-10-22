@@ -114,14 +114,14 @@ cm ui ~/.config ~/.local/bin
 ```
 
 `cm ui` is an inspection-first workbench. Browsing and previews do not mutate
-state; an explicit source-edit handoff can modify chezmoi source without
-automatically changing destination. It opens the selected item's labeled preview:
-an authoritative diff for files or a local summary for directories. It retains
-clean managed entries instead of exiting when no drift exists. With no paths, it
-inventories managed entries and source-ignored entries only; it never scans all
-of `$HOME` for unmanaged files. Pass one or more destination paths to discover
-unmanaged candidates recursively within those explicit scopes. The workspace
-never adds, applies, or merges files.
+state; explicit external-tool handoffs can modify source or destination and
+always return to an authoritative workspace refresh. It opens the selected
+item's labeled preview: an authoritative diff for files or a local summary for
+directories. It retains clean managed entries instead of exiting when no drift
+exists. With no paths, it inventories managed entries and source-ignored entries
+only; it never scans all of `$HOME` for unmanaged files. Pass one or more
+destination paths to discover unmanaged candidates recursively within those
+explicit scopes. The workspace never adds or applies files.
 
 The Current pane labels `C` clean, `D` dirty, `U` unmanaged, `I` ignored, `R`
 script, and `?` uninspected. `[T]` marks templates and `[E]` encrypted source
@@ -146,6 +146,8 @@ skipped authoritative inspection; it is not a clean result.
 | `1` / `2` / `3` / `4` | choose diff, destination, rendered target, or source preview |
 | `[` / `]` | move to the previous or next diff hunk |
 | `e` | open the selected managed file or symlink through `chezmoi edit`; never auto-apply or watch destination changes |
+| `E` | open the selected managed regular destination file through `VISUAL` or `EDITOR`; never edits source or applies |
+| `m` | open chezmoi's configured three-way merge for the selected managed regular file |
 | `z` | toggle full-screen preview |
 | `R` | explicitly reveal a withheld diff, rendered target, or encrypted source |
 | `?` | open responsive quick-start help; full key reference and state/type legend appear when terminal space permits |
@@ -157,9 +159,20 @@ from chezmoi; selecting a file still uses the existing authoritative preview.
 `e` is available for managed regular files, symlinks, templates, and encrypted
 files with a chezmoi source mapping. It opens `chezmoi edit --apply=false
 --watch=false` and returns to a full refresh of the original workspace scopes.
-The refresh preserves viable directory, filter, focus, preview, and selection
-state, clears stale previews and sensitive reveal state, and loads a new
-authoritative preview. Direct `cm edit <target>` remains available for shell use.
+
+`E` is available only for managed regular files with a source mapping. It opens
+the selected absolute destination path using `VISUAL`, falling back to `EDITOR`.
+The editor command may include quoted arguments; it is executed directly, not
+through a shell. It does not change source state or trigger chezmoi apply.
+
+`m` is available for the same managed regular files as `E`. It delegates to
+`chezmoi merge`, whose configured tool receives the destination on disk, source
+state, and rendered target. A merge tool can update source or destination; cm
+does not apply after it returns.
+
+Every external handoff re-inventories the original workspace scopes. The refresh
+preserves viable directory, filter, focus, preview, and selection state, clears
+stale previews and sensitive reveal state, and loads a new authoritative preview.
 
 Preview output is bounded. Rendered template/encrypted targets, encrypted
 source, and sensitive uninspected diffs are withheld until `R`; this makes the

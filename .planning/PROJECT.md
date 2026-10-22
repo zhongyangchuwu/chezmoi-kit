@@ -23,12 +23,12 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - ✓ Build/version information, semantic report rendering, doctor diagnostics, and display-width-safe TUI truncation are available.
 - ✓ `v0.1.0` and `v0.1.1` were published with passing CI and GoReleaser workflows.
 - ✓ `v0.2.0` authoritative reconciliation implementation is complete and verified on `feat/authoritative-reconciliation`: forced chezmoi builtin diff, second-column status routing, typed reviews/action gating, script separation, reviewed fingerprints, postflight verification, visible action output, custom destination edit, and real-tool integration coverage.
-- ✓ `cm ui [path...]` is a persistent inspection-first workspace for managed clean/dirty, source-ignored, and explicitly scoped unmanaged entries. Browsing is non-mutating; eligible `e` hands off source editing to chezmoi with apply/watch disabled and refreshes the inventory on return. Bounded previews require explicit reveal for sensitive content.
+- ✓ `cm ui [path...]` is a persistent inspection-first workspace for managed clean/dirty, source-ignored, and explicitly scoped unmanaged entries. Browsing is non-mutating; eligible `e`, `E`, and `m` hand off source edit, destination edit, and three-way merge through explicit terminal tools and refresh inventory on return. Bounded previews require explicit reveal for sensitive content.
 
 ### Active
 
-- Phase 3.1 workspace source edit is complete, merged, and verified; it preserves bare `cm` status and focused `cm sync` contracts.
-- Remaining Phase 3 handoffs: destination edit, merge, and source Git/lazygit with terminal restoration and refreshed state.
+- Phase 3.1 source edit is complete and merged. Phase 3.2 destination edit and merge is locally verified; both preserve bare `cm` status and focused `cm sync` contracts.
+- Remaining Phase 3 handoff: source Git/lazygit with terminal restoration and refreshed source Git state.
 - Next step 3 / Phase 4: Management and Diagnostics — contextual operations, target lifecycle/attributes, and actionable diagnostics.
 - `.planning/ROADMAP.md` defines remaining scope, exclusions, dependencies, and acceptance scenarios. `.planning/REQUIREMENTS.md` retains template requirements across the remaining steps.
 
