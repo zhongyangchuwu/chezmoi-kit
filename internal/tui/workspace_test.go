@@ -573,6 +573,42 @@ func TestWorkspaceHelpShowsGuidanceAndBlocksWorkspaceActions(t *testing.T) {
 	}
 }
 
+func TestWorkspaceHelpKeepsCloseRouteOnCompactTerminals(t *testing.T) {
+	model := newWorkspaceModel(nil, workspaceSnapshot(workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)))
+	model.helpVisible = true
+	for _, size := range []struct{ width, height int }{{24, 5}, {24, 12}, {60, 16}, {100, 30}} {
+		model.width, model.height = size.width, size.height
+		rendered := ansi.Strip(model.viewString())
+		if !strings.Contains(rendered, "Esc, ?, or q") {
+			t.Fatalf("help at %dx%d loses close route: %q", size.width, size.height, rendered)
+		}
+		for _, line := range strings.Split(rendered, "\n") {
+			if lipgloss.Width(line) > size.width {
+				t.Fatalf("help at %dx%d line width = %d: %q", size.width, size.height, lipgloss.Width(line), line)
+			}
+		}
+	}
+}
+
+func TestWorkspaceFooterKeepsHelpAndQuitForEligibleSourceEdit(t *testing.T) {
+	entry := workspaceEntry(".config/app.toml", app.FileClean, app.TargetFile)
+	entry.SourcePath = "/home/me/source/dot_config/app.toml"
+	model := newWorkspaceModel(nil, workspaceSnapshot(entry))
+	model.currentDir = ".config"
+	model.rebuildEntries(entry.Path)
+	for _, width := range []int{24, 60, 80, 120} {
+		model.width = width
+		footer := ansi.Strip(model.workspaceFooter())
+		if !strings.Contains(footer, "?") || !strings.Contains(footer, "q") || lipgloss.Width(footer) > width {
+			t.Fatalf("eligible footer at width %d = %q width=%d", width, footer, lipgloss.Width(footer))
+		}
+	}
+	model.width = 60
+	if footer := ansi.Strip(model.workspaceFooter()); !strings.Contains(footer, "e edit source") {
+		t.Fatalf("eligible compact footer omits source edit: %q", footer)
+	}
+}
+
 func TestWorkspaceSemanticLegendSurvivesNoColorMode(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	model := newWorkspaceModel(nil, workspaceSnapshot(workspaceEntry(".config/app.toml", app.FileDirty, app.TargetFile)))
