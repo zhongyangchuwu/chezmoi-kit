@@ -106,6 +106,30 @@ func TestServiceOpenSourceGitUsesRunnerIO(t *testing.T) {
 	}
 }
 
+func TestServiceOpenSourceShellUsesChezmoiCDWithClientIO(t *testing.T) {
+	runner := &recordingRunner{}
+	stdin := bytes.NewBufferString("in")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	service := service{client: chezmoi.Client{Runner: runner, Stdin: stdin, Stdout: &stdout, Stderr: &stderr}}
+
+	if err := service.OpenSourceShell(".config/nvim"); err != nil {
+		t.Fatalf("OpenSourceShell returned error: %v", err)
+	}
+	if err := service.OpenSourceShell(""); err != nil {
+		t.Fatalf("OpenSourceShell without target returned error: %v", err)
+	}
+	wantRuns := [][]string{{"chezmoi", "cd", ".config/nvim"}, {"chezmoi", "cd"}}
+	if !reflect.DeepEqual(runner.runCalls, wantRuns) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, wantRuns)
+	}
+	for _, gotIO := range runner.runIO {
+		if gotIO.Stdin != stdin || gotIO.Stdout != &stdout || gotIO.Stderr != &stderr {
+			t.Fatalf("run IO = %#v", gotIO)
+		}
+	}
+}
+
 func TestServiceDiffExpandsDirtyTargets(t *testing.T) {
 	runner := &recordingRunner{
 		outputs: [][]byte{[]byte("MM /home/me/.zshrc\n M /home/me/.gitconfig\n")},

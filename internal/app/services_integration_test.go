@@ -92,6 +92,39 @@ func writeIntegrationFile(t *testing.T, path, content string, mode os.FileMode) 
 	}
 }
 
+func TestServiceOpenSourceShellUsesConfiguredChezmoiCD(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	capture := filepath.Join(h.root, "cd-directory")
+	command := fmt.Sprintf("pwd > %q", capture)
+	writeIntegrationFile(t, h.config, fmt.Sprintf("[cd]\ncommand = \"sh\"\nargs = [\"-c\", %q]\n", command), 0o600)
+
+	if err := h.service.OpenSourceShell(""); err != nil {
+		t.Fatalf("OpenSourceShell source root returned error: %v", err)
+	}
+	captured, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("read source-root capture: %v", err)
+	}
+	if got := strings.TrimSpace(string(captured)); got != h.source {
+		t.Fatalf("source-root shell directory = %q, want %q", got, h.source)
+	}
+
+	target := filepath.Join(h.destination, ".config", "nvim", "init.lua")
+	writeIntegrationFile(t, target, "return {}\n", 0o600)
+	h.run(t, "add", target)
+	sourcePath := strings.TrimSpace(string(h.output(t, "source-path", target)))
+	if err := h.service.OpenSourceShell(filepath.Dir(target)); err != nil {
+		t.Fatalf("OpenSourceShell target directory returned error: %v", err)
+	}
+	captured, err = os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("read target capture: %v", err)
+	}
+	if got, want := strings.TrimSpace(string(captured)), filepath.Dir(sourcePath); got != want {
+		t.Fatalf("target shell directory = %q, want %q", got, want)
+	}
+}
+
 func TestServiceDiffOutputReportsExecutableModeDrift(t *testing.T) {
 	h := newChezmoiIntegration(t)
 	target := filepath.Join(h.destination, ".executable")
