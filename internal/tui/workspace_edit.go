@@ -14,6 +14,7 @@ const (
 	workspaceSourceEdit      workspaceHandoffKind = "source edit"
 	workspaceDestinationEdit workspaceHandoffKind = "destination edit"
 	workspaceMerge           workspaceHandoffKind = "merge"
+	workspaceSourceGit       workspaceHandoffKind = "source git"
 )
 
 func (k workspaceHandoffKind) normalized() workspaceHandoffKind {
@@ -29,6 +30,8 @@ func (k workspaceHandoffKind) openingMessage() string {
 		return "opening destination editor..."
 	case workspaceMerge:
 		return "opening three-way merge: destination · source · rendered target..."
+	case workspaceSourceGit:
+		return "opening lazygit in chezmoi source repository..."
 	default:
 		return "opening source editor..."
 	}
@@ -41,6 +44,8 @@ func (k workspaceHandoffKind) closedMessage(err error) string {
 		tool = "destination editor"
 	case workspaceMerge:
 		tool = "merge tool"
+	case workspaceSourceGit:
+		tool = "lazygit"
 	default:
 		tool = "source editor"
 	}
@@ -67,6 +72,10 @@ func (m workspaceModel) startWorkspaceDestinationEdit() (workspaceModel, tea.Cmd
 
 func (m workspaceModel) startWorkspaceMerge() (workspaceModel, tea.Cmd) {
 	return m.startWorkspaceHandoff(workspaceMerge, m.current(), app.MergeUnavailableReason(m.current()))
+}
+
+func (m workspaceModel) startWorkspaceSourceGit() (workspaceModel, tea.Cmd) {
+	return m.startWorkspaceHandoff(workspaceSourceGit, m.current(), "")
 }
 
 func (m workspaceModel) startWorkspaceHandoff(kind workspaceHandoffKind, entry app.WorkspaceEntry, reason string) (workspaceModel, tea.Cmd) {
@@ -96,6 +105,8 @@ func prepareWorkspaceHandoffCmd(service app.WorkspaceService, entry app.Workspac
 			command, err = service.DestinationEditCommand(entry)
 		case workspaceMerge:
 			command, err = service.MergeCommand(entry)
+		case workspaceSourceGit:
+			command, err = service.SourceGitCommand()
 		default:
 			command, err = service.SourceEditCommand(entry)
 		}
@@ -183,7 +194,7 @@ func (m workspaceModel) closestWorkspaceDirectory(directory string) string {
 }
 
 func (m workspaceModel) workspaceActionFooters() []string {
-	actions := make([]string, 0, 3)
+	actions := make([]string, 0, 4)
 	entry := m.current()
 	if app.SourceEditUnavailableReason(entry) == "" {
 		actions = append(actions, "e source")
@@ -193,6 +204,9 @@ func (m workspaceModel) workspaceActionFooters() []string {
 	}
 	if app.MergeUnavailableReason(entry) == "" {
 		actions = append(actions, "m merge")
+	}
+	if m.workspace != nil {
+		actions = append(actions, "g git")
 	}
 	footers := make([]string, len(actions))
 	for i := range actions {

@@ -3,11 +3,28 @@ package app
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestWorkspaceInventoryReportsSourceGitChanges(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	if output, err := exec.Command("git", "init", h.source).CombinedOutput(); err != nil {
+		t.Fatalf("git init source: %v: %s", err, output)
+	}
+	writeIntegrationFile(t, filepath.Join(h.source, "dot_uncommitted"), "source change\n", 0o600)
+
+	snapshot, err := h.service.Inventory(nil)
+	if err != nil {
+		t.Fatalf("Inventory returned error: %v", err)
+	}
+	if snapshot.SourceStatusError != "" || snapshot.SourceChanges != 1 {
+		t.Fatalf("source Git summary = changes:%d error:%q", snapshot.SourceChanges, snapshot.SourceStatusError)
+	}
+}
 
 func TestWorkspaceServiceIntegrationInventoryAndPreviews(t *testing.T) {
 	h := newChezmoiIntegration(t)

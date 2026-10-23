@@ -19,6 +19,7 @@ type syncKeyMap struct {
 	Add             key.Binding
 	Apply           key.Binding
 	Merge           key.Binding
+	SourceGit       key.Binding
 	Skip            key.Binding
 	Enter           key.Binding
 	Execute         key.Binding
@@ -86,7 +87,7 @@ var defaultSyncKeys = syncKeyMap{
 	Add:             key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
 	Apply:           key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "apply")),
 	Merge:           key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
-	Skip:            key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "skip")),
+	SourceGit:       key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "source git")),
 	Enter:           key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
 	Execute:         key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "execute")),
 	Back:            key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),

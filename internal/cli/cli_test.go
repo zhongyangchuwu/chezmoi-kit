@@ -452,6 +452,10 @@ func (f *fakeService) MergeCommand(entry app.WorkspaceEntry) (app.TerminalComman
 	return terminalCommand{}, nil
 }
 
+func (f *fakeService) SourceGitCommand() (app.TerminalCommand, error) {
+	return terminalCommand{}, nil
+}
+
 func (f *fakeService) ExecuteNonInteractive(action app.Action) (app.ActionResult, error) {
 	f.executed = append(f.executed, action)
 	return app.ActionResult{}, nil

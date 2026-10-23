@@ -324,23 +324,34 @@ func (s service) OpenSourceShell(path string) error {
 }
 
 func (s service) OpenSourceGit() error {
-	sourceDir, err := s.sourceDir()
+	command, sourceDir, err := s.sourceGitCommand()
 	if err != nil {
 		return err
 	}
-	if sourceDir == "" {
-		return fmt.Errorf("chezmoi source path is empty")
-	}
-
-	if err := s.runner().Run("lazygit", nil, process.IO{
-		Dir:    sourceDir,
-		Stdin:  s.client.Stdin,
-		Stdout: s.client.Stdout,
-		Stderr: s.client.Stderr,
-	}); err != nil {
+	command.SetStdin(s.client.Stdin)
+	command.SetStdout(s.client.Stdout)
+	command.SetStderr(s.client.Stderr)
+	if err := command.Run(); err != nil {
 		return fmt.Errorf("lazygit %s: %w", sourceDir, err)
 	}
 	return nil
+}
+
+// SourceGitCommand opens lazygit in the configured chezmoi source repository.
+func (s service) SourceGitCommand() (TerminalCommand, error) {
+	command, _, err := s.sourceGitCommand()
+	return command, err
+}
+
+func (s service) sourceGitCommand() (TerminalCommand, string, error) {
+	sourceDir, err := s.sourceDir()
+	if err != nil {
+		return nil, "", err
+	}
+	if sourceDir == "" {
+		return nil, "", fmt.Errorf("chezmoi source path is empty")
+	}
+	return &runnerCommand{runner: s.runner(), command: "lazygit", io: process.IO{Dir: sourceDir}}, sourceDir, nil
 }
 
 func (s service) sourceDir() (string, error) {

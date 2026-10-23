@@ -44,9 +44,9 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 - [x] TEMPLATE-02 — Managed source/template edits delegate to `chezmoi edit`, return to refreshed review, and do not implicitly apply or watch through inherited editor configuration.
 - [x] TEMPLATE-03 — Merge launch explains destination/source/target roles and delegates to the configured merge tool; return shows remaining differences before any explicit apply.
 - [x] TOOLS-01 — A distinct local-edit action launches the configured editor for destination content rather than silently editing source state.
-- [ ] TOOLS-02 — Users open lazygit in the source-repository context from cm and return afterward; cm does not reimplement Git mutations.
-- [ ] TOOLS-03 — External-tool success, cancellation, and failure restore the cm terminal, surviving selection, filters, and view position; missing optional tools do not block startup.
-- [ ] TOOLS-04 — Returning from an external tool refreshes source Git and relevant managed/local state, revalidates pending actions, and handles changed membership and renamed/deleted targets.
+- [x] TOOLS-02 — Users open lazygit in the source-repository context from cm and return afterward; cm does not reimplement Git mutations.
+- [x] TOOLS-03 — External-tool success, cancellation, and failure restore the cm terminal, surviving selection, filters, and view position; missing optional tools do not block startup.
+- [x] TOOLS-04 — Returning from an external tool refreshes source Git and relevant managed/local state, revalidates pending actions, and handles changed membership and renamed/deleted targets.
 
 ### Step 3 / Phase 4 — Management and Diagnostics
 
@@ -113,8 +113,8 @@ These requirements define the requested roadmap, not implemented behavior. Relea
 
 ## Coverage Summary
 
-- Completed baseline, workspace, usability, directory-browser, source-edit, destination-edit, and merge requirements: 20
-- Planned next-step requirements: 8 (3 tool handoff, 5 management/diagnostics)
+- Completed baseline, workspace, usability, directory-browser, and mature tool-handoff requirements: 23
+- Planned next-step requirements: 5 (management/diagnostics)
 - Total mapped requirements: 28
 - Unmapped requirements: 0
-- Phase 3.2 implementation satisfies TEMPLATE-03 and TOOLS-01; the remaining 8 requirements are planned.
+- Phase 3.3 implementation satisfies TOOLS-02, TOOLS-03, and TOOLS-04; all Phase 3 requirements are complete.
