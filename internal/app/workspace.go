@@ -27,10 +27,12 @@ type WorkspaceEntry struct {
 // WorkspaceSnapshot contains sorted entries and the explicit discovery scope.
 // Empty Scopes means managed/source-ignored inventory only, not a HOME scan.
 type WorkspaceSnapshot struct {
-	Root    string
-	Scopes  []string
-	Entries []WorkspaceEntry
-	Notice  string
+	Root              string
+	Scopes            []string
+	Entries           []WorkspaceEntry
+	Notice            string
+	SourceChanges     int
+	SourceStatusError string
 }
 
 type PreviewKind string
@@ -63,4 +65,5 @@ type WorkspaceService interface {
 	SourceEditCommand(entry WorkspaceEntry) (TerminalCommand, error)
 	DestinationEditCommand(entry WorkspaceEntry) (TerminalCommand, error)
 	MergeCommand(entry WorkspaceEntry) (TerminalCommand, error)
+	SourceGitCommand() (TerminalCommand, error)
 }

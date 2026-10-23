@@ -297,7 +297,7 @@ func TestWorkspaceSourceEditHandoffRefreshesAndClearsStalePreviewState(t *testin
 	}
 }
 
-func TestWorkspaceDestinationEditAndMergeHandoffsRefresh(t *testing.T) {
+func TestWorkspaceExternalHandoffsRefresh(t *testing.T) {
 	entry := workspaceEntry("app.toml", app.FileClean, app.TargetFile)
 	entry.SourcePath = "/home/me/source/dot_app.toml"
 	for _, test := range []struct {
@@ -310,6 +310,7 @@ func TestWorkspaceDestinationEditAndMergeHandoffsRefresh(t *testing.T) {
 	}{
 		{name: "destination edit", key: 'E', kind: workspaceDestinationEdit, closedText: "destination editor closed", called: func(service *fakeWorkspaceService) int { return len(service.destinationEditCalls) }},
 		{name: "merge", key: 'm', kind: workspaceMerge, toolErr: errors.New("merge cancelled"), closedText: "merge tool exited with error: merge cancelled", called: func(service *fakeWorkspaceService) int { return len(service.mergeCalls) }},
+		{name: "source git", key: 'g', kind: workspaceSourceGit, closedText: "lazygit closed", called: func(service *fakeWorkspaceService) int { return service.sourceGitCalls }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			updated := entry
@@ -318,7 +319,7 @@ func TestWorkspaceDestinationEditAndMergeHandoffsRefresh(t *testing.T) {
 			model := newWorkspaceModel(service, workspaceSnapshot(entry))
 			model.width = 120
 			footer := ansi.Strip(model.workspaceFooter())
-			for _, action := range []string{"e source", "E destination", "m merge"} {
+			for _, action := range []string{"e source", "E destination", "m merge", "g git"} {
 				if !strings.Contains(footer, action) {
 					t.Fatalf("workspace footer omits %q: %q", action, footer)
 				}
@@ -343,6 +344,19 @@ func TestWorkspaceDestinationEditAndMergeHandoffsRefresh(t *testing.T) {
 				t.Fatalf("handoff refresh notice = %q", model.workspaceNotice)
 			}
 		})
+	}
+}
+
+func TestWorkspaceStatusShowsSourceGitSummary(t *testing.T) {
+	snapshot := workspaceSnapshot(workspaceEntry("app.toml", app.FileClean, app.TargetFile))
+	snapshot.SourceChanges = 2
+	model := newWorkspaceModel(nil, snapshot)
+	if status := model.statusLine(); !strings.Contains(status, "source git: 2 changes") {
+		t.Fatalf("source Git summary = %q", status)
+	}
+	model.snapshot.SourceStatusError = "repository unreadable"
+	if status := model.statusLine(); !strings.Contains(status, "source git unavailable: repository unreadable") {
+		t.Fatalf("source Git error = %q", status)
 	}
 }
 
@@ -809,6 +823,9 @@ type fakeWorkspaceService struct {
 	mergeErr             error
 	mergeCalls           []app.WorkspaceEntry
 	mergeCmd             app.TerminalCommand
+	sourceGitErr         error
+	sourceGitCalls       int
+	sourceGitCmd         app.TerminalCommand
 }
 
 func (f *fakeWorkspaceService) Status([]string) (app.SyncStatus, error) {
@@ -864,6 +881,17 @@ func (f *fakeWorkspaceService) MergeCommand(entry app.WorkspaceEntry) (app.Termi
 	}
 	if f.mergeCmd != nil {
 		return f.mergeCmd, nil
+	}
+	return workspaceTerminalCommand{}, nil
+}
+
+func (f *fakeWorkspaceService) SourceGitCommand() (app.TerminalCommand, error) {
+	f.sourceGitCalls++
+	if f.sourceGitErr != nil {
+		return nil, f.sourceGitErr
+	}
+	if f.sourceGitCmd != nil {
+		return f.sourceGitCmd, nil
 	}
 	return workspaceTerminalCommand{}, nil
 }

@@ -148,6 +148,7 @@ skipped authoritative inspection; it is not a clean result.
 | `e` | open the selected managed file or symlink through `chezmoi edit`; never auto-apply or watch destination changes |
 | `E` | open the selected managed regular destination file through `VISUAL` or `EDITOR`; never edits source or applies |
 | `m` | open chezmoi's configured three-way merge for the selected managed regular file |
+| `g` | open lazygit in chezmoi source; return to refreshed workspace and source Git summary |
 | `z` | toggle full-screen preview |
 | `R` | explicitly reveal a withheld diff, rendered target, or encrypted source |
 | `?` | open responsive quick-start help; full key reference and state/type legend appear when terminal space permits |
@@ -170,9 +171,15 @@ through a shell. It does not change source state or trigger chezmoi apply.
 state, and rendered target. A merge tool can update source or destination; cm
 does not apply after it returns.
 
-Every external handoff re-inventories the original workspace scopes. The refresh
-preserves viable directory, filter, focus, preview, and selection state, clears
-stale previews and sensitive reveal state, and loads a new authoritative preview.
+`g` opens lazygit in `chezmoi source-path` without leaving the workspace. On
+return, cm refreshes the original workspace scopes and its source Git summary.
+`source git: N changes` in the workspace status line is the current source
+repository working-tree change count; a source Git status error remains visible.
+
+Every launched external handoff re-inventories the original workspace scopes. The
+refresh preserves viable directory, filter, focus, preview, and selection state,
+clears stale previews and sensitive reveal state, and loads a new authoritative
+preview.
 
 Preview output is bounded. Rendered template/encrypted targets, encrypted
 source, and sensitive uninspected diffs are withheld until `R`; this makes the

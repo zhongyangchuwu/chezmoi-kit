@@ -125,6 +125,29 @@ func TestServiceOpenSourceShellUsesConfiguredChezmoiCD(t *testing.T) {
 	}
 }
 
+func TestServiceSourceGitCommandRunsLazygitInSourceDirectory(t *testing.T) {
+	h := newChezmoiIntegration(t)
+	capture := filepath.Join(h.root, "lazygit-directory")
+	lazygit := filepath.Join(h.root, "lazygit")
+	writeIntegrationFile(t, lazygit, fmt.Sprintf("#!/bin/sh\npwd > %q\n", capture), 0o700)
+	t.Setenv("PATH", h.root+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	command, err := h.service.SourceGitCommand()
+	if err != nil {
+		t.Fatalf("SourceGitCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("source Git command returned error: %v", err)
+	}
+	content, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("read lazygit working directory: %v", err)
+	}
+	if got := strings.TrimSpace(string(content)); got != h.source {
+		t.Fatalf("lazygit working directory = %q, want %q", got, h.source)
+	}
+}
+
 func TestServiceDiffOutputReportsExecutableModeDrift(t *testing.T) {
 	h := newChezmoiIntegration(t)
 	target := filepath.Join(h.destination, ".executable")

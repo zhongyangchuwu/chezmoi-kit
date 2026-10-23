@@ -118,9 +118,14 @@ func (m workspaceModel) statusLine() string {
 		return m.workspaceNotice
 	}
 	if m.isWorkspace() {
-		parts := make([]string, 0, 2)
+		parts := make([]string, 0, 3)
 		if m.snapshot.Notice != "" {
 			parts = append(parts, m.snapshot.Notice)
+		}
+		if m.snapshot.SourceStatusError != "" {
+			parts = append(parts, "source git unavailable: "+m.snapshot.SourceStatusError)
+		} else if m.snapshot.SourceChanges > 0 {
+			parts = append(parts, fmt.Sprintf("source git: %d changes", m.snapshot.SourceChanges))
 		}
 		if m.fileQuery != "" {
 			parts = append(parts, "path filter: "+m.fileQuery)

@@ -105,6 +105,12 @@ func (s service) Inventory(scopes []string) (WorkspaceSnapshot, error) {
 	if len(normalizedScopes) == 0 {
 		snapshot.Notice = "unmanaged discovery disabled; pass one or more paths to cm ui"
 	}
+	sourceEntries, sourceErr := s.SourceStatus()
+	if sourceErr != nil {
+		snapshot.SourceStatusError = sourceErr.Error()
+	} else {
+		snapshot.SourceChanges = len(sourceEntries)
+	}
 	snapshot.Entries = make([]WorkspaceEntry, 0, len(entries))
 	for _, entry := range entries {
 		snapshot.Entries = append(snapshot.Entries, entry)

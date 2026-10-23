@@ -106,6 +106,25 @@ func TestServiceOpenSourceGitUsesRunnerIO(t *testing.T) {
 	}
 }
 
+func TestServiceSourceGitCommandUsesConfiguredSourceDirectory(t *testing.T) {
+	runner := &recordingRunner{outputs: [][]byte{[]byte("/home/me/src\n")}}
+	service := service{client: chezmoi.Client{Runner: runner}}
+
+	command, err := service.SourceGitCommand()
+	if err != nil {
+		t.Fatalf("SourceGitCommand returned error: %v", err)
+	}
+	if err := command.Run(); err != nil {
+		t.Fatalf("source Git command Run returned error: %v", err)
+	}
+	if want := [][]string{{"lazygit"}}; !reflect.DeepEqual(runner.runCalls, want) {
+		t.Fatalf("runCalls = %#v, want %#v", runner.runCalls, want)
+	}
+	if got := runner.runIO[0].Dir; got != "/home/me/src" {
+		t.Fatalf("source Git directory = %q, want %q", got, "/home/me/src")
+	}
+}
+
 func TestServiceOpenSourceShellUsesChezmoiCDWithClientIO(t *testing.T) {
 	runner := &recordingRunner{}
 	stdin := bytes.NewBufferString("in")
