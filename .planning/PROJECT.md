@@ -23,11 +23,11 @@ Make personal chezmoi reconciliation explicit, reviewable, and low-surprise befo
 - ✓ Build/version information, semantic report rendering, doctor diagnostics, and display-width-safe TUI truncation are available.
 - ✓ `v0.1.0` and `v0.1.1` were published with passing CI and GoReleaser workflows.
 - ✓ `v0.2.0` authoritative reconciliation implementation is complete and verified on `feat/authoritative-reconciliation`: forced chezmoi builtin diff, second-column status routing, typed reviews/action gating, script separation, reviewed fingerprints, postflight verification, visible action output, custom destination edit, and real-tool integration coverage.
-- ✓ `cm ui [path...]` is a persistent inspection-first workspace for managed clean/dirty, source-ignored, and explicitly scoped unmanaged entries. Browsing is non-mutating; eligible `e`, `E`, and `m` hand off source edit, destination edit, and three-way merge through explicit terminal tools and refresh inventory on return. Bounded previews require explicit reveal for sensitive content.
+- ✓ `cm ui [path...]` is a persistent inspection-first workspace for managed clean/dirty, source-ignored, and explicitly scoped unmanaged entries. Browsing is non-mutating; eligible `e`, `E`, `m`, and `g` hand off source edit, destination edit, three-way merge, and source Git through explicit terminal tools and refresh inventory on return. Bounded previews require explicit reveal for sensitive content.
 
 ### Active
 
-- Phase 3 source edit, destination edit/merge, and source Git/lazygit handoffs are locally verified; all preserve bare `cm` status and focused `cm sync` contracts.
+- Phase 3 source edit, destination edit/merge, and source Git/lazygit handoffs are complete, merged, and verified; all preserve bare `cm` status and focused `cm sync` contracts.
 - Next step 3 / Phase 4: Management and Diagnostics — contextual operations, target lifecycle/attributes, and actionable diagnostics.
 - `.planning/ROADMAP.md` defines remaining scope, exclusions, dependencies, and acceptance scenarios. `.planning/REQUIREMENTS.md` retains template requirements across the remaining steps.
 

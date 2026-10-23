@@ -5,17 +5,17 @@
 See `.planning/PROJECT.md` (updated 2026-10-23).
 
 **Core value:** Make personal chezmoi reconciliation explicit, reviewable, and low-surprise before any file mutation happens.
-**Current focus:** Phase 3.3 workspace source Git handoff is locally verified; obtain review and CI before merging. Phase 4 management and diagnostics is next.
+**Current focus:** Phase 3 mature tool handoffs is complete and merged; prepare Phase 4 management and diagnostics.
 
 ## Current Position
 
 - Phase: Phase 3.3 — Workspace Source Git Handoff
 - Plan: `phase-3.3-workspace-source-git-01`
-- Status: verified locally, pending PR
-- Active Artifact: `.planning/phases/phase-3.3-workspace-source-git/VERIFICATION.md`
-- Branch: `feat/workspace-source-git`
-- Last activity: 2026-10-23 — implemented lazygit workspace handoff, nonfatal source Git summary, documentation, and isolated integrations.
-- Progress: Phases 1, 2, 2.1, 2.2, 3.1, and 3.2 are complete and merged; Phase 3.3 is locally complete; Phase 4 is planned.
+- Status: complete and merged
+- Active Artifact: `.planning/phases/phase-3.3-workspace-source-git/CAPTURE.md`
+- Branch: `main`
+- Last activity: 2026-10-23 — squash-merged source Git handoff through PR #10 as `f3c1538`; branch CI and merged-main CI passed.
+- Progress: Phases 1, 2, 2.1, 2.2, and 3 are complete and merged; Phase 4 is planned.
 
 ## Accumulated Context
 
@@ -40,11 +40,11 @@ See `.planning/PROJECT.md` (updated 2026-10-23).
 
 - Isolated integrations prove source/destination editor safety, configured merge argument roles, lazygit source working directory, and source Git summary inventory.
 - TUI coverage includes all handoff eligibility/guidance, terminal ownership, source Git status, refresh/restoration, stale-preview response rejection, tool error refresh, and refresh failure.
-- Full Go, race, vet, module, LSP, and whitespace gates passed locally.
+- Full Go, race, vet, module, LSP, and whitespace gates passed locally; branch CI and merged-main CI passed.
 
 ## Session Continuity
 
 - Last session: 2026-10-23
-- Completed: Phase 3.3 implementation and local verification on `feat/workspace-source-git`.
-- Next Action: create PR, obtain review and CI, squash merge, capture delivery evidence, then plan Phase 4 management and diagnostics.
-- Resume file: `.planning/phases/phase-3.3-workspace-source-git/VERIFICATION.md`
+- Completed: Phase 3.3 source Git handoff reviewed, squash-merged through PR #10 as `f3c1538`, and verified on merged `main`.
+- Next Action: create the Phase 4 management and diagnostics execution plan.
+- Resume file: `.planning/ROADMAP.md`
